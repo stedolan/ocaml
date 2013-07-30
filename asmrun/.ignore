@@ -1,5 +1,3 @@
-*.p.c
-*.d.c
 libasmrun.a
 libasmrunp.a
 main.c

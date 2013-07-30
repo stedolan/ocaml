@@ -12,5 +12,3 @@ interp.a.lst
 *.[sd]obj
 *.lib
 .gdb_history
-*.d.c
-*.pic.c

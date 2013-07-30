@@ -177,14 +177,10 @@ clean::
 	$(ASPP) -DSYS_$(SYSTEM) $(ASPPPROFFLAGS) -o $*.p.o $*.S
 
 .c.d.o:
-	ln -s -f $*.c $*.d.c
-	$(CC) -c $(DFLAGS) $*.d.c
-	rm -f $*.d.c
+	$(CC) -c $(DFLAGS) $*.c -o $@
 
 .c.p.o:
-	ln -s -f $*.c $*.p.c
-	$(CC) -c $(PFLAGS) $*.p.c
-	rm -f $*.p.c
+	$(CC) -c $(PFLAGS) $*.c -o $@
 
 .s.o:
 	$(ASPP) -DSYS_$(SYSTEM) -o $*.o $*.s
