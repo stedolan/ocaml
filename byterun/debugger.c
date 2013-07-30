@@ -27,7 +27,7 @@
 int caml_debugger_in_use = 0;
 uintnat caml_event_count;
 int caml_debugger_fork_mode = 1; /* parent by default */
-value marshal_flags = Val_emptylist;
+static value marshal_flags = Val_emptylist;
 
 #if !defined(HAS_SOCKETS) || defined(NATIVE_CODE)
 
