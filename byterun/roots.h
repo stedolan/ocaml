@@ -19,7 +19,7 @@
 
 typedef void (*scanning_action) (value, value *);
 
-void caml_oldify_local_roots (void);
+void caml_do_young_roots (scanning_action f);
 void caml_darken_all_roots (void);
 void caml_do_roots (scanning_action);
 #ifndef NATIVE_CODE

@@ -184,7 +184,7 @@ void caml_final_do_weak_roots (scanning_action f)
 }
 
 /* Call [*f] on the closures and values of the recent set.
-   This is called by the minor GC through [caml_oldify_local_roots].
+   This is called by the minor GC through [caml_do_young_roots].
 */
 void caml_final_do_young_roots (scanning_action f)
 {

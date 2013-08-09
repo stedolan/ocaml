@@ -106,7 +106,7 @@ static value oldify_todo_list = 0;
 /* Note that the tests on the tag depend on the fact that Infix_tag,
    Forward_tag, and No_scan_tag are contiguous. */
 
-void caml_oldify_one (value v, value *p)
+static void oldify_one (value v, value *p)
 {
   value result;
   header_t hd;
@@ -149,7 +149,7 @@ void caml_oldify_one (value v, value *p)
         *p = result;
       }else if (tag == Infix_tag){
         mlsize_t offset = Infix_offset_hd (hd);
-        caml_oldify_one (v - offset, p);   /* Cannot recurse deeper than 1. */
+        oldify_one (v - offset, p);   /* Cannot recurse deeper than 1. */
         *p += offset;
       }else{
         value f = Forward_val (v);
@@ -189,11 +189,11 @@ void caml_oldify_one (value v, value *p)
   }
 }
 
-/* Finish the work that was put off by [caml_oldify_one].
-   Note that [caml_oldify_one] itself is called by oldify_mopup, so we
+/* Finish the work that was put off by [oldify_one].
+   Note that [oldify_one] itself is called by oldify_mopup, so we
    have to be careful to remove the first entry from the list before
    oldifying its fields. */
-void caml_oldify_mopup (void)
+static void oldify_mopup (void)
 {
   value v, new_v, f;
   mlsize_t i;
@@ -206,17 +206,22 @@ void caml_oldify_mopup (void)
 
     f = Field (new_v, 0);
     if (Is_block (f) && Is_young (f)){
-      caml_oldify_one (f, &Field (new_v, 0));
+      oldify_one (f, &Field (new_v, 0));
     }
     for (i = 1; i < Wosize_val (new_v); i++){
       f = Field (v, i);
       if (Is_block (f) && Is_young (f)){
-        caml_oldify_one (f, &Field (new_v, i));
+        oldify_one (f, &Field (new_v, i));
       }else{
         Field (new_v, i) = f;
       }
     }
   }
+}
+
+void caml_oldify (value* p) {
+  oldify_one(*p, p);
+  oldify_mopup();
 }
 
 /* Make sure the minor heap is empty by performing a minor collection
@@ -229,11 +234,11 @@ void caml_empty_minor_heap (void)
   if (caml_young_ptr != caml_young_end){
     caml_in_minor_collection = 1;
     caml_gc_message (0x02, "<", 0);
-    caml_oldify_local_roots();
+    caml_do_young_roots(&oldify_one);
     for (r = caml_ref_table.base; r < caml_ref_table.ptr; r++){
-      caml_oldify_one (**r, *r);
+      oldify_one (**r, *r);
     }
-    caml_oldify_mopup ();
+    oldify_mopup ();
     for (r = caml_weak_ref_table.base; r < caml_weak_ref_table.ptr; r++){
       if (Is_block (**r) && Is_young (**r)){
         if (Hd_val (**r) == 0){

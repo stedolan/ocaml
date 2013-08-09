@@ -137,9 +137,17 @@ void caml_register_dyn_global(void *v) {
   caml_dyn_globals = cons((void*) v,caml_dyn_globals);
 }
 
-/* Call [caml_oldify_one] on (at least) all the roots that point to the minor
+
+#define Scan(p,f) do{          \
+    value __scan__v__ = *p; \
+    if (Is_block (__scan__v__) && Is_young (__scan__v__)){ \
+      f (__scan__v__, (p)); \
+    } \
+  }while(0)
+
+/* Call the scanning action on (at least) all the roots that point to the minor
    heap. */
-void caml_oldify_local_roots (void)
+void caml_do_young_roots (scanning_action f)
 {
   char * sp;
   uintnat retaddr;
@@ -163,7 +171,7 @@ void caml_oldify_local_roots (void)
        i++) {
     glob = caml_globals[i];
     for (j = 0; j < Wosize_val(glob); j++){
-      Oldify (&Field (glob, j));
+      Scan (&Field (glob, j), f);
     }
   }
   caml_globals_scanned = caml_globals_inited;
@@ -172,7 +180,7 @@ void caml_oldify_local_roots (void)
   iter_list(caml_dyn_globals, lnk) {
     glob = (value) lnk->data;
     for (j = 0; j < Wosize_val(glob); j++){
-      Oldify (&Field (glob, j));
+      Scan (&Field (glob, j), f);
     }
   }
 
@@ -199,7 +207,7 @@ void caml_oldify_local_roots (void)
           } else {
             root = (value *)(sp + ofs);
           }
-          Oldify (root);
+          Scan (root, f);
         }
         /* Move to next frame */
 #ifndef Stack_grows_upwards
@@ -231,16 +239,16 @@ void caml_oldify_local_roots (void)
     for (i = 0; i < lr->ntables; i++){
       for (j = 0; j < lr->nitems; j++){
         root = &(lr->tables[i][j]);
-        Oldify (root);
+        Scan (root, f);
       }
     }
   }
   /* Global C roots */
-  caml_scan_global_young_roots(&caml_oldify_one);
+  caml_scan_global_young_roots(f);
   /* Finalised values */
-  caml_final_do_young_roots (&caml_oldify_one);
+  caml_final_do_young_roots (f);
   /* Hook */
-  if (caml_scan_roots_hook != NULL) (*caml_scan_roots_hook)(&caml_oldify_one);
+  if (caml_scan_roots_hook != NULL) (*caml_scan_roots_hook)(f);
 }
 
 /* Call [darken] on all roots */
