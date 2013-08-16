@@ -103,125 +103,79 @@ void caml_set_minor_heap_size (asize_t size)
 
 static value oldify_todo_list = 0;
 
-/* Note that the tests on the tag depend on the fact that Infix_tag,
-   Forward_tag, and No_scan_tag are contiguous. */
-
 static void oldify_one (value v, value *p)
 {
-  value result;
+  value result, field0;
   header_t hd;
-  mlsize_t sz, i;
+  mlsize_t sz, i, infix_offset = 0;
   tag_t tag;
 
  tail_call:
-  if (Is_block (v) && Is_young (v)){
-    Assert (Hp_val (v) >= caml_young_ptr);
+
+  if (!Is_block (v) || !Is_young(v)) { 
+    *p = v;
+    return;
+  }
+
+  Assert (Hp_val (v) >= caml_young_ptr);
+  hd = Hd_val (v);
+  if (hd == 0) {         /* If already forwarded */
+    *p = Field (v, 0);   /*  then forward pointer is first field. */
+    return;
+  }
+
+  tag = Tag_hd (hd);
+  if (tag == Infix_tag) {
+    /* we need to move the entire closure, not just the part v points to */
+    infix_offset = Infix_offset_hd (hd);
+    v -= infix_offset;
+    
     hd = Hd_val (v);
-    if (hd == 0){         /* If already forwarded */
-      *p = Field (v, 0);  /*  then forward pointer is first field. */
-    }else{
-      tag = Tag_hd (hd);
-      if (tag < Infix_tag){
-        value field0;
-
-        sz = Wosize_hd (hd);
-        result = caml_alloc_shr (sz, tag);
-        *p = result;
-        field0 = Field (v, 0);
-        Hd_val (v) = 0;            /* Set forward flag */
-        Field (v, 0) = result;     /*  and forward pointer. */
-        if (sz > 1){
-          Field (result, 0) = field0;
-          Field (result, 1) = oldify_todo_list;    /* Add this block */
-          oldify_todo_list = v;                    /*  to the "to do" list. */
-        }else{
-          Assert (sz == 1);
-          p = &Field (result, 0);
-          v = field0;
-          goto tail_call;
-        }
-      }else if (tag >= No_scan_tag){
-        sz = Wosize_hd (hd);
-        result = caml_alloc_shr (sz, tag);
-        for (i = 0; i < sz; i++) Field (result, i) = Field (v, i);
-        Hd_val (v) = 0;            /* Set forward flag */
-        Field (v, 0) = result;     /*  and forward pointer. */
-        *p = result;
-      }else if (tag == Infix_tag){
-        mlsize_t offset = Infix_offset_hd (hd);
-        oldify_one (v - offset, p);   /* Cannot recurse deeper than 1. */
-        *p += offset;
-      }else{
-        value f = Forward_val (v);
-        tag_t ft = 0;
-        int vv = 1;
-
-        Assert (tag == Forward_tag);
-        if (Is_block (f)){
-          if (Is_young (f)){
-            vv = 1;
-            ft = Tag_val (Hd_val (f) == 0 ? Field (f, 0) : f);
-          }else{
-            vv = Is_in_value_area(f);
-            if (vv){
-              ft = Tag_val (f);
-            }
-          }
-        }
-        if (!vv || ft == Forward_tag || ft == Lazy_tag || ft == Double_tag){
-          /* Do not short-circuit the pointer.  Copy as a normal block. */
-          Assert (Wosize_hd (hd) == 1);
-          result = caml_alloc_shr (1, Forward_tag);
-          *p = result;
-          Hd_val (v) = 0;             /* Set (GC) forward flag */
-          Field (v, 0) = result;      /*  and forward pointer. */
-          p = &Field (result, 0);
-          v = f;
-          goto tail_call;
-        }else{
-          v = f;                        /* Follow the forwarding */
-          goto tail_call;               /*  then oldify. */
-        }
+    if (hd == 0) {
+      *p = Field(v, 0) + infix_offset; /* already forwarded */
+      return;
+    }
+    tag = Tag_hd (hd);
+    Assert (tag == Closure_tag);
+  } else if (tag == Forward_tag) {
+    /* we may want to short-circuit Forward_tag objects instead of copying */
+    value f = Forward_val (v);
+    if (Is_long(f)) {
+      /* always short-circuit integers */
+      *p = f;
+      return;
+    } else if (Is_young(f) || Is_in_value_area(f)) {
+      tag_t ft = Tag_val (Hd_val (f) == 0 ? Field (f, 0) : f);
+      if (ft != Forward_tag && ft != Lazy_tag && ft != Double_tag) {
+        /* short-circuit all objects other than these three tags */
+        v = f;
+        goto tail_call;
       }
+    }
+  }
+
+  sz = Wosize_hd (hd);
+  result = caml_alloc_shr (sz, tag);
+  *p = result + infix_offset;
+  field0 = Field (v, 0);
+  Hd_val (v) = 0;            /* Set forward flag */
+  Field (v, 0) = result;     /*  and forward pointer. */
+
+  if (tag < No_scan_tag){
+    if (sz > 1){
+      Field (result, 0) = field0;
+      Field (result, 1) = oldify_todo_list;    /* Add this block */
+      oldify_todo_list = v;                    /*  to the "to do" list. */
+    }else{
+      Assert (sz == 1);
+      p = &Field (result, 0);
+      v = field0;
+      goto tail_call;
     }
   }else{
-    *p = v;
-  }
-}
-
-/* Finish the work that was put off by [oldify_one].
-   Note that [oldify_one] itself is called by oldify_mopup, so we
-   have to be careful to remove the first entry from the list before
-   oldifying its fields. */
-static void oldify_mopup (void)
-{
-  value v, new_v, f;
-  mlsize_t i;
-
-  while (oldify_todo_list != 0){
-    v = oldify_todo_list;                /* Get the head. */
-    Assert (Hd_val (v) == 0);            /* It must be forwarded. */
-    new_v = Field (v, 0);                /* Follow forward pointer. */
-    oldify_todo_list = Field (new_v, 1); /* Remove from list. */
-
-    f = Field (new_v, 0);
-    if (Is_block (f) && Is_young (f)){
-      oldify_one (f, &Field (new_v, 0));
-    }
-    for (i = 1; i < Wosize_val (new_v); i++){
-      f = Field (v, i);
-      if (Is_block (f) && Is_young (f)){
-        oldify_one (f, &Field (new_v, i));
-      }else{
-        Field (new_v, i) = f;
-      }
-    }
-  }
-}
-
-void caml_oldify (value* p) {
-  oldify_one(*p, p);
-  oldify_mopup();
+    Field (result, 0) = field0;
+    for (i = 1; i < sz; i++) Field (result, i) = Field (v, i);
+  }  
 }
 
 /* Make sure the minor heap is empty by performing a minor collection
@@ -238,7 +192,22 @@ void caml_empty_minor_heap (void)
     for (r = caml_ref_table.base; r < caml_ref_table.ptr; r++){
       oldify_one (**r, *r);
     }
-    oldify_mopup ();
+    while (oldify_todo_list != 0){
+      value v, new_v;
+      mlsize_t i;
+      /* we have to be careful to remove the first entry from the list
+         before oldifying its fields. */
+      v = oldify_todo_list;                /* Get the head. */
+      Assert (Hd_val (v) == 0);            /* It must be forwarded. */
+      new_v = Field (v, 0);                /* Follow forward pointer. */
+      oldify_todo_list = Field (new_v, 1); /* Remove from list. */
+      
+      oldify_one(Field(new_v, 0), &Field(new_v, 0));
+      for (i = 1; i < Wosize_val (new_v); i++){
+        oldify_one(Field(v, i), &Field(new_v, i));
+      }
+    }
+
     for (r = caml_weak_ref_table.base; r < caml_weak_ref_table.ptr; r++){
       if (Is_block (**r) && Is_young (**r)){
         if (Hd_val (**r) == 0){

@@ -37,19 +37,10 @@ void caml_do_young_roots (scanning_action f)
   struct caml__roots_block *lr;
   intnat i, j;
 
-  /* The stack */
-  for (sp = caml_extern_sp; sp < caml_stack_high; sp++) {
-    f (*sp, sp);
-  }
-  /* Local C roots */  /* FIXME do the old-frame trick ? */
-  for (lr = caml_local_roots; lr != NULL; lr = lr->next) {
-    for (i = 0; i < lr->ntables; i++){
-      for (j = 0; j < lr->nitems; j++){
-        sp = &(lr->tables[i][j]);
-        f (*sp, sp);
-      }
-    }
-  }
+  /* The stack and the local C roots*/
+  caml_do_local_roots (f, caml_extern_sp, caml_stack_high, caml_local_roots);
+  /* Globals */
+  f(caml_global_data, &caml_global_data);
   /* Global C roots */
   caml_scan_global_young_roots(f);
   /* Finalised values */

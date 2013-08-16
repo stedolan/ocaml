@@ -43,6 +43,5 @@ CAMLextern void caml_minor_collection (void);
 CAMLextern void garbage_collection (void); /* def in asmrun/signals.c */
 extern void caml_realloc_ref_table (struct caml_ref_table *);
 extern void caml_alloc_table (struct caml_ref_table *, asize_t, asize_t);
-extern void caml_oldify (value*);
 
 #endif /* CAML_MINOR_GC_H */
