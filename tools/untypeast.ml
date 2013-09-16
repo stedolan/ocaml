@@ -65,7 +65,7 @@ and untype_structure_item item =
               untype_module_expr mexpr) list)
     | Tstr_modtype (id, name, mtype) ->
         Pstr_modtype (name, untype_module_type mtype)
-    | Tstr_open (path, lid) -> Pstr_open (lid)
+    | Tstr_open (path, lid, mty) -> Pstr_open (lid, None) (* FIXME None? *)
     | Tstr_class list ->
         Pstr_class (List.map (fun (ci, _, _) ->
               { pci_virt = ci.ci_virt;

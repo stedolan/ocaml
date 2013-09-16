@@ -634,7 +634,11 @@ and structure_item i ppf x =
   | Pstr_modtype (s, mt) ->
       line i ppf "Pstr_modtype \"%s\"\n" s.txt;
       module_type i ppf mt;
-  | Pstr_open li -> line i ppf "Pstr_open %a\n" fmt_longident li;
+  | Pstr_open (li, None) -> line i ppf "Pstr_open (%a, None)\n" fmt_longident li;
+  | Pstr_open (li, Some mty) -> 
+      line i ppf "Pstr_open (%a, Some\n" fmt_longident li;
+      module_type i ppf mty;
+      line i ppf ")";
   | Pstr_class (l) ->
       line i ppf "Pstr_class\n";
       list i class_declaration ppf l;

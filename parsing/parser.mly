@@ -589,7 +589,9 @@ structure_item:
   | MODULE TYPE ident EQUAL module_type
       { mkstr(Pstr_modtype(mkrhs $3 3, $5)) }
   | OPEN mod_longident
-      { mkstr(Pstr_open (mkrhs $2 2)) }
+      { mkstr(Pstr_open (mkrhs $2 2, None)) }
+  | OPEN mod_longident COLON module_type
+      { mkstr(Pstr_open (mkrhs $2 2, Some $4)) }
   | CLASS class_declarations
       { mkstr(Pstr_class (List.rev $2)) }
   | CLASS TYPE class_type_declarations

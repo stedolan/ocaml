@@ -199,7 +199,7 @@ and structure_item_desc =
   | Tstr_module of Ident.t * string loc * module_expr
   | Tstr_recmodule of (Ident.t * string loc * module_type * module_expr) list
   | Tstr_modtype of Ident.t * string loc * module_type
-  | Tstr_open of Path.t * Longident.t loc
+  | Tstr_open of Path.t * Longident.t loc * module_type option
   | Tstr_class of (class_declaration * string list * virtual_flag) list
   | Tstr_class_type of (Ident.t * string loc * class_type_declaration) list
   | Tstr_include of module_expr * Ident.t list

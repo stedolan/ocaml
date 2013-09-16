@@ -286,7 +286,7 @@ and structure_item_desc =
   | Pstr_module of string loc * module_expr
   | Pstr_recmodule of (string loc * module_type * module_expr) list
   | Pstr_modtype of string loc * module_type
-  | Pstr_open of Longident.t loc
+  | Pstr_open of Longident.t loc * module_type option
   | Pstr_class of class_declaration list
   | Pstr_class_type of class_type_declaration list
   | Pstr_include of module_expr

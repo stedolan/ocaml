@@ -280,8 +280,10 @@ and add_struct_item bv item =
       bv'
   | Pstr_modtype(id, mty) ->
       add_modtype bv mty; bv
-  | Pstr_open l ->
+  | Pstr_open (l, None) ->
       addmodule bv l; bv
+  | Pstr_open (l, Some mty) ->
+      addmodule bv l; add_modtype bv mty; bv
   | Pstr_class cdl ->
       List.iter (add_class_declaration bv) cdl; bv
   | Pstr_class_type cdtl ->

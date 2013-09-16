@@ -969,8 +969,10 @@ class printer  ()= object(self:'self)
             | _ ->
                 pp f " =@ %a"  self#module_expr  me 
             )) me 
-    | Pstr_open (li) ->
+    | Pstr_open (li, None) ->
         pp f "open %a" self#longident_loc li;
+    | Pstr_open (li, Some mt) ->
+        pp f "FIXME";
     | Pstr_modtype (s, mt) ->
         pp f "@[<2>module type %s =@;%a@]" s.txt self#module_type mt 
     | Pstr_class l ->

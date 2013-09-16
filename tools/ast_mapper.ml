@@ -216,7 +216,7 @@ module M = struct
   let module_ ?loc a b = mk_item ?loc (Pstr_module (a, b))
   let rec_module ?loc a = mk_item ?loc (Pstr_recmodule a)
   let modtype ?loc a b = mk_item ?loc (Pstr_modtype (a, b))
-  let open_ ?loc a = mk_item ?loc (Pstr_open a)
+  let open_ ?loc a = mk_item ?loc (Pstr_open (a, None)) (*FIXME*)
   let class_ ?loc a = mk_item ?loc (Pstr_class a)
   let class_type ?loc a = mk_item ?loc (Pstr_class_type a)
   let include_ ?loc a = mk_item ?loc (Pstr_include a)
@@ -232,7 +232,7 @@ module M = struct
     | Pstr_module (s, m) -> module_ ~loc s (sub # module_expr m)
     | Pstr_recmodule l -> rec_module ~loc (List.map (fun (s, mty, me) -> (s, sub # module_type mty, sub # module_expr me)) l)
     | Pstr_modtype (s, mty) -> modtype ~loc s (sub # module_type mty)
-    | Pstr_open lid -> open_ ~loc lid
+    | Pstr_open (lid, _) -> open_ ~loc lid (* FIXME *)
     | Pstr_class l -> class_ ~loc (List.map (sub # class_declaration) l)
     | Pstr_class_type l -> class_type ~loc (List.map (sub # class_type_declaration) l)
     | Pstr_include e -> include_ ~loc (sub # module_expr e)

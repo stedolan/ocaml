@@ -64,8 +64,11 @@ let extract_sig_open env loc mty =
 
 (* Compute the environment after opening a module *)
 
-let type_open ?toplevel env loc lid =
+let type_open ?toplevel env loc lid mty_opt =
   let (path, mty) = Typetexp.find_module env loc lid.txt in
+  let mty = match mty_opt with
+      None -> mty
+    | Some smty -> smty.mty_type in
   let sg = extract_sig_open env loc mty in
   path, Env.open_signature ~loc ?toplevel path sg env
 
@@ -307,7 +310,7 @@ and approx_sig env ssg =
           let (id, newenv) = Env.enter_modtype name.txt info env in
           Sig_modtype(id, info) :: approx_sig newenv srem
       | Psig_open lid ->
-          let (path, mty) = type_open env item.psig_loc lid in
+          let (path, mty) = type_open env item.psig_loc lid None in
           approx_sig mty srem
       | Psig_include smty ->
           let mty = approx_modtype env smty in
@@ -505,7 +508,7 @@ and transl_signature env sg =
             Sig_modtype(id, info) :: rem,
             final_env
         | Psig_open lid ->
-            let (path, newenv) = type_open env item.psig_loc lid in
+            let (path, newenv) = type_open env item.psig_loc lid None in
             let (trem, rem, final_env) = transl_sig newenv srem in
             mksig (Tsig_open (path,lid)) env loc :: trem, rem, final_env
         | Psig_include smty ->
@@ -1039,9 +1042,12 @@ and type_structure ?(toplevel = false) funct_body anchor env sstr scope =
         (item :: str_rem,
          Sig_modtype(id, Modtype_manifest mty.mty_type) :: sig_rem,
          final_env)
-    | Pstr_open (lid) ->
-        let (path, newenv) = type_open ~toplevel env loc lid in
-        let item = mk (Tstr_open (path, lid)) in
+    | Pstr_open (lid, sigopt) ->
+        let mty = match sigopt with 
+            None -> None
+          | Some mty -> Some (transl_modtype env mty) in
+        let (path, newenv) = type_open ~toplevel env loc lid mty in
+        let item = mk (Tstr_open (path, lid, mty)) in
         let (str_rem, sig_rem, final_env) = type_struct newenv srem in
         (item :: str_rem, sig_rem, final_env)
     | Pstr_class cl ->

@@ -2348,7 +2348,7 @@ and type_expect_ ?in_function env sexp ty_expected =
         exp_type = newty (Tpackage (p, nl, tl'));
         exp_env = env }
   | Pexp_open (lid, e) ->
-      let (path, newenv) = !type_open env sexp.pexp_loc lid in
+      let (path, newenv) = !type_open env sexp.pexp_loc lid None in
       let exp = type_expect newenv e ty_expected in
       { exp with
         exp_extra = (Texp_open (path, lid, newenv), loc) :: exp.exp_extra;

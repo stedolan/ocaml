@@ -314,7 +314,7 @@ and transl_structure fields cc rootpath = function
         (transl_structure ext_fields cc rootpath rem)
   | Tstr_modtype(id, _, decl) ->
       transl_structure fields cc rootpath rem
-  | Tstr_open (path, _) ->
+  | Tstr_open (path, _, _) ->
       transl_structure fields cc rootpath rem
   | Tstr_class cl_list ->
       let ids = List.map (fun (ci,_,_) -> ci.ci_id_class) cl_list in
@@ -423,7 +423,7 @@ let transl_store_structure glob map prims str =
                    transl_store (add_idents true ids subst) rem))
   | Tstr_modtype(id, _, decl) ->
       transl_store subst rem
-  | Tstr_open (path, _) ->
+  | Tstr_open (path, _, _) ->
       transl_store subst rem
   | Tstr_class cl_list ->
       let ids = List.map (fun (ci, _, _) -> ci.ci_id_class) cl_list in
@@ -501,7 +501,7 @@ let rec defined_idents items =
   | Tstr_module(id, _, modl) -> id :: defined_idents rem
   | Tstr_recmodule decls -> List.map fst4 decls @ defined_idents rem
   | Tstr_modtype(id, _, decl) -> defined_idents rem
-  | Tstr_open (path, _) -> defined_idents rem
+  | Tstr_open (path, _, _) -> defined_idents rem
   | Tstr_class cl_list ->
       List.map (fun (ci, _, _) -> ci.ci_id_class) cl_list @ defined_idents rem
   | Tstr_class_type cl_list -> defined_idents rem
@@ -633,7 +633,7 @@ let transl_toplevel_item item =
         (make_sequence toploop_setvalue_id idents)
   | Tstr_modtype(id, _, decl) ->
       lambda_unit
-  | Tstr_open (path, _) ->
+  | Tstr_open (path, _, _) ->
       lambda_unit
   | Tstr_class cl_list ->
       (* we need to use unique names for the classes because there might

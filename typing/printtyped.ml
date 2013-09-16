@@ -668,7 +668,7 @@ and structure_item i ppf x =
   | Tstr_modtype (s, _, mt) ->
       line i ppf "Pstr_modtype \"%a\"\n" fmt_ident s;
       module_type i ppf mt;
-  | Tstr_open (li, _) -> line i ppf "Pstr_open %a\n" fmt_path li;
+  | Tstr_open (li, _, mty) -> line i ppf "Pstr_open %a\n" fmt_path li; (*FIXME*)
   | Tstr_class (l) ->
       line i ppf "Pstr_class\n";
       list i class_declaration ppf (List.map (fun (cl, _,_) -> cl) l);

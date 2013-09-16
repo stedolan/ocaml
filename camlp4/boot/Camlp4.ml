@@ -15457,7 +15457,7 @@ module Struct =
                      (Pstr_modtype ((with_loc n loc), (module_type mt)))) ::
                     l
               | StOpn (loc, id) ->
-                  (mkstr loc (Pstr_open (long_uident id))) :: l
+                  (mkstr loc (Pstr_open (long_uident id, None))) :: l
               | StTyp (loc, tdl) ->
                   (mkstr loc (Pstr_type (mktype_decl tdl []))) :: l
               | StVal (loc, rf, bi) ->
