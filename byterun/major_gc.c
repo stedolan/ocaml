@@ -27,6 +27,8 @@
 #include "roots.h"
 #include "weak.h"
 
+#include "profanity.h"
+
 uintnat caml_percent_free;
 uintnat caml_major_heap_increment;
 CAMLexport char *caml_heap_start;
@@ -334,6 +336,7 @@ intnat caml_major_collection_slice (intnat howmuch)
 {
   double p, dp;
   intnat computed_work;
+  PROF_TIMER_BEGIN("gc/major");
   /*
      Free memory at the start of the GC cycle (garbage + free list) (assumed):
                  FM = caml_stat_heap_size * caml_percent_free
@@ -425,6 +428,7 @@ intnat caml_major_collection_slice (intnat howmuch)
   caml_allocated_words = 0;
   caml_dependent_allocated = 0;
   caml_extra_heap_resources = 0.0;
+  PROF_TIMER_END;
   return computed_work;
 }
 

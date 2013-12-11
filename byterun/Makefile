@@ -23,11 +23,13 @@ PICOBJS=$(OBJS:.o=.pic.o)
 SHARED_LIBS_TMP=$(SUPPORTS_SHARED_LIBRARIES:%false=)
 SHARED_LIBS_DEPS=$(SHARED_LIBS_TMP:%true=libcamlrun_shared.so)
 
+CFLAGS += `$(PROF_FLAGS) cc`
+
 all:: $(SHARED_LIBS_DEPS)
 
 ocamlrun$(EXE): libcamlrun.a prims.o
 	$(MKEXE) $(BYTECCLINKOPTS) -o ocamlrun$(EXE) \
-		  prims.o libcamlrun.a $(BYTECCLIBS)
+		  prims.o libcamlrun.a $(BYTECCLIBS) `$(PROF_FLAGS) ld`
 
 ocamlrund$(EXE): libcamlrund.a prims.o
 	$(MKEXE) $(MKEXEDEBUGFLAG) $(BYTECCLINKOPTS) -o ocamlrund$(EXE) \

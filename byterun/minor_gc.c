@@ -26,6 +26,8 @@
 #include "signals.h"
 #include "weak.h"
 
+#include "profanity.h"
+
 asize_t caml_minor_heap_size;
 static void *caml_young_base = NULL;
 CAMLexport char *caml_young_start = NULL, *caml_young_end = NULL;
@@ -155,6 +157,7 @@ static void oldify_one (value v, value *p)
   }
 
   sz = Wosize_hd (hd);
+  PROF_COUNT("gc/promote", "words", sz);
   result = caml_alloc_shr (sz, tag);
   *p = result + infix_offset;
   field0 = Field (v, 0);
@@ -182,10 +185,14 @@ static void oldify_one (value v, value *p)
    if needed.
 */
 void caml_empty_minor_heap (void)
+
 {
   value **r;
 
+  PROF_TIMER_BEGIN("gc/minor");
+
   if (caml_young_ptr != caml_young_end){
+    PROF_COUNT("gc/minor_size", "bytes", caml_young_end - caml_young_ptr);
     caml_in_minor_collection = 1;
     caml_gc_message (0x02, "<", 0);
     caml_do_young_roots(&oldify_one);
@@ -236,6 +243,7 @@ void caml_empty_minor_heap (void)
     ++ minor_gc_counter;
   }
 #endif
+  PROF_TIMER_END;
 }
 
 /* Do a minor collection and a slice of major collection, call finalisation
