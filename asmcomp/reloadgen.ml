@@ -16,19 +16,10 @@ open Misc
 open Reg
 open Mach
 
-let access_stack r =
-  try
-    for i = 0 to Array.length r - 1 do
-      match r.(i).loc with Stack _ -> raise Exit | _ -> ()
-    done;
-    false
-  with Exit ->
-    true
-
 let insert_move src dst next =
   if src.loc = dst.loc
   then next
-  else instr_cons (Iop Imove) [|src|] [|dst|] next
+  else instr_cons (Iop Imove) [|Oreg src|] [|dst|] next
 
 let insert_moves src dst next =
   let rec insmoves i =
@@ -36,6 +27,20 @@ let insert_moves src dst next =
     then next
     else insert_move src.(i) dst.(i) (insmoves (i+1))
   in insmoves 0
+
+let insert_op_moves src dst next =
+  let rec insop i =
+    if i >= Array.length src
+    then next
+    else 
+      let rest = insop (i+1) in
+      match src.(i), dst.(i) with
+      | Oreg rs, Oreg rd -> insert_move rs rd rest
+      | Omem (a, rvs), Omem(a', rds) when a = a' -> 
+        insert_moves rvs rds rest
+      | Oimm n, Oimm m when n = m -> rest
+      | _, _ -> fatal_error "reload insert_op_moves"
+  in insop 0
 
 class reload_generic = object (self)
 
@@ -52,15 +57,19 @@ method makereg r =
       newr.spill_cost <- 100000;
       newr
 
-method private makeregs rv =
-  let n = Array.length rv in
-  let newv = Array.create n Reg.dummy in
-  for i = 0 to n-1 do newv.(i) <- self#makereg rv.(i) done;
-  newv
+method private makeregs rv = Array.map self#makereg rv
+method private makeregops ops = Array.map 
+  (function
+  | Oreg r -> Oreg (self#makereg r)
+  | Omem (a,rs) -> Omem (a, self#makeregs rs)
+  | Oimm _ as imm -> imm) ops
 
 method private makereg1 rv =
   let newv = Array.copy rv in
-  newv.(0) <- self#makereg rv.(0);
+  newv.(0) <- begin match rv.(0) with
+  | Oreg r -> Oreg (self#makereg r)
+  | Omem (a,rs) -> Omem (a, self#makeregs rs)
+  | Oimm _ -> fatal_error "reloadgen.makereg1" end;
   newv
 
 method reload_operation op arg res =
@@ -71,16 +80,16 @@ method reload_operation op arg res =
   match op with
     Imove | Ireload | Ispill ->
       begin match arg.(0), res.(0) with
-        {loc = Stack s1}, {loc = Stack s2} when s1 <> s2 ->
-          ([| self#makereg arg.(0) |], res)
+        Oreg ({loc = Stack s1} as r), {loc = Stack s2} when s1 <> s2 ->
+          ([| Oreg (self#makereg r) |], res)
       | _ ->
           (arg, res)
       end
   | _ ->
-      (self#makeregs arg, self#makeregs res)
+      (self#makeregops arg, self#makeregs res)
 
 method reload_test tst args =
-  self#makeregs args
+  self#makeregops args
 
 method private reload i =
   match i.desc with
@@ -91,29 +100,29 @@ method private reload i =
     Iend | Ireturn | Iop(Itailcall_imm _) | Iraise -> i
   | Iop(Itailcall_ind) ->
       let newarg = self#makereg1 i.arg in
-      insert_moves i.arg newarg
+      insert_op_moves i.arg newarg
         {i with arg = newarg}
   | Iop(Icall_imm _ | Iextcall _) ->
       {i with next = self#reload i.next}
   | Iop(Icall_ind) ->
       let newarg = self#makereg1 i.arg in
-      insert_moves i.arg newarg
+      insert_op_moves i.arg newarg
         {i with arg = newarg; next = self#reload i.next}
   | Iop op ->
       let (newarg, newres) = self#reload_operation op i.arg i.res in
-      insert_moves i.arg newarg
+      insert_op_moves i.arg newarg
         {i with arg = newarg; res = newres; next =
           (insert_moves newres i.res
             (self#reload i.next))}
   | Iifthenelse(tst, ifso, ifnot) ->
       let newarg = self#reload_test tst i.arg in
-      insert_moves i.arg newarg
+      insert_op_moves i.arg newarg
         (instr_cons
           (Iifthenelse(tst, self#reload ifso, self#reload ifnot)) newarg [||]
           (self#reload i.next))
   | Iswitch(index, cases) ->
-      let newarg = self#makeregs i.arg in
-      insert_moves i.arg newarg
+      let newarg = self#makeregops i.arg in
+      insert_op_moves i.arg newarg
         (instr_cons (Iswitch(index, Array.map (self#reload) cases)) newarg [||]
           (self#reload i.next))
   | Iloop body ->

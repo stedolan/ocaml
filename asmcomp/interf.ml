@@ -62,6 +62,10 @@ let build_graph fundecl =
   let add_interf_move src dst s =
     Reg.Set.iter (fun r -> if r.stamp <> src.stamp then add_interf dst r) s in
 
+  let asreg = function
+    | Oreg r -> r
+    | _ -> Misc.fatal_error "not a register" in
+
   (* Compute interferences *)
 
   let rec interf i =
@@ -71,7 +75,7 @@ let build_graph fundecl =
       Iend -> ()
     | Ireturn -> ()
     | Iop(Imove | Ispill | Ireload) ->
-        add_interf_move i.arg.(0) i.res.(0) i.live;
+        add_interf_move (asreg i.arg.(0)) i.res.(0) i.live;
         interf i.next
     | Iop(Itailcall_ind) -> ()
     | Iop(Itailcall_imm lbl) -> ()
@@ -117,29 +121,24 @@ let build_graph fundecl =
   let add_mutual_pref weight r1 r2 =
     add_pref weight r1 r2; add_pref weight r2 r1 in
 
-  (* Update the spill cost of the registers involved in an operation *)
-
-  let add_spill_cost cost arg =
-    for i = 0 to Array.length arg - 1 do
-      let r = arg.(i) in r.spill_cost <- r.spill_cost + cost
-    done in
 
   (* Compute preferences and spill costs *)
 
   let rec prefer weight i =
-    add_spill_cost weight i.arg;
-    add_spill_cost weight i.res;
+    let add_spill_cost r = r.spill_cost <- r.spill_cost + weight in
+    Mach.iter_operand_regs add_spill_cost i.arg;
+    Array.iter add_spill_cost i.res;
     match i.desc with
       Iend -> ()
     | Ireturn -> ()
     | Iop(Imove) ->
-        add_mutual_pref weight i.arg.(0) i.res.(0);
+        add_mutual_pref weight (asreg i.arg.(0)) i.res.(0);
         prefer weight i.next
     | Iop(Ispill) ->
-        add_pref (weight / 4) i.arg.(0) i.res.(0);
+        add_pref (weight / 4) (asreg i.arg.(0)) i.res.(0);
         prefer weight i.next
     | Iop(Ireload) ->
-        add_pref (weight / 4) i.res.(0) i.arg.(0);
+        add_pref (weight / 4) i.res.(0) (asreg i.arg.(0));
         prefer weight i.next
     | Iop(Itailcall_ind) -> ()
     | Iop(Itailcall_imm lbl) -> ()

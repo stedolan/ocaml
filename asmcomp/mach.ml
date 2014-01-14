@@ -35,7 +35,7 @@ type operation =
     Imove
   | Ispill
   | Ireload
-  | Iconst_int of nativeint
+  | Iconst_int
   | Iconst_float of string
   | Iconst_symbol of string
   | Icall_ind
@@ -44,19 +44,23 @@ type operation =
   | Itailcall_imm of string
   | Iextcall of string * bool
   | Istackoffset of int
-  | Iload of Cmm.memory_chunk * Arch.addressing_mode
-  | Istore of Cmm.memory_chunk * Arch.addressing_mode
+  | Iload of Cmm.memory_chunk
+  | Istore of Cmm.memory_chunk
   | Ialloc of int
   | Iintop of integer_operation
-  | Iintop_imm of integer_operation * int
   | Inegf | Iabsf | Iaddf | Isubf | Imulf | Idivf
   | Ifloatofint | Iintoffloat
   | Ispecific of Arch.specific_operation
 
+type operand =
+    Oreg of Reg.t
+  | Oimm of nativeint
+  | Omem of Arch.addressing_mode * Reg.t array
+
 type instruction =
   { desc: instruction_desc;
     next: instruction;
-    arg: Reg.t array;
+    arg: operand array;
     res: Reg.t array;
     dbg: Debuginfo.t;
     mutable live: Reg.Set.t }
@@ -128,3 +132,20 @@ let rec instr_iter f i =
       | Iraise -> ()
       | _ ->
           instr_iter f i.next
+
+let iter_operand_regs f = Array.iter (function
+  | Oreg r -> f r
+  | Omem (a, r) -> Array.iter f r
+  | Oimm _ -> ())
+
+let fold_operand_regs f x ops = 
+  Array.fold_left (fun x op -> match op with
+  | Oreg r -> f x r
+  | Omem (a, r) -> Array.fold_left f x r
+  | Oimm _ -> x) x ops
+
+
+let add_regset_args rs i = 
+  fold_operand_regs (fun s r -> Reg.Set.add r s) rs i.arg
+
+let regset_args i = add_regset_args Reg.Set.empty i

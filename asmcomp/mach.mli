@@ -35,7 +35,7 @@ type operation =
     Imove
   | Ispill
   | Ireload
-  | Iconst_int of nativeint
+  | Iconst_int
   | Iconst_float of string
   | Iconst_symbol of string
   | Icall_ind
@@ -44,19 +44,23 @@ type operation =
   | Itailcall_imm of string
   | Iextcall of string * bool
   | Istackoffset of int
-  | Iload of Cmm.memory_chunk * Arch.addressing_mode
-  | Istore of Cmm.memory_chunk * Arch.addressing_mode
+  | Iload of Cmm.memory_chunk
+  | Istore of Cmm.memory_chunk
   | Ialloc of int
   | Iintop of integer_operation
-  | Iintop_imm of integer_operation * int
   | Inegf | Iabsf | Iaddf | Isubf | Imulf | Idivf
   | Ifloatofint | Iintoffloat
   | Ispecific of Arch.specific_operation
 
+type operand =
+    Oreg of Reg.t
+  | Oimm of nativeint
+  | Omem of Arch.addressing_mode * Reg.t array
+
 type instruction =
   { desc: instruction_desc;
     next: instruction;
-    arg: Reg.t array;
+    arg: operand array;
     res: Reg.t array;
     dbg: Debuginfo.t;
     mutable live: Reg.Set.t }
@@ -83,9 +87,15 @@ type fundecl =
 val dummy_instr: instruction
 val end_instr: unit -> instruction
 val instr_cons:
-      instruction_desc -> Reg.t array -> Reg.t array -> instruction ->
+      instruction_desc -> operand array -> Reg.t array -> instruction ->
         instruction
 val instr_cons_debug:
-      instruction_desc -> Reg.t array -> Reg.t array -> Debuginfo.t ->
+      instruction_desc -> operand array -> Reg.t array -> Debuginfo.t ->
         instruction -> instruction
 val instr_iter: (instruction -> unit) -> instruction -> unit
+
+val regset_args : instruction -> Reg.Set.t
+val add_regset_args : Reg.Set.t -> instruction -> Reg.Set.t
+val iter_operand_regs : (Reg.t -> unit) -> operand array -> unit
+
+val fold_operand_regs : ('a -> Reg.t -> 'a) -> 'a -> operand array -> 'a

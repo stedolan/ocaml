@@ -18,7 +18,7 @@ val new_label: unit -> label
 type instruction =
   { mutable desc: instruction_desc;
     mutable next: instruction;
-    arg: Reg.t array;
+    arg: Mach.operand array;
     res: Reg.t array;
     dbg: Debuginfo.t;
     live: Reg.Set.t }
@@ -41,7 +41,7 @@ and instruction_desc =
 val has_fallthrough :  instruction_desc -> bool
 val end_instr: instruction
 val instr_cons:
-  instruction_desc -> Reg.t array -> Reg.t array -> instruction -> instruction
+  instruction_desc -> Mach.operand array -> Reg.t array -> instruction -> instruction
 val invert_test: Mach.test -> Mach.test
 
 type fundecl =

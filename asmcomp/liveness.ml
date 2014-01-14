@@ -38,12 +38,12 @@ let rec live i finally =
       finally
   | Ireturn | Iop(Itailcall_ind) | Iop(Itailcall_imm _) ->
       (* i.live remains empty since no regs are live across *)
-      Reg.set_of_array i.arg
+      Mach.regset_args i
   | Iifthenelse(test, ifso, ifnot) ->
       let at_join = live i.next finally in
       let at_fork = Reg.Set.union (live ifso at_join) (live ifnot at_join) in
       i.live <- at_fork;
-      Reg.add_set_array at_fork i.arg
+      Mach.add_regset_args at_fork i
   | Iswitch(index, cases) ->
       let at_join = live i.next finally in
       let at_fork = ref Reg.Set.empty in
@@ -51,7 +51,7 @@ let rec live i finally =
         at_fork := Reg.Set.union !at_fork (live cases.(i) at_join)
       done;
       i.live <- !at_fork;
-      Reg.add_set_array !at_fork i.arg
+      Mach.add_regset_args !at_fork i
   | Iloop(body) ->
       let at_top = ref Reg.Set.empty in
       (* Yes, there are better algorithms, but we'll just iterate till
@@ -91,13 +91,13 @@ let rec live i finally =
       before_body
   | Iraise ->
       (* i.live remains empty since no regs are live across *)
-      Reg.add_set_array !live_at_raise i.arg
+      Mach.add_regset_args !live_at_raise i
   | _ ->
       let across_after = Reg.diff_set_array (live i.next finally) i.res in
       let across =
         match i.desc with
           Iop Icall_ind | Iop(Icall_imm _) | Iop(Iextcall _)
-        | Iop(Iintop Icheckbound) | Iop(Iintop_imm(Icheckbound, _)) ->
+        | Iop(Iintop Icheckbound) ->
             (* The function call may raise an exception, branching to the
                nearest enclosing try ... with. Similarly for bounds checks.
                Hence, everything that must be live at the beginning of
@@ -106,7 +106,7 @@ let rec live i finally =
          | _ ->
              across_after in
       i.live <- across;
-      Reg.add_set_array across i.arg
+      Mach.add_regset_args across i
 
 let fundecl ppf f =
   let initially_live = live f.fun_body Reg.Set.empty in

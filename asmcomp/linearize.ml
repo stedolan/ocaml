@@ -24,7 +24,7 @@ let new_label() = incr label_counter; !label_counter
 type instruction =
   { mutable desc: instruction_desc;
     mutable next: instruction;
-    arg: Reg.t array;
+    arg: Mach.operand array;
     res: Reg.t array;
     dbg: Debuginfo.t;
     live: Reg.Set.t }
@@ -170,7 +170,9 @@ let rec linear i n =
   | Iop(Itailcall_ind | Itailcall_imm _ as op) ->
       copy_instr (Lop op) i (discard_dead_code n)
   | Iop(Imove | Ireload | Ispill)
-    when i.Mach.arg.(0).loc = i.Mach.res.(0).loc ->
+    when (match i.Mach.arg.(0) with
+           Oreg reg -> reg.loc = i.Mach.res.(0).loc
+           | _ -> false) ->
       linear i.Mach.next n
   | Iop op ->
       copy_instr (Lop op) i (linear i.Mach.next n)

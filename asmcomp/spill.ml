@@ -49,13 +49,10 @@ let spill_reg r =
 let use_date = ref (Reg.Map.empty : int Reg.Map.t)
 let current_date = ref 0
 
-let record_use regv =
-  for i = 0 to Array.length regv - 1 do
-    let r = regv.(i) in
-    let prev_date = try Reg.Map.find r !use_date with Not_found -> 0 in
-    if !current_date > prev_date then
-      use_date := Reg.Map.add r !current_date !use_date
-  done
+let record_use r =
+  let prev_date = try Reg.Map.find r !use_date with Not_found -> 0 in
+  if !current_date > prev_date then
+    use_date := Reg.Map.add r !current_date !use_date
 
 (* Check if the register pressure overflows the maximum pressure allowed
    at that point. If so, spill enough registers to lower the pressure. *)
@@ -118,7 +115,7 @@ let destroyed_at_fork = ref ([] : (instruction * Reg.Set.t) list)
 
 let add_reloads regset i =
   Reg.Set.fold
-    (fun r i -> instr_cons (Iop Ireload) [|spill_reg r|] [|r|] i)
+    (fun r i -> instr_cons (Iop Ireload) [|Oreg (spill_reg r)|] [|r|] i)
     regset i
 
 let reload_at_exit = ref []
@@ -131,20 +128,26 @@ let find_reload_at_exit k =
 
 let reload_at_break = ref Reg.Set.empty
 
+let inter_args regset args =
+  fold_operand_regs (fun s r -> if Reg.Set.mem r regset then Reg.Set.add r s else s) Reg.Set.empty args
+
+let diff_args regset args =
+  fold_operand_regs (fun s r -> Reg.Set.remove r s) regset args
+
 let rec reload i before =
   incr current_date;
-  record_use i.arg;
-  record_use i.res;
+  Mach.iter_operand_regs record_use i.arg;
+  Array.iter record_use i.res;
   match i.desc with
     Iend ->
       (i, before)
   | Ireturn | Iop(Itailcall_ind) | Iop(Itailcall_imm _) ->
-      (add_reloads (Reg.inter_set_array before i.arg) i,
+      (add_reloads (inter_args before i.arg) i,
        Reg.Set.empty)
   | Iop(Icall_ind | Icall_imm _ | Iextcall(_, true)) ->
       (* All regs live across must be spilled *)
       let (new_next, finally) = reload i.next i.live in
-      (add_reloads (Reg.inter_set_array before i.arg)
+      (add_reloads (inter_args before i.arg)
                    (instr_cons_debug i.desc i.arg i.res i.dbg new_next),
        finally)
   | Iop op ->
@@ -155,13 +158,13 @@ let rec reload i before =
         then before
         else add_superpressure_regs op i.live i.res before in
       let after =
-        Reg.diff_set_array (Reg.diff_set_array new_before i.arg) i.res in
+        Reg.diff_set_array (diff_args new_before i.arg) i.res in
       let (new_next, finally) = reload i.next after in
-      (add_reloads (Reg.inter_set_array new_before i.arg)
+      (add_reloads (inter_args new_before i.arg)
                    (instr_cons_debug i.desc i.arg i.res i.dbg new_next),
        finally)
   | Iifthenelse(test, ifso, ifnot) ->
-      let at_fork = Reg.diff_set_array before i.arg in
+      let at_fork = diff_args before i.arg in
       let date_fork = !current_date in
       let (new_ifso, after_ifso) = reload ifso at_fork in
       let date_ifso = !current_date in
@@ -174,10 +177,10 @@ let rec reload i before =
         instr_cons (Iifthenelse(test, new_ifso, new_ifnot))
         i.arg i.res new_next in
       destroyed_at_fork := (new_i, at_fork) :: !destroyed_at_fork;
-      (add_reloads (Reg.inter_set_array before i.arg) new_i,
+      (add_reloads (inter_args before i.arg) new_i,
        finally)
   | Iswitch(index, cases) ->
-      let at_fork = Reg.diff_set_array before i.arg in
+      let at_fork = diff_args before i.arg in
       let date_fork = !current_date in
       let date_join = ref 0 in
       let after_cases = ref Reg.Set.empty in
@@ -192,7 +195,7 @@ let rec reload i before =
           cases in
       current_date := !date_join;
       let (new_next, finally) = reload i.next !after_cases in
-      (add_reloads (Reg.inter_set_array before i.arg)
+      (add_reloads (inter_args before i.arg)
                    (instr_cons (Iswitch(index, new_cases))
                                i.arg i.res new_next),
        finally)
@@ -239,7 +242,7 @@ let rec reload i before =
       (instr_cons (Itrywith(new_body, new_handler)) i.arg i.res new_next,
        finally)
   | Iraise ->
-      (add_reloads (Reg.inter_set_array before i.arg) i, Reg.Set.empty)
+      (add_reloads (inter_args before i.arg) i, Reg.Set.empty)
 
 (* Second pass: add spill instructions based on what we've decided to reload.
    That is, any register that may be reloaded in the future must be spilled
@@ -271,7 +274,7 @@ and inside_catch = ref false
 
 let add_spills regset i =
   Reg.Set.fold
-    (fun r i -> instr_cons (Iop Ispill) [|r|] [|spill_reg r|] i)
+    (fun r i -> instr_cons (Iop Ispill) [|Oreg r|] [|spill_reg r|] i)
     regset i
 
 let rec spill i finally =
@@ -291,7 +294,7 @@ let rec spill i finally =
       let before =
         match i.desc with
           Iop Icall_ind | Iop(Icall_imm _) | Iop(Iextcall _)
-        | Iop(Iintop Icheckbound) | Iop(Iintop_imm(Icheckbound, _)) ->
+        | Iop(Iintop Icheckbound) ->
             Reg.Set.union before1 !spill_at_raise
         | _ ->
             before1 in

@@ -125,10 +125,6 @@ let emit_subreg tbl r =
   | _ ->
       assert false
 
-let emit_reg8 r = emit_subreg reg_low_8_name r
-let emit_reg16 r = emit_subreg reg_low_16_name r
-let emit_reg32 r = emit_subreg reg_low_32_name r
-
 (* Output an addressing mode *)
 
 let emit_addressing addr r n =
@@ -153,6 +149,23 @@ let emit_addressing addr r n =
   | Iindexed2scaled(scale, d) ->
       if d <> 0 then emit_int d;
       `({emit_reg r.(n)}, {emit_reg r.(n+1)}, {emit_int scale})`
+
+let emit_operand = function
+  | Oimm n -> `${emit_nativeint n}`
+  | Oreg r -> emit_reg r
+  | Omem (a,r) -> emit_addressing a r 0
+
+
+let emit_op8 = function
+  | Oreg r -> emit_subreg reg_low_8_name r
+  | op -> emit_operand op
+let emit_op16 = function
+  | Oreg r -> emit_subreg reg_low_16_name r
+  | op -> emit_operand op
+let emit_op32 = function
+  | Oreg r -> emit_subreg reg_low_32_name r
+  | op -> emit_operand op
+
 
 (* Record live pointers at call points -- see Emitaux *)
 
@@ -243,12 +256,6 @@ let instr_for_floatop = function
   | Idivf -> "divsd"
   | _ -> assert false
 
-let instr_for_floatarithmem = function
-    Ifloatadd -> "addsd"
-  | Ifloatsub -> "subsd"
-  | Ifloatmul -> "mulsd"
-  | Ifloatdiv -> "divsd"
-
 let name_for_cond_branch = function
     Isigned Ceq -> "e"     | Isigned Cne -> "ne"
   | Isigned Cle -> "le"     | Isigned Cgt -> "g"
@@ -259,11 +266,12 @@ let name_for_cond_branch = function
 
 (* Output an = 0 or <> 0 test. *)
 
-let output_test_zero arg =
-  match arg.loc with
-    Reg r -> `	testq	{emit_reg arg}, {emit_reg arg}\n`
-  | _     -> `	cmpq	$0, {emit_reg arg}\n`
-
+let output_test_zero = function
+  | Oreg {loc = Reg _} as arg -> 
+    `	testq	{emit_operand arg}, {emit_operand arg}\n`
+  | arg ->
+    `	cmpq	$0, {emit_operand arg}\n`
+  
 (* Output a floating-point compare and branch *)
 
 let emit_float_test cmp neg arg lbl =
@@ -279,34 +287,34 @@ let emit_float_test cmp neg arg lbl =
   match (cmp, neg) with
   | (Ceq, false) | (Cne, true) ->
       let next = new_label() in
-      `	ucomisd	{emit_reg arg.(1)}, {emit_reg arg.(0)}\n`;
+      `	ucomisd	{emit_operand arg.(1)}, {emit_operand arg.(0)}\n`;
       `	jp	{emit_label next}\n`;    (* skip if unordered *)
       `	je	{emit_label lbl}\n`;     (* branch taken if x=y *)
       `{emit_label next}:\n`
   | (Cne, false) | (Ceq, true) ->
-      `	ucomisd	{emit_reg arg.(1)}, {emit_reg arg.(0)}\n`;
+      `	ucomisd	{emit_operand arg.(1)}, {emit_operand arg.(0)}\n`;
       `	jp	{emit_label lbl}\n`;     (* branch taken if unordered *)
       `	jne	{emit_label lbl}\n`      (* branch taken if x<y or x>y *)
   | (Clt, _) ->
-      ` comisd	{emit_reg arg.(0)}, {emit_reg arg.(1)}\n`;  (* swap compare *)
+      ` comisd	{emit_operand arg.(0)}, {emit_operand arg.(1)}\n`;  (* swap compare *)
       if not neg then
       `	ja	{emit_label lbl}\n`     (* branch taken if y>x i.e. x<y *)
       else
       `	jbe	{emit_label lbl}\n` (* taken if unordered or y<=x i.e. !(x<y) *)
   | (Cle, _) ->
-      ` comisd	{emit_reg arg.(0)}, {emit_reg arg.(1)}\n`;  (* swap compare *)
+      ` comisd	{emit_operand arg.(0)}, {emit_operand arg.(1)}\n`;  (* swap compare *)
       if not neg then
       `	jae	{emit_label lbl}\n`     (* branch taken if y>=x i.e. x<=y *)
       else
       `	jb	{emit_label lbl}\n` (* taken if unordered or y<x i.e. !(x<=y) *)
   | (Cgt, _) ->
-      ` comisd	{emit_reg arg.(1)}, {emit_reg arg.(0)}\n`;
+      ` comisd	{emit_operand arg.(1)}, {emit_operand arg.(0)}\n`;
       if not neg then
       `	ja	{emit_label lbl}\n`     (* branch taken if x>y *)
       else
       `	jbe	{emit_label lbl}\n` (* taken if unordered or x<=y i.e. !(x>y) *)
   | (Cge, _) ->
-      ` comisd	{emit_reg arg.(1)}, {emit_reg arg.(0)}\n`;  (* swap compare *)
+      ` comisd	{emit_operand arg.(1)}, {emit_operand arg.(0)}\n`;  (* swap compare *)
       if not neg then
       `	jae	{emit_label lbl}\n`     (* branch taken if x>=y *)
       else
@@ -335,31 +343,47 @@ let tailrec_entry_point = ref 0
 
 let float_constants = ref ([] : (int * string) list)
 
+(* Emit an operation *)
+let emit_operation = function
+  | (Imove | Ispill | Ireload), [| Oreg src |], [| dst |] ->
+    if src.loc <> dst.loc then begin
+      match src.typ, src.loc, dst.loc with
+        Float, Reg _, Reg _ ->
+          `	movapd	{emit_reg src}, {emit_reg dst}\n`
+      | Float, _, _ ->
+        `	movsd	{emit_reg src}, {emit_reg dst}\n`
+      | _ ->
+        `	movq	{emit_reg src}, {emit_reg dst}\n`
+    end
+  | _ -> () (* Misc.fatal_error "Emit.emit_operation" *)
 (* Emit an instruction *)
 let emit_instr fallthrough i =
     emit_debug_info i.dbg;
     match i.desc with
       Lend -> ()
     | Lop(Imove | Ispill | Ireload) ->
-        let src = i.arg.(0) and dst = i.res.(0) in
-        if src.loc <> dst.loc then begin
-          match src.typ, src.loc, dst.loc with
-            Float, Reg _, Reg _ ->
-              `	movapd	{emit_reg src}, {emit_reg dst}\n`
-          | Float, _, _ ->
-              `	movsd	{emit_reg src}, {emit_reg dst}\n`
-          | _ ->
-              `	movq	{emit_reg src}, {emit_reg dst}\n`
-        end
-    | Lop(Iconst_int n) ->
-        if n = 0n then begin
-          match i.res.(0).loc with
-            Reg n -> `	xorq	{emit_reg i.res.(0)}, {emit_reg i.res.(0)}\n`
-          | _     -> `	movq	$0, {emit_reg i.res.(0)}\n`
-        end else if n <= 0x7FFFFFFFn && n >= -0x80000000n then
+      begin match i.arg, i.res with
+        | [| Oreg src |], [| dst |] ->
+          if src.loc <> dst.loc then begin
+            match src.typ, src.loc, dst.loc with
+              Float, Reg _, Reg _ ->
+                `	movapd	{emit_reg src}, {emit_reg dst}\n`
+            | Float, _, _ ->
+                `	movsd	{emit_reg src}, {emit_reg dst}\n`
+            | _ ->
+                `	movq	{emit_reg src}, {emit_reg dst}\n`
+          end
+        | _, _ -> Misc.fatal_error "Emit.emit_instr Imove" end
+    | Lop(Iconst_int) -> begin match i.arg.(0) with
+      | Oimm 0n -> 
+        (match i.res.(0).loc with
+        | Reg n -> `	xorq	{emit_reg i.res.(0)}, {emit_reg i.res.(0)}\n`
+        | _     -> `	movq	$0, {emit_reg i.res.(0)}\n`)
+      | Oimm n when n <= 0x7FFFFFFFn && n >= -0x80000000n  ->
           `	movq	${emit_nativeint n}, {emit_reg i.res.(0)}\n`
-        else
+      | Oimm n ->
           `	movabsq	${emit_nativeint n}, {emit_reg i.res.(0)}\n`
+      | _ -> Misc.fatal_error "emit_instr[const]" end
     | Lop(Iconst_float s) ->
         begin match Int64.bits_of_float (float_of_string s) with
         | 0x0000_0000_0000_0000L ->       (* +0.0 *)
@@ -372,14 +396,14 @@ let emit_instr fallthrough i =
     | Lop(Iconst_symbol s) ->
         `	{load_symbol_addr s}, {emit_reg i.res.(0)}\n`
     | Lop(Icall_ind) ->
-        `	call	*{emit_reg i.arg.(0)}\n`;
+        `	call	*{emit_operand i.arg.(0)}\n`;
         record_frame i.live i.dbg
     | Lop(Icall_imm(s)) ->
         `	{emit_call s}\n`;
         record_frame i.live i.dbg
     | Lop(Itailcall_ind) ->
         output_epilogue begin fun () ->
-        `	jmp	*{emit_reg i.arg.(0)}\n`
+        `	jmp	*{emit_operand i.arg.(0)}\n`
         end
     | Lop(Itailcall_imm s) ->
         if s = !function_name then
@@ -405,43 +429,43 @@ let emit_instr fallthrough i =
         else `	subq	${emit_int(n)}, %rsp\n`;
         cfi_adjust_cfa_offset n;
         stack_offset := !stack_offset + n
-    | Lop(Iload(chunk, addr)) ->
+    | Lop(Iload(chunk)) ->
         let dest = i.res.(0) in
         begin match chunk with
           | Word ->
-              `	movq	{emit_addressing addr i.arg 0}, {emit_reg dest}\n`
+              `	movq	{emit_operand i.arg.(0)}, {emit_reg dest}\n`
           | Byte_unsigned ->
-              `	movzbq	{emit_addressing addr i.arg 0}, {emit_reg dest}\n`
+              `	movzbq	{emit_operand i.arg.(0)}, {emit_reg dest}\n`
           | Byte_signed ->
-              `	movsbq	{emit_addressing addr i.arg 0}, {emit_reg dest}\n`
+              `	movsbq	{emit_operand i.arg.(0)}, {emit_reg dest}\n`
           | Sixteen_unsigned ->
-              `	movzwq	{emit_addressing addr i.arg 0}, {emit_reg dest}\n`
+              `	movzwq	{emit_operand i.arg.(0)}, {emit_reg dest}\n`
           | Sixteen_signed ->
-              `	movswq	{emit_addressing addr i.arg 0}, {emit_reg dest}\n`
+              `	movswq	{emit_operand i.arg.(0)}, {emit_reg dest}\n`
           | Thirtytwo_unsigned ->
-              `	movl	{emit_addressing addr i.arg 0}, {emit_reg32 dest}\n`
+              `	movl	{emit_operand i.arg.(0)}, {emit_op32 (Oreg dest)}\n`
           | Thirtytwo_signed ->
-              `	movslq	{emit_addressing addr i.arg 0}, {emit_reg dest}\n`
+              `	movslq	{emit_operand i.arg.(0)}, {emit_reg dest}\n`
           | Single ->
-            `	cvtss2sd {emit_addressing addr i.arg 0}, {emit_reg dest}\n`
+            `	cvtss2sd {emit_operand i.arg.(0)}, {emit_reg dest}\n`
           | Double | Double_u ->
-            `	movsd	{emit_addressing addr i.arg 0}, {emit_reg dest}\n`
+            `	movsd	{emit_operand i.arg.(0)}, {emit_reg dest}\n`
         end
-    | Lop(Istore(chunk, addr)) ->
+    | Lop(Istore(chunk)) ->
         begin match chunk with
           | Word ->
-            `	movq	{emit_reg i.arg.(0)}, {emit_addressing addr i.arg 1}\n`
+            `	movq	{emit_operand i.arg.(0)}, {emit_operand i.arg.(1)}\n`
           | Byte_unsigned | Byte_signed ->
-            `	movb	{emit_reg8 i.arg.(0)}, {emit_addressing addr i.arg 1}\n`
+            `	movb	{emit_op8 i.arg.(0)}, {emit_operand i.arg.(1)}\n`
           | Sixteen_unsigned | Sixteen_signed ->
-            `	movw	{emit_reg16 i.arg.(0)}, {emit_addressing addr i.arg 1}\n`
+            `	movw	{emit_op16 i.arg.(0)}, {emit_operand i.arg.(1)}\n`
           | Thirtytwo_signed | Thirtytwo_unsigned ->
-            `	movl	{emit_reg32 i.arg.(0)}, {emit_addressing addr i.arg 1}\n`
+            `	movl	{emit_op32 i.arg.(0)}, {emit_operand i.arg.(1)}\n`
           | Single ->
-            `	cvtsd2ss {emit_reg i.arg.(0)}, %xmm15\n`;
-            `	movss	%xmm15, {emit_addressing addr i.arg 1}\n`
+            `	cvtsd2ss {emit_operand i.arg.(0)}, %xmm15\n`;
+            `	movss	%xmm15, {emit_operand i.arg.(1)}\n`
           | Double | Double_u ->
-            `	movsd	{emit_reg i.arg.(0)}, {emit_addressing addr i.arg 1}\n`
+            `	movsd	{emit_operand i.arg.(0)}, {emit_operand i.arg.(1)}\n`
         end
     | Lop(Ialloc n) ->
         if !fastcode_flag then begin
@@ -471,82 +495,69 @@ let emit_instr fallthrough i =
           `{record_frame i.live Debuginfo.none}	leaq	8(%r15), {emit_reg i.res.(0)}\n`
         end
     | Lop(Iintop(Icomp cmp)) ->
-        `	cmpq	{emit_reg i.arg.(1)}, {emit_reg i.arg.(0)}\n`;
-        let b = name_for_cond_branch cmp in
-        `	set{emit_string b}	%al\n`;
-        `	movzbq	%al, {emit_reg i.res.(0)}\n`
-    | Lop(Iintop_imm(Icomp cmp, n)) ->
-        `	cmpq	${emit_int n}, {emit_reg i.arg.(0)}\n`;
+        `	cmpq	{emit_operand i.arg.(1)}, {emit_operand i.arg.(0)}\n`;
         let b = name_for_cond_branch cmp in
         `	set{emit_string b}	%al\n`;
         `	movzbq	%al, {emit_reg i.res.(0)}\n`
     | Lop(Iintop Icheckbound) ->
         let lbl = bound_error_label i.dbg in
-        `	cmpq	{emit_reg i.arg.(1)}, {emit_reg i.arg.(0)}\n`;
+        `	cmpq	{emit_operand i.arg.(1)}, {emit_operand i.arg.(0)}\n`;
         `	jbe	{emit_label lbl}\n`
-    | Lop(Iintop_imm(Icheckbound, n)) ->
-        let lbl = bound_error_label i.dbg in
-        `	cmpq	${emit_int n}, {emit_reg i.arg.(0)}\n`;
-        `	jbe	{emit_label lbl}\n`
-    | Lop(Iintop(Idiv | Imod)) ->
-        `	cqto\n`;
-        `	idivq	{emit_reg i.arg.(1)}\n`
-    | Lop(Iintop(Ilsl | Ilsr | Iasr as op)) ->
+    | Lop(Iintop(Idiv | Imod as op)) -> begin match op, i.arg.(1) with
+        | Idiv, Oimm n -> 
+        (* Note: i.arg.(0) = i.res.(0) = rdx  (cf. selection.ml) *)
+          let n = Nativeint.to_int n in
+          let l = Misc.log2 n in
+          `	movq	{emit_operand i.arg.(0)}, %rax\n`;
+          `	addq	${emit_int(n-1)}, {emit_operand i.arg.(0)}\n`;
+          `	testq	%rax, %rax\n`;
+          `	cmovns	%rax, {emit_operand i.arg.(0)}\n`;
+          `	sarq	${emit_int l}, {emit_reg i.res.(0)}\n`
+        | Imod, Oimm n ->
+        (* Note: i.arg.(0) = i.res.(0) = rdx  (cf. selection.ml) *)
+          let n = Nativeint.to_int n in
+          `	movq	{emit_operand i.arg.(0)}, %rax\n`;
+          `	testq	%rax, %rax\n`;
+          `	leaq	{emit_int(n-1)}(%rax), %rax\n`;
+          `	cmovns	{emit_operand i.arg.(0)}, %rax\n`;
+          `	andq	${emit_int (-n)}, %rax\n`;
+          `	subq	%rax, {emit_reg i.res.(0)}\n`
+        | _, arg ->
+          `	cqto\n`;
+          `	idivq	{emit_operand arg}\n` end
+    | Lop(Iintop op) -> begin match op, i.arg with
+      | (Ilsl | Ilsr | Iasr), [| _; Oreg r |] ->
         (* We have i.arg.(0) = i.res.(0) and i.arg.(1) = %rcx *)
         `	{emit_string(instr_for_intop op)}	%cl, {emit_reg i.res.(0)}\n`
-    | Lop(Iintop op) ->
-        (* We have i.arg.(0) = i.res.(0) *)
-        `	{emit_string(instr_for_intop op)}	{emit_reg i.arg.(1)}, {emit_reg i.res.(0)}\n`
-    | Lop(Iintop_imm(Iadd, n)) when i.arg.(0).loc <> i.res.(0).loc ->
-        `	leaq	{emit_int n}({emit_reg i.arg.(0)}), {emit_reg i.res.(0)}\n`
-    | Lop(Iintop_imm(Iadd, 1) | Iintop_imm(Isub, -1)) ->
+      | Iadd, [| Oreg r; Oimm n |] when r.loc <> i.res.(0).loc ->
+        `	leaq	{emit_nativeint n}({emit_operand i.arg.(0)}), {emit_reg i.res.(0)}\n`
+      | Iadd, [| Oreg r; Oimm 1n |] | Isub, [| Oreg r; Oimm -1n |] ->
         `	incq	{emit_reg i.res.(0)}\n`
-    | Lop(Iintop_imm(Iadd, -1) | Iintop_imm(Isub, 1)) ->
+      | Iadd, [| Oreg _; Oimm -1n |] | Isub, [| Oreg _; Oimm 1n |] ->
         `	decq	{emit_reg i.res.(0)}\n`
-    | Lop(Iintop_imm(Idiv, n)) ->
-        (* Note: i.arg.(0) = i.res.(0) = rdx  (cf. selection.ml) *)
-        let l = Misc.log2 n in
-        `	movq	{emit_reg i.arg.(0)}, %rax\n`;
-        `	addq	${emit_int(n-1)}, {emit_reg i.arg.(0)}\n`;
-        `	testq	%rax, %rax\n`;
-        `	cmovns	%rax, {emit_reg i.arg.(0)}\n`;
-        `	sarq	${emit_int l}, {emit_reg i.res.(0)}\n`
-    | Lop(Iintop_imm(Imod, n)) ->
-        (* Note: i.arg.(0) = i.res.(0) = rdx  (cf. selection.ml) *)
-        `	movq	{emit_reg i.arg.(0)}, %rax\n`;
-        `	testq	%rax, %rax\n`;
-        `	leaq	{emit_int(n-1)}(%rax), %rax\n`;
-        `	cmovns	{emit_reg i.arg.(0)}, %rax\n`;
-        `	andq	${emit_int (-n)}, %rax\n`;
-        `	subq	%rax, {emit_reg i.res.(0)}\n`
-    | Lop(Iintop_imm(op, n)) ->
+      | _, _ ->
         (* We have i.arg.(0) = i.res.(0) *)
-        `	{emit_string(instr_for_intop op)}	${emit_int n}, {emit_reg i.res.(0)}\n`
+        `	{emit_string(instr_for_intop op)}	{emit_operand i.arg.(1)}, {emit_reg i.res.(0)}\n` end
     | Lop(Inegf) ->
         `	xorpd	{emit_symbol "caml_negf_mask"}(%rip), {emit_reg i.res.(0)}\n`
     | Lop(Iabsf) ->
         `	andpd	{emit_symbol "caml_absf_mask"}(%rip), {emit_reg i.res.(0)}\n`
     | Lop(Iaddf | Isubf | Imulf | Idivf as floatop) ->
-        `	{emit_string(instr_for_floatop floatop)}	{emit_reg i.arg.(1)}, {emit_reg i.res.(0)}\n`
+        `	{emit_string(instr_for_floatop floatop)}	{emit_operand i.arg.(1)}, {emit_reg i.res.(0)}\n`
     | Lop(Ifloatofint) ->
-        `	cvtsi2sdq	{emit_reg i.arg.(0)}, {emit_reg i.res.(0)}\n`
+        `	cvtsi2sdq	{emit_operand i.arg.(0)}, {emit_reg i.res.(0)}\n`
     | Lop(Iintoffloat) ->
-        `	cvttsd2siq	{emit_reg i.arg.(0)}, {emit_reg i.res.(0)}\n`
-    | Lop(Ispecific(Ilea addr)) ->
-        `	leaq	{emit_addressing addr i.arg 0}, {emit_reg i.res.(0)}\n`
-    | Lop(Ispecific(Istore_int(n, addr))) ->
-        `	movq	${emit_nativeint n}, {emit_addressing addr i.arg 0}\n`
-    | Lop(Ispecific(Istore_symbol(s, addr))) ->
+        `	cvttsd2siq	{emit_operand i.arg.(0)}, {emit_reg i.res.(0)}\n`
+    | Lop(Ispecific(Ilea addr)) -> 
+        let addr_regs = Array.map (function Oreg r -> r | _ -> Misc.fatal_error "Emit Ilea") i.arg in
+        `	leaq	{emit_addressing addr addr_regs 0}, {emit_reg i.res.(0)}\n`
+    | Lop(Ispecific(Istore_symbol(s))) ->
         assert (not !pic_code && not !Clflags.dlcode);
-        `	movq	${emit_symbol s}, {emit_addressing addr i.arg 0}\n`
-    | Lop(Ispecific(Ioffset_loc(n, addr))) ->
-        `	addq	${emit_int n}, {emit_addressing addr i.arg 0}\n`
-    | Lop(Ispecific(Ifloatarithmem(op, addr))) ->
-        `	{emit_string(instr_for_floatarithmem op)}	{emit_addressing addr i.arg 1}, {emit_reg i.res.(0)}\n`
+        `	movq	${emit_symbol s}, {emit_operand i.arg.(0)}\n`
+    | Lop(Ispecific(Ioffset_loc(n))) ->
+        `	addq	${emit_int n}, {emit_operand i.arg.(0)}\n`
     | Lop(Ispecific Isqrtf) ->
-        `	sqrtsd	{emit_reg i.arg.(0)}, {emit_reg i.res.(0)}\n`
-    | Lop(Ispecific(Ifloatsqrtf addr)) ->
-        `	sqrtsd	{emit_addressing addr i.arg 0}, {emit_reg i.res.(0)}\n`
+        `	sqrtsd	{emit_operand i.arg.(0)}, {emit_reg i.res.(0)}\n`
     | Lreloadretaddr ->
         ()
     | Lreturn ->
@@ -566,7 +577,7 @@ let emit_instr fallthrough i =
             output_test_zero i.arg.(0);
             `	je	{emit_label lbl}\n`
         | Iinttest cmp ->
-            `	cmpq	{emit_reg i.arg.(1)}, {emit_reg i.arg.(0)}\n`;
+            `	cmpq	{emit_operand i.arg.(1)}, {emit_operand i.arg.(0)}\n`;
             let b = name_for_cond_branch cmp in
             `	j{emit_string b}	{emit_label lbl}\n`
         | Iinttest_imm((Isigned Ceq | Isigned Cne |
@@ -575,20 +586,20 @@ let emit_instr fallthrough i =
             let b = name_for_cond_branch cmp in
             `	j{emit_string b}	{emit_label lbl}\n`
         | Iinttest_imm(cmp, n) ->
-            `	cmpq	${emit_int n}, {emit_reg i.arg.(0)}\n`;
+            `	cmpq	${emit_int n}, {emit_operand i.arg.(0)}\n`;
             let b = name_for_cond_branch cmp in
             `	j{emit_string b}	{emit_label lbl}\n`
         | Ifloattest(cmp, neg) ->
             emit_float_test cmp neg i.arg lbl
         | Ioddtest ->
-            `	testb	$1, {emit_reg8 i.arg.(0)}\n`;
+            `	testb	$1, {emit_op8 i.arg.(0)}\n`;
             `	jne	{emit_label lbl}\n`
         | Ieventest ->
-            `	testb	$1, {emit_reg8 i.arg.(0)}\n`;
+            `	testb	$1, {emit_op8 i.arg.(0)}\n`;
             `	je	{emit_label lbl}\n`
         end
     | Lcondbranch3(lbl0, lbl1, lbl2) ->
-            `	cmpq	$1, {emit_reg i.arg.(0)}\n`;
+            `	cmpq	$1, {emit_operand i.arg.(0)}\n`;
             begin match lbl0 with
               None -> ()
             | Some lbl -> `	jb	{emit_label lbl}\n`
@@ -608,12 +619,12 @@ let emit_instr fallthrough i =
            is assigned to rax or rdx.  However, the argument to Lswitch
            can still be assigned to one of these two registers, so
            we must be careful not to clobber it before use. *)
-        let (tmp1, tmp2) =
-          if i.arg.(0).loc = Reg 0 (* rax *)
-          then (phys_reg 4 (*rdx*), phys_reg 0 (*rax*))
-          else (phys_reg 0 (*rax*), phys_reg 4 (*rdx*)) in
+        let (tmp1, tmp2) = match i.arg.(0) with
+          | Oreg {loc = Reg 0 (* rax *)} -> 
+            (phys_reg 4 (*rdx*), phys_reg 0 (*rax*))
+          | _ -> (phys_reg 0 (*rax*), phys_reg 4 (*rdx*)) in
         `	leaq	{emit_label lbl}(%rip), {emit_reg tmp1}\n`;
-        `	movslq	({emit_reg tmp1}, {emit_reg i.arg.(0)}, 4), {emit_reg tmp2}\n`;
+        `	movslq	({emit_reg tmp1}, {emit_operand i.arg.(0)}, 4), {emit_reg tmp2}\n`;
         `	addq	{emit_reg tmp2}, {emit_reg tmp1}\n`;
         `	jmp	*{emit_reg tmp1}\n`;
         if macosx then

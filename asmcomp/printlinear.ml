@@ -33,7 +33,7 @@ let instr ppf i =
   | Lreloadretaddr ->
       fprintf ppf "reload retaddr"
   | Lreturn ->
-      fprintf ppf "return %a" regs i.arg
+      fprintf ppf "return %a" operands i.arg
   | Llabel lbl ->
       fprintf ppf "%a:" label lbl
   | Lbranch lbl ->
@@ -41,7 +41,7 @@ let instr ppf i =
   | Lcondbranch(tst, lbl) ->
       fprintf ppf "if %a goto %a" (test tst) i.arg label lbl
   | Lcondbranch3(lbl0, lbl1, lbl2) ->
-      fprintf ppf "switch3 %a" reg i.arg.(0);
+      fprintf ppf "switch3 %a" operand i.arg.(0);
       let case n = function
       | None -> ()
       | Some lbl ->
@@ -49,7 +49,7 @@ let instr ppf i =
       case 0 lbl0; case 1 lbl1; case 2 lbl2;
       fprintf ppf "@,endswitch"
   | Lswitch lblv ->
-      fprintf ppf "switch %a" reg i.arg.(0);
+      fprintf ppf "switch %a" operand i.arg.(0);
       for i = 0 to Array.length lblv - 1 do
        fprintf ppf "case %i: goto %a" i label lblv.(i)
       done;
@@ -61,7 +61,7 @@ let instr ppf i =
   | Lpoptrap ->
       fprintf ppf "pop trap"
   | Lraise ->
-      fprintf ppf "raise %a" reg i.arg.(0)
+      fprintf ppf "raise %a" operand i.arg.(0)
   end;
   if not (Debuginfo.is_none i.dbg) then
     fprintf ppf " %s" (Debuginfo.to_string i.dbg)

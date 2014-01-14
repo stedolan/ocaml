@@ -10,10 +10,10 @@
 (*                                                                     *)
 (***********************************************************************)
 
-open Cmm
-open Arch
+(* open Cmm *)
+(* open Arch *)
 open Reg
-open Mach
+(* open Mach *)
 
 (* Reloading for the AMD64 *)
 
@@ -60,7 +60,8 @@ class reload = object (self)
 
 inherit Reloadgen.reload_generic as super
 
-method! reload_operation op arg res =
+method! reload_operation op arg res = super#reload_operation op arg res
+(* FIXME: unbreak optimisations below
   match op with
   | Iintop(Iadd|Isub|Iand|Ior|Ixor|Icomp _|Icheckbound) ->
       (* One of the two arguments can reside in the stack, but not both *)
@@ -95,9 +96,10 @@ method! reload_operation op arg res =
       then super#reload_operation op arg res
       else (arg, res)
   | _ -> (* Other operations: all args and results in registers *)
-      super#reload_operation op arg res
+      super#reload_operation op arg res *)
 
-method! reload_test tst arg =
+method! reload_test tst arg = super#reload_test tst arg
+(* FIXME opts below
   match tst with
     Iinttest cmp ->
       (* One of the two arguments can reside on stack *)
@@ -117,7 +119,7 @@ method! reload_test tst arg =
       else arg
   | _ ->
       (* The argument(s) can be either in register or on stack *)
-      arg
+      arg *)
 
 end
 

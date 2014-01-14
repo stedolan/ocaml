@@ -255,9 +255,10 @@ let destroyed_at_oper = function
     Iop(Icall_ind | Icall_imm _ | Iextcall(_, true)) -> all_phys_regs
   | Iop(Iextcall(_, false)) -> destroyed_at_c_call
   | Iop(Iintop(Idiv | Imod)) -> [| rax; rdx |]
-  | Iop(Istore(Single, _)) -> [| rxmm15 |]
-  | Iop(Ialloc _ | Iintop(Icomp _) | Iintop_imm((Idiv|Imod|Icomp _), _))
+  | Iop(Istore(Single)) -> [| rxmm15 |]
+  | Iop(Ialloc _ | Iintop(Icomp _)) 
         -> [| rax |]
+  (* FIXME | Iintop_imm((Idiv|Imod|Icomp _), _)) *)
   | Iswitch(_, _) -> [| rax; rdx |]
   | _ -> [||]
 
@@ -272,9 +273,10 @@ let safe_register_pressure = function
 let max_register_pressure = function
     Iextcall(_, _) -> if win64 then [| 8; 10 |] else [| 4; 0 |]
   | Iintop(Idiv | Imod) -> [| 11; 16 |]
-  | Ialloc _ | Iintop(Icomp _) | Iintop_imm((Idiv|Imod|Icomp _), _)
+  | Ialloc _ | Iintop(Icomp _) 
+  (* FIXME | Iintop_imm((Idiv|Imod|Icomp _), _) *)
         -> [| 12; 16 |]
-  | Istore(Single, _) -> [| 13; 15 |]
+  | Istore(Single) -> [| 13; 15 |]
   | _ -> [| 13; 16 |]
 
 (* Layout of the stack frame *)

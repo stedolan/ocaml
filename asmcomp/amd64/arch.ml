@@ -33,15 +33,9 @@ type addressing_mode =
 
 type specific_operation =
     Ilea of addressing_mode             (* "lea" gives scaled adds *)
-  | Istore_int of nativeint * addressing_mode (* Store an integer constant *)
-  | Istore_symbol of string * addressing_mode (* Store a symbol *)
-  | Ioffset_loc of int * addressing_mode (* Add a constant to a location *)
-  | Ifloatarithmem of float_operation * addressing_mode
-                                       (* Float arith operation with memory *)
-  | Isqrtf                             (* floating-point square root *)
-  | Ifloatsqrtf of addressing_mode     (* floating-point square root from memory *)
-and float_operation =
-    Ifloatadd | Ifloatsub | Ifloatmul | Ifloatdiv
+  | Istore_symbol of string             (* Store a symbol *)
+  | Ioffset_loc of int                  (* Add a constant to a location *)
+  | Isqrtf                              (* floating-point square root *)
 
 (* Sizes, endianness *)
 
@@ -97,25 +91,12 @@ let print_addressing printreg addr ppf arg =
       let idx = if n <> 0 then Printf.sprintf " + %i" n else "" in
       fprintf ppf "%a + %a * %i%s" printreg arg.(0) printreg arg.(1) scale idx
 
-let print_specific_operation printreg op ppf arg =
+let print_specific_operation printoperand op ppf arg =
   match op with
-  | Ilea addr -> print_addressing printreg addr ppf arg
-  | Istore_int(n, addr) ->
-      fprintf ppf "[%a] := %nd" (print_addressing printreg addr) arg n
-  | Istore_symbol(lbl, addr) ->
-      fprintf ppf "[%a] := \"%s\"" (print_addressing printreg addr) arg lbl
-  | Ioffset_loc(n, addr) ->
-      fprintf ppf "[%a] +:= %i" (print_addressing printreg addr) arg n
+  | Ilea addr -> print_addressing printoperand addr ppf arg
+  | Istore_symbol lbl ->
+      fprintf ppf "%a := \"%s\"" printoperand arg.(0) lbl
+  | Ioffset_loc(n) ->
+      fprintf ppf "%a +:= %i" printoperand arg.(0) n
   | Isqrtf ->
-      fprintf ppf "sqrtf %a" printreg arg.(0)
-  | Ifloatsqrtf addr ->
-     fprintf ppf "sqrtf float64[%a]" (print_addressing printreg addr) [|arg.(0)|]
-  | Ifloatarithmem(op, addr) ->
-      let op_name = function
-      | Ifloatadd -> "+f"
-      | Ifloatsub -> "-f"
-      | Ifloatmul -> "*f"
-      | Ifloatdiv -> "/f" in
-      fprintf ppf "%a %s float64[%a]" printreg arg.(0) (op_name op)
-                   (print_addressing printreg addr)
-                   (Array.sub arg 1 (Array.length arg - 1))
+      fprintf ppf "sqrtf %a" printoperand arg.(0)

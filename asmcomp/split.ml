@@ -34,6 +34,14 @@ let subst_regs rv sub =
       for i = 0 to n-1 do nv.(i) <- subst_reg rv.(i) s done;
       nv
 
+let subst_ops ov sub =
+  match sub with
+    None -> ov
+  | Some s -> Array.map (function
+    | Oreg r -> Oreg (subst_reg r s)
+    | Omem (a, r) -> Omem (a, subst_regs r sub)
+    | Oimm _ as op -> op) ov
+
 (* We maintain equivalence classes of registers using a standard
    union-find algorithm *)
 
@@ -48,6 +56,15 @@ let rec repres_reg r =
 let repres_regs rv =
   let n = Array.length rv in
   for i = 0 to n-1 do rv.(i) <- repres_reg rv.(i) done
+
+let repres_ops ov =
+  let n = Array.length ov in
+  for i = 0 to n-1 do 
+    ov.(i) <- match ov.(i) with
+    | Oreg r -> Oreg (repres_reg r)
+    | Omem (a, r) as op -> repres_regs r; op
+    | Oimm _ as op -> op
+  done
 
 (* Identify two registers.
    The second register is chosen as canonical representative. *)
@@ -87,7 +104,7 @@ let merge_substs sub1 sub2 i =
   | (Some s1, None) -> sub1
   | (None, Some s2) -> sub2
   | (Some s1, Some s2) ->
-      Reg.Set.iter (identify_sub s1 s2) (Reg.add_set_array i.live i.arg);
+      Reg.Set.iter (identify_sub s1 s2) (Mach.add_regset_args i.live i);
       sub1
 
 (* Same, for N substitutions *)
@@ -103,7 +120,7 @@ let merge_subst_array subv instr =
               None -> ()
             | Some sj ->
                 Reg.Set.iter (identify_sub si sj)
-                             (Reg.add_set_array instr.live instr.arg)
+                             (Mach.add_regset_args instr.live instr)
           done;
           sub
     end in
@@ -123,7 +140,7 @@ let rec rename i sub =
     Iend ->
       (i, sub)
   | Ireturn | Iop(Itailcall_ind) | Iop(Itailcall_imm _) ->
-      (instr_cons i.desc (subst_regs i.arg sub) [||] i.next,
+      (instr_cons i.desc (subst_ops i.arg sub) [||] i.next,
        None)
   | Iop Ireload when i.res.(0).loc = Unknown ->
       begin match sub with
@@ -138,7 +155,7 @@ let rec rename i sub =
       end
   | Iop _ ->
       let (new_next, sub_next) = rename i.next sub in
-      (instr_cons_debug i.desc (subst_regs i.arg sub) (subst_regs i.res sub)
+      (instr_cons_debug i.desc (subst_ops i.arg sub) (subst_regs i.res sub)
                         i.dbg new_next,
        sub_next)
   | Iifthenelse(tst, ifso, ifnot) ->
@@ -147,7 +164,7 @@ let rec rename i sub =
       let (new_next, sub_next) =
         rename i.next (merge_substs sub_ifso sub_ifnot i.next) in
       (instr_cons (Iifthenelse(tst, new_ifso, new_ifnot))
-                  (subst_regs i.arg sub) [||] new_next,
+                  (subst_ops i.arg sub) [||] new_next,
        sub_next)
   | Iswitch(index, cases) ->
       let new_sub_cases = Array.map (fun c -> rename c sub) cases in
@@ -155,7 +172,7 @@ let rec rename i sub =
         merge_subst_array (Array.map (fun (n, s) -> s) new_sub_cases) i.next in
       let (new_next, sub_next) = rename i.next sub_merge in
       (instr_cons (Iswitch(index, Array.map (fun (n, s) -> n) new_sub_cases))
-                  (subst_regs i.arg sub) [||] new_next,
+                  (subst_ops i.arg sub) [||] new_next,
        sub_next)
   | Iloop(body) ->
       let (new_body, sub_body) = rename body sub in
@@ -185,13 +202,13 @@ let rec rename i sub =
       (instr_cons (Itrywith(new_body, new_handler)) [||] [||] new_next,
        sub_next)
   | Iraise ->
-      (instr_cons_debug Iraise (subst_regs i.arg sub) [||] i.dbg i.next,
+      (instr_cons_debug Iraise (subst_ops i.arg sub) [||] i.dbg i.next,
        None)
 
 (* Second pass: replace registers by their final representatives *)
 
 let set_repres i =
-  instr_iter (fun i -> repres_regs i.arg; repres_regs i.res) i
+  instr_iter (fun i -> repres_ops i.arg; repres_regs i.res) i
 
 (* Entry point *)
 

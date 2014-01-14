@@ -44,9 +44,11 @@ val at_location: Cmm.machtype_component -> location -> t
 module Set: Set.S with type elt = t
 module Map: Map.S with type key = t
 
+
 val add_set_array: Set.t -> t array -> Set.t
 val diff_set_array: Set.t -> t array -> Set.t
 val inter_set_array: Set.t -> t array -> Set.t
+
 val set_of_array: t array -> Set.t
 
 val reset: unit -> unit

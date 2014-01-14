@@ -97,9 +97,7 @@ let is_critical critical_outputs results =
   try
     for i = 0 to Array.length results - 1 do
       let r = results.(i).loc in
-      for j = 0 to Array.length critical_outputs - 1 do
-        if critical_outputs.(j).loc = r then raise Exit
-      done
+      Mach.iter_operand_regs (fun reg -> if reg.loc = r then raise Exit) critical_outputs
     done;
     false
   with Exit ->
@@ -132,7 +130,7 @@ let rec remove_instr node = function
 
 (* We treat Lreloadretaddr as a word-sized load *)
 
-let some_load = (Iload(Cmm.Word, Arch.identity_addressing))
+let some_load = (Iload(Cmm.Word))
 
 (* The generic scheduler *)
 
@@ -165,16 +163,15 @@ method private instr_in_basic_block instr =
    load or store instructions (e.g. on the I386). *)
 
 method is_store = function
-    Istore(_, _) -> true
+    Istore _ -> true
   | _ -> false
 
 method is_load = function
-    Iload(_, _) -> true
+    Iload _ -> true
   | _ -> false
 
 method is_checkbound = function
     Iintop Icheckbound -> true
-  | Iintop_imm(Icheckbound, _) -> true
   | _ -> false
 
 method private instr_is_store instr =
@@ -247,7 +244,7 @@ method private add_instruction ready_queue instr =
       emitted_ancestors = 0 } in
   (* Add edges from all instructions that define one of the registers used
      (RAW dependencies) *)
-  Array.iter (add_RAW_dependencies node) instr.arg;
+  Mach.iter_operand_regs (add_RAW_dependencies node) instr.arg;
   (* Also add edges from all instructions that use one of the result regs
      of this instruction, or a reg destroyed by this instruction
      (WAR dependencies). *)
@@ -289,9 +286,7 @@ method private add_instruction ready_queue instr =
   for i = 0 to Array.length destroyed - 1 do
     Hashtbl.add code_results destroyed.(i).loc node  (* PR#5731 *)
   done;
-  for i = 0 to Array.length instr.arg - 1 do
-    Hashtbl.add code_uses instr.arg.(i).loc node
-  done;
+  Mach.iter_operand_regs (fun r -> Hashtbl.add code_uses r.loc node) instr.arg;
   (* If this is a root instruction (all arguments already computed),
      add it to the ready queue *)
   if node.ancestors = 0 then node :: ready_queue else ready_queue

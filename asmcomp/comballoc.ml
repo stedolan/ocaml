@@ -39,7 +39,7 @@ let rec combine i allocstate =
           if ofs + sz < Config.max_young_wosize * Arch.size_addr then begin
             let (newnext, newsz) =
               combine i.next (Pending_alloc(reg, ofs + sz)) in
-            (instr_cons (Iop(Iintop_imm(Iadd, ofs))) [| reg |] i.res newnext,
+            (instr_cons (Iop(Iintop Iadd)) [| Oreg reg; Oimm (Nativeint.of_int ofs) |] i.res newnext,
              newsz)
           end else begin
             let (newnext, newsz) =
