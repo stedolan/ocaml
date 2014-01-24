@@ -143,15 +143,28 @@ method! select_store exp =
   | _ ->
       super#select_store exp
 
+
+method select_op = function
+  | Cop(Cload Word, [loc]) -> Oper_addr (Word, loc)
+  | Cconst_int n | Cconst_pointer n -> Oper_mach (Oimm (Nativeint.of_int n))
+  | v -> Oper_val v
+
 method! select_operation op args =
   match op, args with
   (* Recognize the LEA instruction *)
-    (Caddi | Cadda | Csubi | Csuba), _ ->
-      begin match self#select_addressing Word (Cop(op, args)) with
-        (Iindexed d, _) -> super#select_operation op args
-      | (Iindexed2 0, _) -> super#select_operation op args
-      | (addr, arg) -> (Ispecific(Ilea addr), [Oper_val arg])
-      end
+    (Caddi | Cadda | Csubi | Csuba), _
+      when (match self#select_addressing Word (Cop(op, args)) with
+        (Iindexed _, _) | (Iindexed2 0, _) -> false | _ -> true) ->
+        let (addr, arg) = self#select_addressing Word (Cop(op, args)) in
+        (Ispecific (Ilea addr), [Oper_val arg])
+  
+  | (Caddi | Cadda), ([ arg; Cop(Cload Word, [loc]) ] 
+                     |[ Cop(Cload Word, [loc]); arg ]) ->
+    (Iintop Iadd, [Oper_val arg; Oper_addr (Word, loc)])
+  | (Csubi | Csuba), [ arg1; arg2 ] -> 
+    (Iintop Isub, [ Oper_val arg1; self#select_op arg2 ])
+  | Capply(_, _), Cop (Cload Word, [loc]) :: rem ->
+     (Icall_ind, Oper_addr (Word,loc) :: List.map (fun r -> Oper_val r) rem)
   (* Recognize (x / cst) and (x % cst) only if cst is a power of 2. *)
   | Cdivi, [arg1; arg2] ->
     begin match arg2 with
@@ -183,6 +196,11 @@ method! select_operation op args =
       when loc = loc' && self#is_immediate n ->
       (Ispecific(Ioffset_loc(n)), [Oper_addr(Word, loc)])
   | _, _ -> super#select_operation op args
+
+method! select_condition = function
+  | Cop(Ccmpi cmp, [arg1; Cconst_int n | Cconst_pointer n]) when self#is_immediate n ->
+    (Iinttest(Isigned cmp), [self#select_op arg1; Oper_mach (Oimm (Nativeint.of_int n))])
+  | arg -> super#select_condition arg
 
 (* Recognize float arithmetic with mem *)
 
