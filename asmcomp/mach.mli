@@ -26,7 +26,6 @@ type test =
     Itruetest
   | Ifalsetest
   | Iinttest of integer_comparison
-  | Iinttest_imm of integer_comparison * int
   | Ifloattest of Cmm.comparison * bool
   | Ioddtest
   | Ieventest

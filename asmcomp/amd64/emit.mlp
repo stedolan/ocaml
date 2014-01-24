@@ -580,15 +580,11 @@ let emit_instr fallthrough i =
             `	cmpq	{emit_operand i.arg.(1)}, {emit_operand i.arg.(0)}\n`;
             let b = name_for_cond_branch cmp in
             `	j{emit_string b}	{emit_label lbl}\n`
-        | Iinttest_imm((Isigned Ceq | Isigned Cne |
+(*        | Iinttest_imm((Isigned Ceq | Isigned Cne |
                         Iunsigned Ceq | Iunsigned Cne) as cmp, 0) ->
             output_test_zero i.arg.(0);
             let b = name_for_cond_branch cmp in
-            `	j{emit_string b}	{emit_label lbl}\n`
-        | Iinttest_imm(cmp, n) ->
-            `	cmpq	${emit_int n}, {emit_operand i.arg.(0)}\n`;
-            let b = name_for_cond_branch cmp in
-            `	j{emit_string b}	{emit_label lbl}\n`
+            `	j{emit_string b}	{emit_label lbl}\n` *)
         | Ifloattest(cmp, neg) ->
             emit_float_test cmp neg i.arg lbl
         | Ioddtest ->

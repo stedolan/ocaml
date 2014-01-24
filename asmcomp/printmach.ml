@@ -100,7 +100,6 @@ let test tst ppf arg =
   | Itruetest -> operand ppf arg.(0)
   | Ifalsetest -> fprintf ppf "not %a" operand arg.(0)
   | Iinttest cmp -> fprintf ppf "%a%s%a" operand arg.(0) (intcomp cmp) operand arg.(1)
-  | Iinttest_imm(cmp, n) -> fprintf ppf "%a%s%i" operand arg.(0) (intcomp cmp) n
   | Ifloattest(cmp, neg) ->
       fprintf ppf "%s%a%s%a"
        (if neg then "not " else "")

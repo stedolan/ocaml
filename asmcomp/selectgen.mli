@@ -37,7 +37,7 @@ class virtual selector_generic : object
     Cmm.operation ->
     Cmm.expression list -> Mach.operation * selected_operand list
     (* Can be overridden to deal with special arithmetic instructions *)
-  method select_condition : Cmm.expression -> Mach.test * Cmm.expression
+  method select_condition : Cmm.expression -> Mach.test * selected_operand list
     (* Can be overridden to deal with special test instructions *)
   method select_store :
     Cmm.expression -> Mach.operation * selected_operand

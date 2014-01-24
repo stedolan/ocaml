@@ -311,32 +311,30 @@ method private select_arith_comp cmp = function
 (* Instruction selection for conditionals *)
 
 method select_condition = function
-    Cop(Ccmpi cmp, [arg1; Cconst_int n]) when self#is_immediate n ->
-      (Iinttest_imm(Isigned cmp, n), arg1)
+    Cop(Ccmpi cmp, [arg1; Cconst_int n | Cconst_pointer n]) when self#is_immediate n ->
+      (Iinttest(Isigned cmp), [Oper_val arg1; imm_operand n])
   | Cop(Ccmpi cmp, [Cconst_int n; arg2]) when self#is_immediate n ->
-      (Iinttest_imm(Isigned(swap_comparison cmp), n), arg2)
-  | Cop(Ccmpi cmp, [arg1; Cconst_pointer n]) when self#is_immediate n ->
-      (Iinttest_imm(Isigned cmp, n), arg1)
+      (Iinttest(Isigned(swap_comparison cmp)), [Oper_val arg2; imm_operand n])
   | Cop(Ccmpi cmp, [Cconst_pointer n; arg2]) when self#is_immediate n ->
-      (Iinttest_imm(Isigned(swap_comparison cmp), n), arg2)
+      (Iinttest(Isigned(swap_comparison cmp)), [Oper_val arg2; imm_operand n])
   | Cop(Ccmpi cmp, args) ->
-      (Iinttest(Isigned cmp), Ctuple args)
+      (Iinttest(Isigned cmp), cmm_operands args)
   | Cop(Ccmpa cmp, [arg1; Cconst_pointer n]) when self#is_immediate n ->
-      (Iinttest_imm(Iunsigned cmp, n), arg1)
+      (Iinttest(Iunsigned cmp), [Oper_val arg1; imm_operand n])
   | Cop(Ccmpa cmp, [arg1; Cconst_int n]) when self#is_immediate n ->
-      (Iinttest_imm(Iunsigned cmp, n), arg1)
+      (Iinttest(Iunsigned cmp), [Oper_val arg1; imm_operand n])
   | Cop(Ccmpa cmp, [Cconst_pointer n; arg2]) when self#is_immediate n ->
-      (Iinttest_imm(Iunsigned(swap_comparison cmp), n), arg2)
+      (Iinttest(Iunsigned(swap_comparison cmp)), [Oper_val arg2; imm_operand n])
   | Cop(Ccmpa cmp, [Cconst_int n; arg2]) when self#is_immediate n ->
-      (Iinttest_imm(Iunsigned(swap_comparison cmp), n), arg2)
+      (Iinttest(Iunsigned(swap_comparison cmp)), [Oper_val arg2; imm_operand n])
   | Cop(Ccmpa cmp, args) ->
-      (Iinttest(Iunsigned cmp), Ctuple args)
+      (Iinttest(Iunsigned cmp), cmm_operands args)
   | Cop(Ccmpf cmp, args) ->
-      (Ifloattest(cmp, false), Ctuple args)
+      (Ifloattest(cmp, false), cmm_operands args)
   | Cop(Cand, [arg; Cconst_int 1]) ->
-      (Ioddtest, arg)
+      (Ioddtest, [Oper_val arg])
   | arg ->
-      (Itruetest, arg)
+      (Itruetest, [Oper_val arg])
 
 (* Return an array of fresh registers of the given type.
    Normally implemented as Reg.createv, but some
@@ -528,16 +526,13 @@ method emit_expr env exp =
       end
   | Cifthenelse(econd, eif, eelse) ->
       let (cond, earg) = self#select_condition econd in
-      begin match self#emit_expr env earg with
-        None -> None
-      | Some rarg ->
-          let (rif, sif) = self#emit_sequence env eif in
-          let (relse, selse) = self#emit_sequence env eelse in
-          let r = join rif sif relse selse in
-          self#insert (Iifthenelse(cond, sif#extract, selse#extract))
-                      (operand_regs rarg) [||];
-          r
-      end
+      let opers = self#emit_operands env earg (* FIXME None *) in
+      let (rif, sif) = self#emit_sequence env eif in
+      let (relse, selse) = self#emit_sequence env eelse in
+      let r = join rif sif relse selse in
+      self#insert (Iifthenelse(cond, sif#extract, selse#extract))
+        opers [||];
+      r
   | Cswitch(esel, index, ecases) ->
       begin match self#emit_expr env esel with
         None -> None
@@ -783,13 +778,10 @@ method emit_tail env exp =
       end
   | Cifthenelse(econd, eif, eelse) ->
       let (cond, earg) = self#select_condition econd in
-      begin match self#emit_expr env earg with
-        None -> ()
-      | Some rarg ->
-          self#insert (Iifthenelse(cond, self#emit_tail_sequence env eif,
-                                         self#emit_tail_sequence env eelse))
-                      (operand_regs rarg) [||]
-      end
+      let opers = self#emit_operands env earg in
+      self#insert (Iifthenelse(cond, self#emit_tail_sequence env eif,
+                               self#emit_tail_sequence env eelse))
+        opers [||]
   | Cswitch(esel, index, ecases) ->
       begin match self#emit_expr env esel with
         None -> ()
