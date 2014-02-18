@@ -15,7 +15,7 @@
 include config/Makefile
 include stdlib/StdlibModules
 
-CAMLC=boot/ocamlrun boot/ocamlc -nostdlib -I boot
+CAMLC=boot/ocamlrun boot/ocamlc -g -nostdlib -I boot
 CAMLOPT=boot/ocamlrun ./ocamlopt -nostdlib -I stdlib -I otherlibs/dynlink
 COMPFLAGS=-strict-sequence -w +33..39 -warn-error A $(INCLUDES)
 LINKFLAGS=

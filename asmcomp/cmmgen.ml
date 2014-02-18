@@ -25,9 +25,9 @@ open Cmx_format
 
 let bind name arg fn =
   match arg with
-    Cvar _ | Cconst_int _ | Cconst_natint _ | Cconst_symbol _
-  | Cconst_pointer _ | Cconst_natpointer _ -> fn arg
-  | _ -> let id = Ident.create name in Clet(id, arg, fn (Cvar id))
+      Cvar _ | Cconst_int _ | Cconst_natint _ | Cconst_symbol _
+    | Cconst_pointer _ | Cconst_natpointer _ -> fn arg
+    | _ -> let id = Ident.create name in Clet(id, arg, fn (Cvar id))
 
 let bind_nonvar name arg fn =
   match arg with

@@ -174,7 +174,7 @@ end);;
 let main () =
   native_code := true;
   let ppf = Format.err_formatter in
-  try
+(*  try *)
     Arg.parse (Arch.command_line_options @ Options.list) anonymous usage;
     if
       List.length (List.filter (fun x -> !x)
@@ -223,8 +223,8 @@ let main () =
       Warnings.check_fatal ();
     end;
     exit 0
-  with x ->
+(*  with x ->
     Opterrors.report_error ppf x;
-    exit 2
+    exit 2 *)
 
 let _ = main ()
