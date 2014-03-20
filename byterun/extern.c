@@ -65,7 +65,6 @@ static void extern_out_of_memory(void);
 static void extern_invalid_argument(char *msg);
 static void extern_failwith(char *msg);
 static void extern_stack_overflow(void);
-static struct code_fragment * extern_find_code(char *addr);
 static void free_extern_output(void);
 
 /* Free the extern stack if needed */
@@ -290,7 +289,6 @@ static void writecode64(int code, intnat val)
 
 static void extern_rec(value v)
 {
-  struct code_fragment * cf;
   struct extern_item * sp;
   sp = extern_stack;
 
@@ -313,8 +311,7 @@ static void extern_rec(value v)
     } else
       writecode32(CODE_INT32, n);
     goto next_item;
-  }
-  if (Is_in_value_area(v)) {
+  } else {
     header_t hd = Hd_val(v);
     tag_t tag = Tag_hd(hd);
     mlsize_t sz = Wosize_hd(hd);
@@ -323,7 +320,7 @@ static void extern_rec(value v)
     if (tag == Forward_tag) {
       value f = Forward_val (v);
       if (Is_block (f)
-          && (!Is_in_value_area(f) || Tag_val (f) == Forward_tag
+          && (Tag_val (f) == Forward_tag
               || Tag_val (f) == Lazy_tag || Tag_val (f) == Double_tag)){
         /* Do not short-circuit the pointer. */
       }else{
@@ -415,6 +412,19 @@ static void extern_rec(value v)
     case Abstract_tag:
       extern_invalid_argument("output_value: abstract value (Abstract)");
       break;
+    case Closure_tag:
+      caml_failwith("Serializing closures is broken");
+      /*
+      if ((cf = extern_find_code((char *) v)) != NULL) {
+        if ((extern_flags & CLOSURES) == 0)
+          extern_invalid_argument("output_value: functional value");
+        writecode32(CODE_CODEPOINTER, (char *) v - cf->code_start);
+        writeblock((char *) cf->digest, 16);
+      } else {
+        extern_invalid_argument("output_value: abstract value (outside heap)");
+      }
+      */
+      break;
     case Infix_tag:
       writecode32(CODE_INFIXPOINTER, Infix_offset_hd(hd));
       v = v - Infix_offset_hd(hd); /* PR#5772 */
@@ -468,14 +478,6 @@ static void extern_rec(value v)
       continue;
     }
     }
-  }
-  else if ((cf = extern_find_code((char *) v)) != NULL) {
-    if ((extern_flags & CLOSURES) == 0)
-      extern_invalid_argument("output_value: functional value");
-    writecode32(CODE_CODEPOINTER, (char *) v - cf->code_start);
-    writeblock((char *) cf->digest, 16);
-  } else {
-    extern_invalid_argument("output_value: abstract value (outside heap)");
   }
   next_item:
     /* Pop one more item to marshal, if any */
@@ -761,8 +763,8 @@ CAMLexport void caml_serialize_block_float_8(void * data, intnat len)
 #endif
 }
 
-/* Find where a code pointer comes from */
-
+/* !! Find where a code pointer comes from */
+/*
 static struct code_fragment * extern_find_code(char *addr)
 {
   int i;
@@ -776,3 +778,4 @@ static struct code_fragment * extern_find_code(char *addr)
   }
   return NULL;
 }
+*/
