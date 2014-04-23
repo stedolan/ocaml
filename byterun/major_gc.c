@@ -54,7 +54,7 @@ void mark(value initial) {
         if (Is_block(child) && !Is_young(child)) {
           header_t hd_child = Hd_val(child);
           if (Tag_hd (hd_child) == Forward_tag) {
-            /* FIMXE: short-circuiting lazy values is a useful optimisation */
+            /* FIXME: short-circuiting lazy values is a useful optimisation */
           } else if (Tag_hd (hd_child) == Infix_tag) {
             child -= Infix_offset_val(child);
             hd_child = Hd_val(child);
