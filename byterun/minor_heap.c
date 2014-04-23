@@ -22,7 +22,7 @@ asize_t caml_norm_minor_heap_size (intnat wsize)
   asize_t page_size = sysconf(_SC_PAGESIZE);
   asize_t bs, max;
   if (wsize < Minor_heap_min) wsize = Minor_heap_min;
-  bs = round_up(page_size, Bsize_wsize (wsize));
+  bs = round_up(Bsize_wsize (wsize), page_size);
 
   Assert(page_size * 2 < (1 << Minor_heap_align_bits));
   max = (1 << Minor_heap_align_bits) - page_size * 2;
