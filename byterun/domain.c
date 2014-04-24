@@ -344,6 +344,7 @@ static void stw_phase() {
   
   if (barrier_enter(1)) {
     /* nothing to do here, just verify filter_remembered_sets is globally done */
+    caml_gc_log("GC cycle completed");
     barrier_release(1);
   }
 }
