@@ -30,6 +30,7 @@
 #include "signals.h"
 #include "stacks.h"
 #include "domain.h"
+#include "globroots.h"
 
 /* Registers for the abstract machine:
         pc         the code pointer
@@ -238,6 +239,7 @@ value caml_interprete(code_t prog, asize_t prog_size)
     caml_instr_table = (char **) jumptable;
     caml_instr_base = Jumptbl_base;
 #endif
+    caml_global_data = caml_create_root();
     caml_init_callbacks();
     return Val_unit;
   }
@@ -593,7 +595,7 @@ value caml_interprete(code_t prog, asize_t prog_size)
       *--sp = accu;
       /* Fallthrough */
     Instruct(GETGLOBAL):
-      accu = Field(caml_global_data, *pc);
+      accu = Field(caml_read_root(caml_global_data), *pc);
       pc++;
       Next;
 
@@ -601,7 +603,7 @@ value caml_interprete(code_t prog, asize_t prog_size)
       *--sp = accu;
       /* Fallthrough */
     Instruct(GETGLOBALFIELD): {
-      accu = Field(caml_global_data, *pc);
+      accu = Field(caml_read_root(caml_global_data), *pc);
       pc++;
       accu = Field(accu, *pc);
       pc++;
@@ -609,7 +611,7 @@ value caml_interprete(code_t prog, asize_t prog_size)
     }
 
     Instruct(SETGLOBAL):
-      caml_modify_field(caml_global_data, *pc, accu);
+      caml_modify_field(caml_read_root(caml_global_data), *pc, accu);
       accu = Val_unit;
       pc++;
       Next;
