@@ -164,11 +164,10 @@ void caml_debugger_init(void)
   value flags;
   int n;
 
-  marshal_flags = caml_create_root();
   flags = caml_alloc(2, Tag_cons);
   Store_field(flags, 0, Val_int(1)); /* Marshal.Closures */
   Store_field(flags, 1, Val_emptylist);
-  caml_modify_root(marshal_flags, flags);
+  marshal_flags = caml_create_root(flags);
 
   address = getenv("CAML_DEBUG_SOCKET");
   if (address == NULL) return;

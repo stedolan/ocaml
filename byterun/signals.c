@@ -129,8 +129,7 @@ CAMLexport void caml_leave_blocking_section(void)
 static caml_root caml_signal_handlers;
 
 void caml_init_signal_handling() {
-  caml_signal_handlers = caml_create_root();
-  caml_modify_root(caml_signal_handlers, caml_alloc(NSIG, 0));
+  caml_signal_handlers = caml_create_root(caml_alloc(NSIG, 0));
 }
 
 void caml_execute_signal(int signal_number, int in_signal_handler)

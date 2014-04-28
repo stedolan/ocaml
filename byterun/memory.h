@@ -368,11 +368,11 @@ CAMLextern __thread struct caml__roots_block *caml_local_roots;  /* defined in r
 
 typedef struct caml_root_private* caml_root;
 
-/* [caml_create_root] creates a new GC root, initialised to Val_unit.
-   The value stored in this root may only be read and written with
-   [caml_read_root] and [caml_modify_root]. */
+/* [caml_create_root] creates a new GC root, initialised to the given
+   value.  The value stored in this root may only be read and written
+   with [caml_read_root] and [caml_modify_root]. */
 
-CAMLextern caml_root caml_create_root ();
+CAMLextern caml_root caml_create_root (value);
 
 /* [caml_delete_root] deletes a root created by caml_create_root */
 

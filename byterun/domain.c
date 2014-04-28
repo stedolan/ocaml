@@ -182,7 +182,7 @@ void caml_domain_register_main(uintnat minor_size) {
   domain_self->is_main = 1;
 
   caml_init_global_roots();
-  live_domains_list = caml_create_root();
+  live_domains_list = caml_create_root(Val_unit);
   plat_mutex_init(&live_domains_lock);
 
   domain_register(dom);

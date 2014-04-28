@@ -72,7 +72,7 @@ CAMLprim value caml_record_backtrace(value vflag)
     caml_backtrace_active = flag;
     caml_backtrace_pos = 0;
     if (flag) {
-      caml_backtrace_last_exn = caml_create_root();
+      caml_backtrace_last_exn = caml_create_root(Val_unit);
     } else {
       caml_delete_root(caml_backtrace_last_exn);
       caml_backtrace_last_exn = NULL;

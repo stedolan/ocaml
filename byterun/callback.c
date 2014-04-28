@@ -234,8 +234,7 @@ CAMLprim value caml_register_named_value(value vname, value val)
     nv = (struct named_value *)
       caml_stat_alloc(sizeof(struct named_value) + strlen(name));
     strcpy(nv->name, name);
-    nv->val = caml_create_root();
-    caml_modify_root(nv->val, val);
+    nv->val = caml_create_root(val);
     nv->next = named_value_table[h];
     named_value_table[h] = nv;
   }

@@ -45,10 +45,11 @@ void caml_init_global_roots()
   plat_mutex_init(&roots_mutex);
 }
 
-CAMLexport caml_root caml_create_root() 
+CAMLexport caml_root caml_create_root(value init) 
 {
+  CAMLparam1(init);
   value v = caml_alloc_shr(3, 0);
-  caml_initialize_field(v, 0, Val_unit);
+  caml_initialize_field(v, 0, init);
   caml_initialize_field(v, 1, Val_int(1));
   
   plat_mutex_lock(&roots_mutex);
@@ -56,7 +57,7 @@ CAMLexport caml_root caml_create_root()
   roots_all = v;
   plat_mutex_unlock(&roots_mutex);
 
-  return (caml_root)v;
+  CAMLreturnT(caml_root, (caml_root)v);
 }
 
 CAMLexport void caml_delete_root(caml_root root)
