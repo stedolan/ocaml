@@ -110,7 +110,7 @@ void caml_oldify_one (value v, value *p)
   tag_t tag;
 
  tail_call:
-  Assert (!Is_block(v) || Wosize_hd (Hd_val (v)) < (1 << 20)); /* !! */
+  Assert (!Is_block(v) || Wosize_hd (Hd_val (v)) <= Max_wosize);
 
   if (Is_block (v) && Is_young (v)){
     Assert (Hp_val (v) >= caml_young_ptr);
