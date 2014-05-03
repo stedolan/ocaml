@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include "config.h"
 #include "memory.h"
 #include "addrmap.h"
@@ -91,6 +90,6 @@ uintnat* caml_addrmap_insert_pos(struct addrmap* t, value v) {
       *p = old_table[i].value;
     }
   }
-  free(old_table);
+  caml_stat_free(old_table);
   return caml_addrmap_insert_pos(t, v);
 }
