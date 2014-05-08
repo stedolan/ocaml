@@ -175,6 +175,14 @@ value* caml_shared_try_alloc(mlsize_t wosize, tag_t tag) {
   }
   if (!p) return 0;
   Hd_hp (p) = Make_header(wosize, tag, global.UNMARKED);
+#ifdef DEBUG
+  {
+    int i;
+    for (i = 0; i < wosize; i++) {
+      Field(Val_hp(p), i) = Debug_free_major;
+    }
+  }
+#endif
   return p;
 }
 
@@ -208,7 +216,11 @@ int caml_sweep(int work) {
 int caml_mark_object(value p) {
   Assert (Is_block(p));
   header_t h = Hd_val(p);
-  Assert (Has_status_hd(h, global.MARKED) || Has_status_hd(h, global.UNMARKED));
+  /* An object should have one of these statuses:
+       - UNMARKED:     this object has not yet been traced
+       - MARKED:       this object has already been traced or is being traced
+       - NOT_MARKABLE: this object should be ignored by the GC */
+  Assert (!Has_status_hd(h, global.GARBAGE));
   if (Has_status_hd(h, global.UNMARKED)) {
     Hd_val(p) = With_status_hd(h, global.MARKED);
     return 1;
