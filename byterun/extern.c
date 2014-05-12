@@ -100,9 +100,10 @@ static struct extern_item * extern_resize_stack(struct extern_item * sp)
   return newstack + sp_offset;
 }
 
-static void extern_record_location(uintnat* loc) {
+static void extern_record_location(value* loc) {
   if (extern_flags & NO_SHARING) return;
-  *loc = obj_counter++;
+  Assert(loc);
+  *loc = Val_long(obj_counter++);
 }
 
 /* To buffer the output */
@@ -315,7 +316,7 @@ static void extern_rec(value v)
     header_t hd = Hd_val(v);
     tag_t tag = Tag_hd(hd);
     mlsize_t sz = Wosize_hd(hd);
-    uintnat* output_location;
+    value* output_location;
 
     if (tag == Forward_tag) {
       value f = Forward_val (v);
@@ -345,7 +346,7 @@ static void extern_rec(value v)
       output_location = caml_addrmap_insert_pos(&recorded_objs, v);
     }
     if (output_location && *output_location != ADDRMAP_NOT_PRESENT) {
-      uintnat d = obj_counter - *output_location;
+      uintnat d = obj_counter - (uintnat)Long_val(*output_location);
       if (d < 0x100) {
         writecode8(CODE_SHARED8, d);
       } else if (d < 0x10000) {
@@ -406,7 +407,7 @@ static void extern_rec(value v)
       writeblock_float8((double *) v, nfloats);
       size_32 += 1 + nfloats * 2;
       size_64 += 1 + nfloats;
-      *output_location = obj_counter++;
+      extern_record_location(output_location);
       break;
     }
     case Abstract_tag:
@@ -442,7 +443,7 @@ static void extern_rec(value v)
       Custom_ops_val(v)->serialize(v, &sz_32, &sz_64);
       size_32 += 2 + ((sz_32 + 3) >> 2);  /* header + ops + data */
       size_64 += 2 + ((sz_64 + 7) >> 3);
-      *output_location = obj_counter++;
+      extern_record_location(output_location);
       break;
     }
     default: {

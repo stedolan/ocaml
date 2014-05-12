@@ -1,6 +1,12 @@
 #include "mlvalues.h"
 
-struct addrmap_entry { uintnat key, value; };
+#ifndef CAML_ADDRMAP_H
+#define CAML_ADDRMAP_H
+
+/* An addrmap is a value -> value hashmap, where
+   the values are blocks */
+
+struct addrmap_entry { value key, value; };
 struct addrmap {
   struct addrmap_entry* entries;
   uintnat size;
@@ -9,12 +15,13 @@ struct addrmap {
 #define ADDRMAP_INIT {0,0}
 
 
-uintnat caml_addrmap_lookup(struct addrmap* t, value v);
+value caml_addrmap_lookup(struct addrmap* t, value v);
 
-#define ADDRMAP_NOT_PRESENT ((uintnat)(-1))
+#define ADDRMAP_NOT_PRESENT ((value)(0))
 
-
-uintnat* caml_addrmap_insert_pos(struct addrmap* t, value v);
+value* caml_addrmap_insert_pos(struct addrmap* t, value v);
 
 
 void caml_addrmap_clear(struct addrmap* t);
+
+#endif
