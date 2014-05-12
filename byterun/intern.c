@@ -145,7 +145,7 @@ enum {
   OReadItems, /* read arg items and store them in dest[0], dest[1], ... */
   OFreshOID,  /* generate a fresh OID and store it in *dest */
   OShift      /* offset *dest by arg */
-} op;
+};
 
 
 #define STACK_NFIELDS 4
