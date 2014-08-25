@@ -175,6 +175,13 @@ CAMLexport value caml_read_barrier(value obj, int field)
   value v = Op_val(obj)[field];
   if (Is_foreign(v)) {
     struct read_fault_req req = {obj, field, Val_unit};
+    if (Is_young(obj)) {
+      /* We can trigger a read fault on a young object only if this is
+         the young copy of a promoted object. We should fault on the
+         promoted version, instead of the young one */
+      Assert(Is_promoted_hd(Hd_val(obj)));
+      req.obj = caml_addrmap_lookup(&caml_promotion_table, obj);
+    }
     caml_gc_log("Read fault to domain [%02d]", caml_domain_id(caml_owner_of_young_block(v)));
     caml_domain_rpc(caml_owner_of_young_block(v), &handle_read_fault, &req);
     Assert(!Is_minor(req.ret));
@@ -193,18 +200,19 @@ struct write_fault_req {
 
 static void handle_write_fault(struct domain* target, void* reqp) {
   struct write_fault_req* req = reqp;
-  if (caml_owner_of_shared_block(req->obj) == target) {
+  if (Is_promoted_hd(Hd_val(req->obj)) &&
+      caml_owner_of_shared_block(req->obj) == target) {
     caml_gc_log("Handling write fault for domain [%02d]", caml_domain_id(target));
-    value promoted = 
+    value local =
       caml_addrmap_lookup(caml_get_sampled_roots(target)->promotion_rev_table,
                           req->obj);
-    shared_heap_write_barrier(promoted, req->field, req->val);
-    Op_val(promoted)[req->field] = req->val;
+    Op_val(local)[req->field] = req->val;
+    shared_heap_write_barrier(req->obj, req->field, req->val);
     Op_val(req->obj)[req->field] = req->val;
   } else {
     caml_gc_log("Stale write fault for domain [%02d]", caml_domain_id(target));
     /* Race condition: this shared block is now owned by someone else */
-    promoted_write(req->obj, req->field, req->val);
+    caml_modify_field(req->obj, req->field, req->val);
   }
 }
 
