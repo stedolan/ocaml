@@ -40,16 +40,17 @@ CAMLexport void caml_modify_field (value obj, int field, value val)
   Assert (!Is_foreign(val));
   Assert (!Is_block(val) || Wosize_hd (Hd_val (val)) < (1 << 20)); /* !! */
 
-  if (Is_promoted_hd(Hd_val(obj)))
+  if (Is_promoted_hd(Hd_val(obj))) {
     promoted_write(obj, field, val);
-  else if (!Is_young(obj))
-    shared_heap_write_barrier(obj, field, val);
-  
-  Op_val(obj)[field] = val;
+  } else {
+    if (!Is_young(obj)) shared_heap_write_barrier(obj, field, val);
+    Op_val(obj)[field] = val;
+  }
 }
 
 CAMLexport void caml_initialize_field (value obj, int field, value val)
 {
+  /* FIXME: there are more efficient implementations of this */
   Op_val(obj)[field] = Val_long(0);
   caml_modify_field(obj, field, val);
 }
