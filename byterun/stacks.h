@@ -41,8 +41,5 @@ extern caml_root caml_global_data;
 void caml_init_stack ();
 void caml_realloc_stack (asize_t required_size);
 void caml_change_max_stack_size (uintnat new_max_size);
-uintnat caml_stack_usage (void);
-
-CAMLextern uintnat (*caml_stack_usage_hook)(void);
 
 #endif /* CAML_STACKS_H */

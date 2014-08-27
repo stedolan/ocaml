@@ -8,9 +8,10 @@
 #include "roots.h"
 #include "globroots.h"
 #include "domain.h"
+#include "fiber.h"
 
 intnat caml_major_collection_slice (intnat work) {
-  if ((rand() % 10) < 2)  caml_trigger_stw_gc();
+  //  if ((rand() % 10) < 2)  caml_trigger_stw_gc();
   /* caml_finish_major_cycle(); */
   return 100;
 }
@@ -86,6 +87,9 @@ void mark(value initial) {
           }
         }
       }
+      if (Tag_hd (hd_v) == Fiber_tag) {
+        caml_scan_stack(&caml_darken, v);
+      }
     }
     
     /* if we haven't found any markable children, pop an object to mark */
@@ -109,9 +113,9 @@ void caml_darken(value v, value* ignored) {
 }
 
 void caml_finish_marking () {
-  int i;
   struct caml_sampled_roots roots;
 
+  caml_save_stack_gc();
   
   caml_sample_local_roots(&roots);
   caml_do_local_roots(&caml_mark_root, &roots);
@@ -119,9 +123,8 @@ void caml_finish_marking () {
   caml_scan_global_roots(&caml_mark_root);
   caml_do_foreign_roots(&caml_mark_root);
 
-  for (i = 0 ; i < 256; i ++) caml_mark_object(caml_atom(i));
-
   caml_empty_mark_stack();
+  caml_restore_stack_gc();
 }
 
 void caml_empty_mark_stack () {
@@ -129,7 +132,7 @@ void caml_empty_mark_stack () {
 
   while (mark_stack_pop(&v)) mark(v);
 
-  if (stat_blocks_marked || 1) 
+  if (stat_blocks_marked) 
     caml_gc_log("Finished marking major heap. Marked %u blocks", (unsigned)stat_blocks_marked);
   stat_blocks_marked = 0;
 }
