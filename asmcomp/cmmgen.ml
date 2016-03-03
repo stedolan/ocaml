@@ -2194,7 +2194,7 @@ and transl_letrec bindings cont =
 let transl_function f =
   Cfunction {fun_name = f.label;
              fun_args = List.map (fun id -> (id, typ_addr)) f.params;
-             fun_body = transl f.body;
+             fun_body = Afl.instrument (transl f.body);
              fun_fast = !Clflags.optimize_for_speed;
              fun_dbg  = f.dbg; }
 
