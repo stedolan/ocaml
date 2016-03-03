@@ -139,5 +139,5 @@ void caml_fatal_uncaught_exception(value exn)
   else
     default_fatal_uncaught_exception(exn);
   /* Terminate the process */
-  exit(2);
+  abort();
 }

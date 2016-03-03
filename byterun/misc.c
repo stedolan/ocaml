@@ -25,15 +25,14 @@ caml_timing_hook caml_minor_gc_end_hook = NULL;
 caml_timing_hook caml_finalise_begin_hook = NULL;
 caml_timing_hook caml_finalise_end_hook = NULL;
 
-#ifdef DEBUG
+
 
 int caml_failed_assert (char * expr, char * file, int line)
 {
   fprintf (stderr, "file %s; line %d ### Assertion failed: %s\n",
            file, line, expr);
   fflush (stderr);
-  exit (100);
-  return 1; /* not reached */
+  abort();
 }
 
 void caml_set_fields (char *bp, unsigned long start, unsigned long filler)
@@ -44,7 +43,7 @@ void caml_set_fields (char *bp, unsigned long start, unsigned long filler)
   }
 }
 
-#endif /* DEBUG */
+
 
 uintnat caml_verb_gc = 0;
 
@@ -59,13 +58,13 @@ void caml_gc_message (int level, char *msg, uintnat arg)
 CAMLexport void caml_fatal_error (char *msg)
 {
   fprintf (stderr, "%s", msg);
-  exit(2);
+  abort();
 }
 
 CAMLexport void caml_fatal_error_arg (char *fmt, char *arg)
 {
   fprintf (stderr, fmt, arg);
-  exit(2);
+  abort();
 }
 
 CAMLexport void caml_fatal_error_arg2 (char *fmt1, char *arg1,
@@ -73,7 +72,7 @@ CAMLexport void caml_fatal_error_arg2 (char *fmt1, char *arg1,
 {
   fprintf (stderr, fmt1, arg1);
   fprintf (stderr, fmt2, arg2);
-  exit(2);
+  abort();
 }
 
 char *caml_aligned_malloc (asize_t size, int modulo, void **block)

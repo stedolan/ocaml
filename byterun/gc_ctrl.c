@@ -151,9 +151,11 @@ static value heap_stats (int returnstats)
       case Caml_white:
         if (Wosize_hd (cur_hd) == 0){
           ++ fragments;
+#ifdef DEBUG
           Assert (prev_hp == NULL
                   || Color_hp (prev_hp) != Caml_blue
                   || cur_hp == caml_gc_sweep_hp);
+#endif
         }else{
           if (caml_gc_phase == Phase_sweep && cur_hp >= caml_gc_sweep_hp){
             ++ free_blocks;
