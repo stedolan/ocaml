@@ -351,40 +351,11 @@ extern int caml_win32_random_seed (intnat data[16]);
 
 CAMLprim value caml_sys_random_seed (value unit)
 {
-  intnat data[16];
-  int n, i;
+  intnat data[12] = {
+    0xba, 0xbf, 0xca, 0x76, 0x1a, 0x38, 0xb8, 0xb4, 0x42, 0xb7, 0x05, 0xe1
+  };
+  int n = 12, i;
   value res;
-#ifdef _WIN32
-  n = caml_win32_random_seed(data);
-#else
-  int fd;
-  n = 0;
-  /* Try /dev/urandom first */
-  fd = open("/dev/urandom", O_RDONLY, 0);
-  if (fd != -1) {
-    unsigned char buffer[12];
-    int nread = read(fd, buffer, 12);
-    close(fd);
-    while (nread > 0) data[n++] = buffer[--nread];
-  }
-  /* If the read from /dev/urandom fully succeeded, we now have 96 bits
-     of good random data and can stop here.  Otherwise, complement
-     whatever we got (probably nothing) with some not-very-random data. */
-  if (n < 12) {
-#ifdef HAS_GETTIMEOFDAY
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    data[n++] = tv.tv_usec;
-    data[n++] = tv.tv_sec;
-#else
-    data[n++] = time(NULL);
-#endif
-#ifdef HAS_UNISTD
-    data[n++] = getpid();
-    data[n++] = getppid();
-#endif
-  }
-#endif
   /* Convert to an OCaml array of ints */
   res = caml_alloc_small(n, 0);
   for (i = 0; i < n; i++) Field(res, i) = Val_long(data[i]);
