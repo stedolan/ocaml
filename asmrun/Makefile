@@ -32,7 +32,7 @@ COBJS=startup_aux.o startup.o \
   floats.o str.o array.o io.o extern.o intern.o hash.o sys.o parsing.o \
   gc_ctrl.o terminfo.o md5.o obj.o lexing.o printexc.o callback.o weak.o \
   compact.o finalise.o custom.o $(UNIX_OR_WIN32).o backtrace_prim.o \
-  backtrace.o \
+  backtrace.o afl.o \
   natdynlink.o debugger.o meta.o dynlink.o clambda_checks.o \
   spacetime.o spacetime_snapshot.o spacetime_offline.o
 
@@ -128,6 +128,8 @@ install::
 	cp libasmrun_shared.so $(INSTALL_LIBDIR)/libasmrun_shared.so
 endif
 
+afl.c: ../byterun/afl.c
+	ln -s ../byterun/afl.c afl.c
 main.c: ../byterun/main.c
 	ln -s ../byterun/main.c main.c
 startup_aux.c: ../byterun/startup_aux.c
