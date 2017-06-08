@@ -19,6 +19,7 @@
 #include "caml/callback.h"
 #include "caml/minor_gc.h"
 #include "caml/eventlog.h"
+#include "caml/interrupt.h"
 
 /* Since we support both heavyweight OS threads and lightweight
    userspace threads, the word "thread" is ambiguous. This file deals
@@ -32,11 +33,15 @@ struct dom_internal {
   int id;
   struct domain state;
 
-  /* fields accessed by the domain itself and the domain requesting an RPC */
+
+  struct interruptor interruptor;
+
+  /*
   atomic_uintnat rpc_request;
   domain_rpc_handler rpc_handler;
   void* rpc_data;
   atomic_uintnat* rpc_completion_signal;
+  */
 
   caml_plat_mutex roots_lock;
 
@@ -51,11 +56,6 @@ struct dom_internal {
 };
 typedef struct dom_internal dom_internal;
 
-
-/* possible values of domain->rpc_request */
-enum { RPC_IDLE = 0,
-       RPC_REQUEST_INITIALISING = 1,
-       RPC_REQUEST_SENT = 2 };
 
 static caml_plat_mutex all_domains_lock = CAML_PLAT_MUTEX_INITIALIZER;
 static struct dom_internal all_domains[Max_domains];
@@ -164,8 +164,6 @@ static void create_domain(uintnat initial_minor_heap_size) {
   if (d) {
     d->running = 1;
     d->state.internals = d;
-    /* FIXME: shutdown RPC? */
-    atomic_store_rel(&d->rpc_request, RPC_IDLE);
 
     domain_self = d;
     SET_Caml_state((void*)(d->tls_area));
@@ -180,6 +178,9 @@ static void create_domain(uintnat initial_minor_heap_size) {
       d->interrupt_word_address = young_limit;
       atomic_store_rel(young_limit, d->minor_heap_area);
     }
+    /* FIXME: shutdown RPC? */
+    caml_init_interruptor(&d->interruptor, d->interrupt_word_address);
+
     domain_state->id = d->id;
     d->state.state = domain_state;
 
@@ -496,7 +497,7 @@ void caml_urge_major_slice (void)
 
 
 static void stw_phase(void);
-static int check_rpc(void);
+//static int check_rpc(void);
 
 void caml_handle_gc_interrupt() {
   atomic_uintnat* young_limit = domain_self->interrupt_word_address;
@@ -506,7 +507,8 @@ void caml_handle_gc_interrupt() {
       atomic_cas(young_limit, INTERRUPT_MAGIC, domain_self->minor_heap_area);
     }
     caml_ev_pause(EV_PAUSE_GC);
-    check_rpc();
+    caml_handle_incoming_interrupts(&domain_self->interruptor);
+    //check_rpc();
     if (atomic_load_acq(&stw_requested)) {
       stw_phase();
     }
@@ -592,7 +594,8 @@ static void stw_phase () {
       } else {
         /* locked by some other thread,
            but not yet accounted for, need to wait */
-        check_rpc();
+        caml_handle_incoming_interrupts(&domain_self->interruptor);
+        //check_rpc();
       }
     }
     if (mine) {
@@ -660,7 +663,8 @@ static void stw_phase () {
       if (atomic_load_acq(&heaps_marked) == 0)
         break;
       Assert(atomic_load_acq(&heaps_marked) <= Max_domains);
-      check_rpc();
+      caml_handle_incoming_interrupts(&domain_self->interruptor);
+      //check_rpc();
     }
     caml_gc_log("GC cycle completed");
   }
@@ -737,7 +741,7 @@ void caml_sample_gc_stats(struct gc_stats* buf)
   }
 }
 
-
+#if 0
 static int handle_rpc(dom_internal* target)
 {
   int r = 0;
@@ -844,6 +848,14 @@ CAMLexport void caml_domain_rpc(struct domain* domain,
     }
   }
   caml_ev_resume();
+}
+#endif
+
+CAMLexport void caml_domain_rpc(struct domain* domain,
+                                domain_rpc_handler handler, void* data)
+{
+  caml_send_interrupt(&domain_self->interruptor, &domain->internals->interruptor,
+                      handler, data);
 }
 
 /* Generate functions for accessing domain state variables in debug mode */
