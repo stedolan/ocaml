@@ -27,12 +27,18 @@ void caml_init_interruptor(struct interruptor* s, atomic_uintnat* interrupt_word
 }
 
 /* must be called with s->lock held */
-static void handle_incoming(struct interruptor* s)
+static uintnat handle_incoming(struct interruptor* s)
 {
+  uintnat handled = 0;
   while (s->received != s->acknowledged) {
     struct interrupt* req = s->messages[s->acknowledged & (Interrupt_queue_len - 1)];
     struct interruptor* sender = req->sender;
     s->acknowledged++;
+
+    /* Unlock s while the handler runs, to allow other
+       domains to send us messages. This is necessary to
+       avoid deadlocks, since the handler might send
+       interrupts */
     caml_plat_unlock(&s->lock);
 
     req->handler(caml_domain_self(), req->data);
@@ -45,13 +51,24 @@ static void handle_incoming(struct interruptor* s)
     caml_plat_unlock(&sender->lock);
 
     caml_plat_lock(&s->lock);
+    handled++;
   }
+  return handled;
 }
 
 void caml_handle_incoming_interrupts(struct interruptor* s)
 {
   caml_plat_lock(&s->lock);
   handle_incoming(s);
+  caml_plat_unlock(&s->lock);
+}
+
+void caml_yield_until_interrupted(struct interruptor* s)
+{
+  caml_plat_lock(&s->lock);
+  while (handle_incoming(s) == 0) {
+    caml_plat_wait(&s->cond);
+  }
   caml_plat_unlock(&s->lock);
 }
 

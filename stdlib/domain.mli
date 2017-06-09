@@ -8,6 +8,9 @@ val join : t -> unit
 (** [join d] blocks until domain [d] runs to completion. If [d] has already 
       completed, then [join d] returns immediately *)
 
+val yield : unit -> unit
+(** [yield] blocks until an interrupt arrives *)
+
 val self : unit -> int
 
 module BVar : sig

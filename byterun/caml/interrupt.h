@@ -23,6 +23,7 @@ struct interruptor {
 void caml_init_interruptor(struct interruptor* s, atomic_uintnat* interrupt_word);
 
 void caml_handle_incoming_interrupts(struct interruptor* self);
+void caml_yield_until_interrupted(struct interruptor* self);
 
 struct domain; // compat hack
 typedef void (*interrupt_handler)(struct domain*, void*);

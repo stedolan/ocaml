@@ -406,6 +406,12 @@ CAMLprim value caml_ml_domain_join(value domain)
     CAMLreturn (Val_unit);
 }
 
+CAMLprim value caml_ml_domain_yield(value unused)
+{
+  caml_yield_until_interrupted(&domain_self->interruptor);
+  return Val_unit;
+}
+
 struct domain* caml_domain_self()
 {
   return domain_self ? &domain_self->state : 0;

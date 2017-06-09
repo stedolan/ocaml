@@ -5,6 +5,8 @@ external self : unit -> int = "caml_ml_domain_id"
 
 external join : t -> unit = "caml_ml_domain_join"
 
+external yield : unit -> unit = "caml_ml_domain_yield"
+
 module BVar = struct
   type 'a t
   external create : 'a -> 'a t = "caml_bvar_create"
