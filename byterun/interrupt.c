@@ -71,7 +71,7 @@ void caml_send_interrupt(struct interruptor* self,
   atomic_store_rel(&req.completed, 0);
 
   caml_plat_lock(&target->lock);
-  Assert (target->acknowledged - target->received < Interrupt_queue_len);
+  Assert (target->received - target->acknowledged < Interrupt_queue_len);
   pos = target->received++;
   target->messages[pos & (Interrupt_queue_len - 1)] = &req;
   /* Signal the condition variable, in case the target is
