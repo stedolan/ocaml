@@ -931,7 +931,7 @@ let rec close fenv cenv = function
   | Lletrec(defs, body) ->
       if List.for_all
            (function (_id, Lfunction _) -> true | _ -> false)
-           defs
+           defs && List.length defs = 1
       then begin
         (* Simple case: only function definitions *)
         let (clos, infos) = close_functions fenv cenv defs in

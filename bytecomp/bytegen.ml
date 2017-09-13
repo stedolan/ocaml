@@ -529,8 +529,7 @@ let rec comp_expr env exp sz cont =
           (add_pop 1 cont))
   | Lletrec(decl, body) ->
       let ndecl = List.length decl in
-      if List.for_all (function (_, Lfunction _) -> true | _ -> false)
-                      decl then begin
+      if false then begin
         (* let rec of functions *)
         let fv =
           IdentSet.elements (free_variables (Lletrec(decl, lambda_unit))) in

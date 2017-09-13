@@ -217,6 +217,7 @@ void caml_oldify_one (value v, value *p)
         Field (v, 0) = result;     /*  and forward pointer. */
         *p = result;
       }else if (tag == Infix_tag){
+        abort();
         mlsize_t offset = Infix_offset_hd (hd);
         caml_oldify_one (v - offset, p);   /* Cannot recurse deeper than 1. */
         *p += offset;
