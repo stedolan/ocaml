@@ -36,7 +36,10 @@ static value build_frame_descriptors(link* frametables)
 
   /* Allocate the hash table */
   Assert(sizeof(frame_descr*) == sizeof(value));
-  descriptor_table = caml_alloc_shr(tblsize, Abstract_tag);
+  /* FIXME */
+  //descriptor_table = caml_alloc_shr(tblsize, Abstract_tag);
+  descriptor_table = sizeof(value) + (value)malloc((tblsize + 1) * sizeof(value));
+  ((value*)descriptor_table)[-1] = tblsize << 10;
   frame_descriptors = Data_abstract_val(descriptor_table);
   for (i = 0; i < tblsize; i++) frame_descriptors[i] = NULL;
 

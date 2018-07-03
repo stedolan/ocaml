@@ -68,6 +68,7 @@ static void load_stack (value stack) {
     + caml_params->profile_slop_wsz + Stack_threshold / sizeof(value);
   domain_state->stack_high = Stack_high(stack);
   domain_state->current_stack = stack;
+  CAMLassert ((value*)stack <= Stack_sp(stack) && Stack_sp(stack) <= Stack_high(stack));
   dirty_stack(stack);
   /* XXX KC: Optimize this. Record minor cycle count. */
   if (domain_state->promoted_in_current_cycle)
@@ -77,17 +78,69 @@ static void load_stack (value stack) {
 extern void caml_fiber_exn_handler (value) Noreturn;
 extern void caml_fiber_val_handler (value) Noreturn;
 
-//FIXME #define INIT_FIBER_USED (3 + sizeof(struct caml_context) / sizeof(value))
+//FIXME #define INIT_FIBER_USED (3 + sizeof(struct fiber_context) / sizeof(value))
+
+void caml_move_stack(value old_stack, value new_stack)
+{
+  char* sp;
+  uintnat retaddr;
+  frame_descr** frame_descriptors;
+  int frame_descriptors_mask;
+  struct fiber_link* old_link = fiber_link(old_stack);
+  struct fiber_link* new_link = fiber_link(new_stack);
+  int stack_used = Stack_high(old_stack) - (value*)Stack_sp(old_stack);
+  *new_link = *old_link;
+
+  CAMLassert(0 <= stack_used && stack_used < Wosize_val(old_stack));
+  new_link->sp = (void*)(Stack_high(new_stack) - stack_used);
+  memcpy(new_link->sp, Stack_sp(old_stack), stack_used * sizeof(value));
+
+  frame_descriptors = Data_abstract_val(caml_frame_descriptor_table);
+  frame_descriptors_mask = Wosize_val(caml_frame_descriptor_table) - 1;
+
+  sp = (char*)(new_link->sp + 1);
+  retaddr = new_link->sp->pc;
+  while (sp != (void*)Stack_high(new_stack)) {
+    uintnat h = Hash_retaddr(retaddr, frame_descriptors_mask);
+    frame_descr* d;
+    while (1) {
+      d = frame_descriptors[h];
+      if (d->retaddr == retaddr) break;
+      h = (h + 1) & frame_descriptors_mask;
+    }
+    if (d->frame_size != 0xFFFF) {
+      /* normal OCaml stack frame */
+      sp += d->frame_size & 0xFFFC;
+      retaddr = Saved_return_address(sp);
+    } else {
+      /* C callback frame. Update stack pointers */
+      struct fiber_callback* cb = (struct fiber_callback*)sp;
+      Assert(cb->callback->fiber == old_stack);
+      cb->callback->fiber = new_stack;
+      if (cb->callback->prev) {
+        struct cstack_ccall* ccall = cstack_call(cb->callback->prev);
+        Assert((char*)old_link - (char*)ccall->caml ==
+               (char*)new_link - (char*)&cb->ctx);
+        ccall->caml = &cb->ctx;
+      }
+      sp += sizeof(*cb);
+      retaddr = cb->ctx.pc;
+    }
+  }
+
+  memset((void*)old_stack, Bosize_val(old_stack), 42);
+}
+
 
 value caml_alloc_stack (value hval, value hexn, value heff)
 {
   CAMLparam3(hval, hexn, heff);
   CAMLlocal1(stack);
-  char* sp;
   struct fiber_context *ctxt;
   struct fiber_link *link;
 
-  stack = caml_alloc(caml_fiber_wsz + caml_params->profile_slop_wsz, Stack_tag);
+  /* FIXME */
+  stack = caml_alloc(Stack_size + caml_params->profile_slop_wsz, Stack_tag);
   link = fiber_link(stack);
   link->dirty_domain = FIBER_CLEAN;
   link->handle_val = hval;
@@ -99,12 +152,12 @@ value caml_alloc_stack (value hval, value hexn, value heff)
   link->exn.next_offset = 0;
   
   /* push a fiber_context below the fiber_link */
-  ctxt = ((struct caml_context*)link) - 1;
+  ctxt = ((struct fiber_context*)link) - 1;
   ctxt->exception_handler_offset = (char*)link - (char*)(&link->exn);
   ctxt->pc = (uintnat)caml_fiber_val_handler;
   ctxt->gc_regs = 0;
 
-  Stack_sp(stack) = (value*)ctxt;
+  Stack_sp(stack) = ctxt;
   caml_gc_log ("Allocate stack=0x%lx of %lu words", stack, caml_fiber_wsz);
 
   CAMLreturn (stack);
@@ -170,7 +223,7 @@ next_chunk:
     } else {
       /* This marks the top of an ML stack chunk. Move sp to the previous stack
        * chunk. */
-      context = (struct fiber_context*)sp;
+      context = &((struct fiber_callback*)sp)->ctx;
       goto next_chunk;
     }
   }
@@ -183,8 +236,7 @@ void caml_maybe_expand_stack ()
   Assert(Tag_val(Caml_state->current_stack) == Stack_tag);
 
   stack_available = Wosize_val(Caml_state->current_stack)
-    - (Stack_high(Caml_state->current_stack) - Stack_sp(Caml_state->current_stack))
-    - Stack_ctx_words;
+    - (Stack_high(Caml_state->current_stack) - (value*)Stack_sp(Caml_state->current_stack));
   if (stack_available < caml_params->profile_slop_wsz
                       + 2 * Stack_threshold / sizeof(value))
     caml_realloc_stack (0, 0, 0);
@@ -192,8 +244,8 @@ void caml_maybe_expand_stack ()
 
 void caml_update_gc_regs_slot (value* gc_regs)
 {
-  struct caml_context *ctxt;
-  ctxt = (struct caml_context*) Stack_sp(Caml_state->current_stack);
+  struct fiber_context *ctxt;
+  ctxt = (struct fiber_context*) Stack_sp(Caml_state->current_stack);
   ctxt->gc_regs = gc_regs;
 }
 
@@ -248,12 +300,23 @@ static void load_stack(value new_stack)
     caml_scan_stack (forward_pointer, 0, new_stack);
 }
 
+void caml_move_stack(value old_stack, value new_stack)
+{
+  struct fiber_link* old_link = fiber_link(old_stack);
+  struct fiber_link* new_link = fiber_link(new_stack);
+  int stack_used = Stack_high(old_stack) - (value*)Stack_sp(old_stack);
+  *new_link = *old_link;
+
+  CAMLassert(0 <= stack_used && stack_used < Wosize_val(old_stack));
+  new_link->sp = Stack_high(new_stack) - stack_used;
+  memcpy(new_link->sp, Stack_sp(old_stack), stack_used * sizeof(value));
+  memset((void*)old_stack, Bosize_val(old_stack), 42);
+}
+
 CAMLprim value caml_alloc_stack(value hval, value hexn, value heff)
 {
   CAMLparam3(hval, hexn, heff);
   CAMLlocal1(stack);
-  value* sp;
-  struct fiber_context *ctxt;
   struct fiber_link *link;
 
   stack = caml_alloc(caml_fiber_wsz, Stack_tag);
@@ -312,6 +375,7 @@ CAMLprim value caml_ensure_stack_capacity(value required_space)
   asize_t req = Long_val(required_space);
   if (Caml_state->extern_sp - req < Stack_base(Caml_state->current_stack))
     caml_realloc_stack(req, 0, 0);
+  Assert (Caml_state->extern_sp - req >= Stack_base(Caml_state->current_stack));
   return Val_unit;
 }
 
@@ -444,7 +508,7 @@ void caml_realloc_stack(asize_t required_space, value* saved_vals, int nsaved)
 
   old_stack = save_stack();
 
-  stack_used = Stack_high(old_stack) - Stack_sp(old_stack);
+  stack_used = (value*)Stack_high(old_stack) - (value*)Stack_sp(old_stack);
   size = Stack_high(old_stack) - Stack_base(old_stack);
   do {
     if (size >= caml_max_stack_size) caml_raise_stack_overflow();
@@ -460,7 +524,7 @@ void caml_realloc_stack(asize_t required_space, value* saved_vals, int nsaved)
                  (uintnat) size * sizeof(value));
   }
 
-  new_stack = caml_alloc(Stack_ctx_words + size, Stack_tag);
+  new_stack = caml_alloc(/*FIXME*/100 + size, Stack_tag);
   caml_move_stack(old_stack, new_stack);
 
   Stack_dirty_domain(new_stack) = FIBER_CLEAN;
@@ -472,7 +536,7 @@ void caml_realloc_stack(asize_t required_space, value* saved_vals, int nsaved)
   load_stack(new_stack);
 
   /* Reset old stack */
-  Stack_sp(old_stack) = Stack_high(old_stack);
+  //Stack_sp(old_stack) = Stack_high(old_stack);
 
   CAMLreturn0;
 }
@@ -487,25 +551,12 @@ void caml_init_stack (value stack)
   Stack_parent(stack) = Val_unit;
 }
 
-value caml_alloc_main_stack (uintnat init_size)
-{
-  CAMLparam0();
-  CAMLlocal1(stack);
-
-  /* Create a stack for the main program.
-     The GC is not initialised yet, so we use caml_alloc_shr
-     which cannot trigger it */
-  stack = caml_alloc_shr(init_size, Stack_tag);
-  caml_init_stack (stack);
-
-  CAMLreturn(stack);
-}
-
 void* caml_init_main_stack ()
 {
   value stack;
-  stack = caml_alloc_main_stack (caml_params->profile_slop_wsz +
-                            Stack_size/sizeof(value));
+  /* FIXME: should be of size caml_params->profile_slop_wsz +
+                            Stack_size/sizeof(value) */
+  stack = caml_alloc_stack(Val_long(0), Val_long(0), Val_long(0));
   load_stack(stack);
   return Stack_sp(stack);
 }

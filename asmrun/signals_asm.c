@@ -75,7 +75,7 @@ extern char caml_system__code_begin, caml_system__code_end;
 void caml_garbage_collection()
 {
   Stack_sp(Caml_state->current_stack) =
-    (value*)(get_c_call_context(Caml_state->c_context)->caml);
+    (value*)(cstack_call(Caml_state->cstack)->caml);
   caml_handle_gc_interrupt();
 
 #ifdef WITH_SPACETIME

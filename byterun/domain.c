@@ -277,6 +277,9 @@ void caml_init_domains(uintnat minor_size) {
       domain_minor_heap_base + (1 << Minor_heap_align_bits);
   }
 
+  #ifdef NATIVE_CODE
+  caml_init_frame_descriptors();
+  #endif
 
   create_domain(minor_size);
   if (!domain_self) caml_fatal_error("Failed to create main domain");

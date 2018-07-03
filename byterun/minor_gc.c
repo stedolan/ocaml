@@ -140,7 +140,6 @@ static void oldify_one (void* st_v, value v, value *p)
   mlsize_t sz, i;
   mlsize_t infix_offset;
   tag_t tag;
-  int stack_used;
   caml_domain_state* domain_state =
     st->promote_domain ? st->promote_domain->state : Caml_state;
   struct caml_remembered_set *remembered_set = domain_state->remembered_set;
@@ -192,13 +191,7 @@ static void oldify_one (void* st_v, value v, value *p)
       result = alloc_shared (sz, tag);
       *p = result + infix_offset;
       if (tag == Stack_tag) {
-        /* Ensure that the stack remains 16-byte aligned. Note: Stack_high
-         * always returns 16-byte aligned down address. */
-        memcpy((void*)result, (void*)v, sizeof(value) * Stack_ctx_words);
-        stack_used = Stack_high(v) - Stack_sp(v);
-        Stack_sp(result) = Stack_high(result) - stack_used;
-        memcpy(Stack_sp(result), Stack_sp(v), stack_used * sizeof(value));
-
+        caml_move_stack(v, result);
         Hd_val (v) = 0;
         Op_val(v)[0] = result;
         Op_val(v)[1] = st->todo_list;

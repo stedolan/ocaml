@@ -37,6 +37,9 @@
 frame_descr * caml_next_frame_descriptor(uintnat * pc, char ** sp, value stack)
 {
   frame_descr * d;
+  abort();
+
+#ifdef FIXME
 
   while (1) {
     d = caml_find_frame_descr(*pc);
@@ -71,6 +74,7 @@ frame_descr * caml_next_frame_descriptor(uintnat * pc, char ** sp, value stack)
 #endif
     }
   }
+#endif
 }
 
 int caml_alloc_backtrace_buffer(void){
@@ -130,6 +134,8 @@ value get_callstack(value stack, value max_frames_value)
   CAMLparam2(stack, max_frames_value);
   CAMLlocal2(saved_stack, trace);
 
+  abort();
+#ifdef FIXME
   /* we use `intnat` here because, were it only `int`, passing `max_int`
      from the OCaml side would overflow on 64bits machines. */
   intnat max_frames = Long_val(max_frames_value);
@@ -177,7 +183,7 @@ value get_callstack(value stack, value max_frames_value)
       }
     }
   }
-
+#endif
   CAMLreturn(trace);
 }
 

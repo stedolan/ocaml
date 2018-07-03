@@ -109,7 +109,7 @@ static void init_callback_code(void)
 {
 }
 
-typedef value (callback_stub)(char* young, struct caml_context* stack, value closure, value* args);
+typedef value (callback_stub)(char* young, struct fiber_context* stack, value closure, value* args);
 
 callback_stub caml_callback_asm, caml_callback2_asm, caml_callback3_asm;
 
@@ -128,14 +128,14 @@ static value do_callback(callback_stub* cbstub, value closure,
   CAMLparam1(closure);
   CAMLlocal1(saved_parent);
   value ret;
-  struct caml_context* stack;
+  struct fiber_context* stack;
 
   saved_parent = Stack_parent(Caml_state->current_stack);
 
   Stack_parent(Caml_state->current_stack) = Val_unit;
 
   check_stack(nargs, args);
-  stack = get_c_call_context(Caml_state->c_context)->caml;
+  stack = cstack_call(Caml_state->cstack)->caml;
   ret = cbstub(Caml_state->young_ptr, stack, closure, args);
 
   Stack_parent(Caml_state->current_stack) = saved_parent;

@@ -15,8 +15,9 @@
 #define Stack_handle_exception(stk) (fiber_link(stk)->handle_exn)
 #define Stack_handle_effect(stk) (fiber_link(stk)->handle_eff)
 #define Stack_parent(stk) (fiber_link(stk)->parent)
-#define Stack_sp(stk) (fiber_link(stk)->sp)
 #define Stack_high(stk) ((value*)fiber_link(stk))
+/* FIXME */
+#define Stack_base(stk) ((value*)(stk))
 
 /* States for Stack_dirty_domain field */
 /* A clean fiber does not have pointers into any minor heaps */
@@ -71,8 +72,8 @@ extern caml_root caml_global_data;
 #define Trap_pc(tp) ((tp)[0])
 #define Trap_link(tp) ((tp)[1])
 
+void caml_move_stack(value old_stack, value new_stack);
 void caml_init_stack(value stack);
-value caml_alloc_main_stack (uintnat init_size);
 void* caml_init_main_stack(void);
 void caml_scan_dirty_stack_domain(scanning_action f, void*, value stack,
                                   struct domain* domain);

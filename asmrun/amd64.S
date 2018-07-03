@@ -373,7 +373,7 @@ GC frame tables
 #define PUSH_cstack_ccall \
         STORE_TL_VAR(%r15, caml_young_ptr); \
         movq    %rsp, %r10; \
-        LOAD_TL_VAR(caml_c_context, %rsp); \
+        LOAD_TL_VAR(caml_cstack, %rsp); \
         /* prepend struct cstack_ccall */ \
         pushq   %r10
 
@@ -388,7 +388,7 @@ GC frame tables
         /* Could this be pop rsp? What does that do? mov (%rsp), %rsp is also fine */ \
         popq    %r11; /* fiber_context */ \
         /* debug assert */ \
-        LOAD_TL_VAR(caml_c_context, %r10); cmpq %r10, %rsp; je 1f; int3; 1: ; \
+        LOAD_TL_VAR(caml_cstack, %r10); cmpq %r10, %rsp; je 1f; int3; 1: ; \
         movq    %r11, %rsp; \
         LOAD_TL_VAR(caml_young_ptr, %r15)
 
@@ -400,11 +400,11 @@ GC frame tables
    Clobbers:   %r10, %r11
   */
 #define PUSH_cstack_callback \
-        LOAD_TL_VAR(caml_c_context, %r11); \
+        LOAD_TL_VAR(caml_cstack, %r11); \
         pushq   %r11; \
         LOAD_TL_VAR(caml_current_stack, %r10); \
         pushq   %r10; \
-        STORE_TL_VAR(%rsp, caml_c_context); \
+        STORE_TL_VAR(%rsp, caml_cstack); \
         movq    %rsp, %r10; \
         movq    %r13, %rsp; \
         pushq   %r10
@@ -415,14 +415,14 @@ GC frame tables
    Clobbers:   %r10, %r11 */
 #define POP_cstack_callback \
         popq    %r10; \
-        /* assert */ CMP_TL_VAR(caml_c_context, %r10); je 1f; int3; 1: \
+        /* assert */ CMP_TL_VAR(caml_cstack, %r10); je 1f; int3; 1: \
         movq    %rsp, %r11; \
         movq    %r10, %rsp; \
         LOAD_TL_VAR(caml_current_stack, %r10); \
         movq    %r11, (%r10); \
         popq    %r11 /* fiber */; \
         popq    %r10 /* prev */; \
-        STORE_TL_VAR(%r10, caml_c_context)
+        STORE_TL_VAR(%r10, caml_cstack)
 
 
 /******************************************************************************/
@@ -910,7 +910,7 @@ CFI_STARTPROC
         movq    C_ARG_2, %rax
 LBL(caml_raise_exception):
     /* Load ocaml stack and restore global variables */
-        LOAD_TL_VAR(caml_c_context, %r11)
+        LOAD_TL_VAR(caml_cstack, %r11)
         movq    -8(%r11), %rsp /* cstack_ccall->caml */
         POP_fiber_context
     /* Raise the exception in OCaml */

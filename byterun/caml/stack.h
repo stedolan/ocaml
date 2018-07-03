@@ -103,8 +103,13 @@
 
 /* pushed to an OCaml fiber during 'try' blocks */
 struct fiber_exn_frame {
+#ifdef NATIVE_CODE
   uintnat next_offset;
   uintnat handler_pc;
+#else
+  value trap_pc;
+  value trap_link;
+#endif
 };
 
 /* at the top of a fiber stack */
@@ -116,16 +121,19 @@ struct fiber_link {
   value handle_eff;
   value handle_exn;
   value parent;
-  struct fiber_context* sp;
   struct domain* dirty_domain;
 };
 
 /* pushed to an OCaml fiber stack when the fiber pauses, in order
    to perform an effect, handle effects from another fiber, or call C */
 struct fiber_context {
+#ifdef NATIVE_CODE
   uintnat exception_handler_offset; /* pointer to the exception trap frame */
   value* gc_regs;           /* pointer to register block (may be NULL) */
   uintnat pc;                /* return address */
+#else
+  value env;
+#endif
 };
 
 
@@ -152,11 +160,12 @@ struct cstack_ccall {
   struct cstack_callback callback;
 };
 
+
 static inline struct fiber_link* fiber_link(value fib)
 {
   uintnat stack_end;
   CAMLassert (Is_block(fib) && Tag_val(fib) == Stack_tag);
-  stack_end = (uintnat)(fib + Wosize_val(fib));
+  stack_end = (uintnat)(fib + Bosize_val(fib));
   stack_end &= (uintnat)-16;    /* stacks are aligned to 16 bytes */
   return (struct fiber_link*)(stack_end - sizeof(struct fiber_link));
 }
