@@ -1007,16 +1007,40 @@ type popen_process =
 let popen_processes = (Hashtbl.create 7 : (popen_process, int) Hashtbl.t)
 
 let open_proc prog args envopt proc input output error =
+  (* If exec fails, the error code will be sent back on this pipe.
+     If exec succeeds, this pipe will be closed automatically *)
+  let (fail_read, fail_write) = pipe ~cloexec:true () in
   match fork() with
-    0 -> perform_redirections input output error;
+    0 ->
+      (* child *)
+      safe_close fail_read;
       begin try
+        perform_redirections input output error;
         match envopt with
         | Some env -> execve prog args env
         | None     -> execv prog args
-      with _ ->
+      with Unix_error (code, func, _) ->
+        let msg = Marshal.to_bytes (code, func) [] in
+        (* Messages of less than 512 bytes are guaranteed atomic *)
+        assert (Bytes.length msg < 512);
+        let _ = write fail_write msg 0 (Bytes.length msg) in
         sys_exit 127
       end
-  | id -> Hashtbl.add popen_processes proc id
+  | id ->
+      (* parent *)
+      let fail_buf = Bytes.create 512 in
+      safe_close fail_write;
+      let n = read fail_read fail_buf 0 (Bytes.length fail_buf) in
+      safe_close fail_read;
+      if n = 0 then
+        (* EOF on pipe, so the fail_write was closed by successful exec *)
+        Hashtbl.add popen_processes proc id
+      else
+        (* received an error from failed exec *)
+        let (code, func) = Marshal.from_bytes (Bytes.sub fail_buf 0 n) 0 in
+        let wait_res = waitpid [] id in
+        assert (wait_res = (id, WEXITED 127));
+        raise (Unix_error (code, func, prog))
 
 let open_process_args_in prog args =
   let (in_read, in_write) = pipe ~cloexec:true () in
