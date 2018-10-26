@@ -29,6 +29,7 @@ type symptom =
   | Module_types of module_type * module_type
   | Modtype_infos of Ident.t * modtype_declaration * modtype_declaration
   | Modtype_permutation
+  | Modtype_too_big of (Ident.t * modtype_declaration)
   | Interface_mismatch of string * string
   | Class_type_declarations of
       Ident.t * class_type_declaration * class_type_declaration *
@@ -496,7 +497,9 @@ and modtype_infos ~loc env ~mark cxt subst id info1 info2 =
   try
     match (info1.mtd_type, info2.mtd_type) with
       (None, None) -> ()
-    | (Some _, None) -> ()
+    | (Some mty1, None) ->
+       if not (is_small_modtype env mty1) then
+         raise (Error([cxt, env, Modtype_too_big (id, info1)]))
     | (Some mty1, Some mty2) ->
         check_modtype_equiv ~loc env ~mark cxt' mty1 mty2
     | (None, Some mty2) ->
@@ -514,6 +517,30 @@ and check_modtype_equiv ~loc env ~mark cxt mty1 mty2 =
       (* Format.eprintf "@[c1 = %a@ c2 = %a@]@."
         print_coercion _c1 print_coercion _c2; *)
       raise(Error [cxt, env, Modtype_permutation])
+
+and is_small_modtype env = function
+  | Mty_ident mid ->
+     let { mtd_type; _ } = Env.find_modtype mid env in
+     (match mtd_type with
+      | None -> true
+      | Some mty -> is_small_modtype env mty)
+  | Mty_functor (_id, None, res) ->
+     is_small_modtype env res
+  | Mty_functor (_id, Some arg, res) ->
+     is_small_modtype env arg && is_small_modtype env res
+  | Mty_alias _ -> true
+  | Mty_signature msig ->
+     List.for_all (is_small_sig_item env) msig
+
+and is_small_sig_item env = function
+  | Sig_module (_, mdecl, _) -> is_small_modtype env mdecl.md_type
+  | Sig_modtype (_, { mtd_type = None }) -> false
+  | Sig_modtype (_, { mtd_type = Some mty }) -> is_small_modtype env mty
+  | Sig_value _
+  | Sig_type _
+  | Sig_typext _
+  | Sig_class _
+  | Sig_class_type _ -> true
 
 (* Simplified inclusion check between module types (for Env) *)
 
@@ -624,6 +651,10 @@ let include_err ppf = function
       !Oprint.out_sig_item (Printtyp.tree_of_modtype_declaration id d2)
   | Modtype_permutation ->
       fprintf ppf "Illegal permutation of structure fields"
+  | Modtype_too_big (id, md) ->
+      fprintf ppf
+       "@[<hv 2>This module type cannot be used to instantiate an abstract module type:@ %a"
+       !Oprint.out_sig_item (Printtyp.tree_of_modtype_declaration id md)
   | Interface_mismatch(impl_name, intf_name) ->
       fprintf ppf "@[The implementation %s@ does not match the interface %s:"
        impl_name intf_name

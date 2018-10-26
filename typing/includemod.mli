@@ -65,6 +65,7 @@ type symptom =
   | Module_types of module_type * module_type
   | Modtype_infos of Ident.t * modtype_declaration * modtype_declaration
   | Modtype_permutation
+  | Modtype_too_big of (Ident.t * modtype_declaration)
   | Interface_mismatch of string * string
   | Class_type_declarations of
       Ident.t * class_type_declaration * class_type_declaration *
