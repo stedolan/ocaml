@@ -199,7 +199,8 @@ void caml_oldify_one (value v, value *p)
         result = caml_alloc_shr_preserving_profinfo (sz, tag, hd);
         *p = result;
         field0 = Field (v, 0);
-        Hd_val (v) = 0;            /* Set forward flag */
+        __atomic_exchange_n(Hp_val(v), 0, __ATOMIC_ACQ_REL);
+        //Hd_val (v) = 0;            /* Set forward flag */
         Field (v, 0) = result;     /*  and forward pointer. */
         if (sz > 1){
           Field (result, 0) = field0;
@@ -215,7 +216,8 @@ void caml_oldify_one (value v, value *p)
         sz = Wosize_hd (hd);
         result = caml_alloc_shr_preserving_profinfo (sz, tag, hd);
         for (i = 0; i < sz; i++) Field (result, i) = Field (v, i);
-        Hd_val (v) = 0;            /* Set forward flag */
+        __atomic_exchange_n(Hp_val(v), 0, __ATOMIC_ACQ_REL);
+        //Hd_val (v) = 0;            /* Set forward flag */
         Field (v, 0) = result;     /*  and forward pointer. */
         *p = result;
       }else if (tag == Infix_tag){
@@ -248,7 +250,8 @@ void caml_oldify_one (value v, value *p)
           CAMLassert (Wosize_hd (hd) == 1);
           result = caml_alloc_shr_preserving_profinfo (1, Forward_tag, hd);
           *p = result;
-          Hd_val (v) = 0;             /* Set (GC) forward flag */
+          __atomic_exchange_n(Hp_val(v), 0, __ATOMIC_ACQ_REL);
+          //Hd_val (v) = 0;             /* Set (GC) forward flag */
           Field (v, 0) = result;      /*  and forward pointer. */
           p = &Field (result, 0);
           v = f;
