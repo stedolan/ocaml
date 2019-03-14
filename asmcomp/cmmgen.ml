@@ -72,6 +72,14 @@ let bind name arg fn =
   | Cblockheader _ -> fn arg
   | _ -> let id = V.create_local name in Clet(VP.create id, arg, fn (Cvar id))
 
+let bind_many name args fn =
+  let rec go acc = function
+    | [] -> fn (List.rev acc)
+    | arg :: args ->
+       bind name arg (fun arg ->
+         go (arg :: acc) args) in
+  go [] args
+
 let bind_load name arg fn =
   match arg with
   | Cop(Cload _, [Cvar _], _) -> fn arg
@@ -2014,9 +2022,21 @@ let rec transl env e =
           dbg))
   | Ugeneric_apply(clos, args, dbg) ->
       let arity = List.length args in
-      let cargs = Cconst_symbol(apply_function arity, dbg) ::
-        List.map (transl env) (args @ [clos]) in
-      Cop(Capply typ_val, cargs, dbg)
+      bind_many "arg" (List.map (transl env) args) (fun args ->
+      bind "clos" (transl env clos) (fun clos ->
+        Cifthenelse(
+          Cop (Ccmpi Ceq,
+               [get_field env clos 1 dbg;
+                int_const dbg arity], dbg),
+          dbg,
+          Cop (Capply typ_val,
+               get_field env clos 2 dbg :: args @ [clos],
+               dbg),
+          dbg,
+          Cop (Capply typ_val,
+               Cconst_symbol(apply_function arity, dbg) :: args @ [clos],
+               dbg),
+          dbg)))
   | Usend(kind, met, obj, args, dbg) ->
       let call_met obj args clos =
         if args = [] then
