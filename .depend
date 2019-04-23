@@ -242,11 +242,8 @@ parsing/builtin_attributes.cmi : \
     parsing/parsetree.cmi \
     utils/misc.cmi \
     parsing/location.cmi
-parsing/camlinternalMenhirLib.cmo : \
-    parsing/camlinternalMenhirLib.cmi
-parsing/camlinternalMenhirLib.cmx : \
-    parsing/camlinternalMenhirLib.cmi
-parsing/camlinternalMenhirLib.cmi :
+parsing/camlinternalMenhirLib.cmo :
+parsing/camlinternalMenhirLib.cmx :
 parsing/depend.cmo : \
     parsing/parsetree.cmi \
     utils/misc.cmi \
@@ -347,7 +344,7 @@ parsing/parser.cmo : \
     parsing/location.cmi \
     parsing/docstrings.cmi \
     utils/clflags.cmi \
-    parsing/camlinternalMenhirLib.cmi \
+    parsing/camlinternalMenhirLib.cmo \
     parsing/asttypes.cmi \
     parsing/ast_helper.cmi \
     parsing/parser.cmi
@@ -366,7 +363,7 @@ parsing/parser.cmi : \
     parsing/parsetree.cmi \
     parsing/location.cmi \
     parsing/docstrings.cmi \
-    parsing/camlinternalMenhirLib.cmi
+    parsing/camlinternalMenhirLib.cmo
 parsing/parsetree.cmi : \
     parsing/longident.cmi \
     parsing/location.cmi \
@@ -617,6 +614,7 @@ typing/includecore.cmx : \
 typing/includecore.cmi : \
     typing/types.cmi \
     typing/typedtree.cmi \
+    typing/path.cmi \
     parsing/location.cmi \
     typing/ident.cmi \
     typing/env.cmi

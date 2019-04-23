@@ -347,3 +347,7 @@ CAMLprim value caml_get_exception_backtrace(value unit)
 
   CAMLreturn(res);
 }
+
+CAMLprim value caml_get_current_callstack(value max_frames_value) {
+  return caml_get_current_callstack_impl(Long_val(max_frames_value), 0);
+}

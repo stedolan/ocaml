@@ -90,10 +90,16 @@ value caml_remove_debug_info(code_t start);
  * It defines the [caml_stash_backtrace] function, which is called to quickly
  * fill the backtrace buffer by walking the stack when an exception is raised.
  *
- * It also defines the [caml_get_current_callstack] OCaml primitive, which also
+ * It also defines the [caml_get_current_callstack_impl] function, which also
  * walks the stack but directly turns it into a [raw_backtrace] and is called
  * explicitly.
+ *
+ * If avoid_gc is set to non-0, then the block is allocated using
+ * [alloc_shr], so that it is guaranteed to be in the major heap and
+ * that no call to the GC is made.
  */
+
+value caml_get_current_callstack_impl(intnat max_frames, int avoid_gc);
 
 #endif /* CAML_INTERNALS */
 

@@ -108,14 +108,13 @@ void caml_stash_backtrace(value exn, uintnat pc, char * sp, char * trapsp)
    (hopefully less often). Instead of using a bounded buffer as
    [caml_stash_backtrace], we first traverse the stack to compute the
    right size, then allocate space for the trace. */
-CAMLprim value caml_get_current_callstack(value max_frames_value)
-{
-  CAMLparam1(max_frames_value);
-  CAMLlocal1(trace);
 
-  /* we use `intnat` here because, were it only `int`, passing `max_int`
-     from the OCaml side would overflow on 64bits machines. */
-  intnat max_frames = Long_val(max_frames_value);
+/* we use `intnat` for max_frames because, were it only `int`, passing
+   `max_int` from the OCaml side would overflow on 64bits machines. */
+value caml_get_current_callstack_impl(intnat max_frames, int avoid_gc)
+{
+  CAMLparam0();
+  CAMLlocal1(trace);
   intnat trace_size;
 
   /* first compute the size of the trace */
@@ -135,7 +134,12 @@ CAMLprim value caml_get_current_callstack(value max_frames_value)
     }
   }
 
-  trace = caml_alloc((mlsize_t) trace_size, 0);
+  if(trace_size == 0) CAMLreturn(Atom (0));
+
+  if(avoid_gc)
+    trace = caml_alloc_shr(trace_size, 0);
+  else
+    trace = caml_alloc(trace_size, 0);
 
   /* then collect the trace */
   {
