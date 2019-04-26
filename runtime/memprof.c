@@ -76,10 +76,29 @@ static double mt_generate_uniform(void) {
 /* Microsoft's C compiler does not define M_PI by default. */
 static const double PI = 3.141592653589793;
 
+/* C99's lgammaf function is not available in some compilers
+   (including MSVC). Here is our own approximate implementation of the
+   log-factorial function.
+
+   Requirement : n is a non-negative integer.
+
+   We use Ramanujan's formula. The absolute error is less than 10^-6,
+   which is way better than what we need.
+ */
+static double lfact(double n) {
+  static double tab[10] = {
+    0.0000000000, 0.0000000000, 0.6931471806, 1.7917594692, 3.1780538303,
+    4.7874917428, 6.5792512120, 8.5251613611, 10.6046029027, 12.8018274801 };
+  if(n < 10)
+    return tab[(int)n];
+  return n*(log(n) - 1) + (1./6)*log(((8*n + 4)*n + 1)*n + 1./34)
+       + 0.5723649429; /* log(pi)/2 */
+}
+
 /* Max returned value : 2^30-2. Assumes lambda >= 0. */
 static int32_t mt_generate_poisson(double len) {
   double cur_lambda = lambda * len;
-  CAMLassert(cur_lambda >= 0 && !isinf(cur_lambda));
+  CAMLassert(cur_lambda >= 0 && cur_lambda < 1e20);
 
   if(caml_memprof_suspended || cur_lambda == 0)
     return 0;
@@ -101,24 +120,20 @@ static int32_t mt_generate_poisson(double len) {
        Series C (Applied Statistics) Vol. 28, No. 1 (1979), pp. 29-35
        "Method PA" */
 
-    double c, beta, alpha, k;
+    double c, beta_rec, k, log_cur_lambda;
+    log_cur_lambda = log(cur_lambda);
     c = 0.767 - 3.36/cur_lambda;
-    beta = 1./sqrt((3./(PI*PI))*cur_lambda);
-    alpha = beta*cur_lambda;
-    k = logf(c/beta) - cur_lambda;
+    beta_rec = sqrt((3./(PI*PI))*cur_lambda);
+    k = logf(c*beta_rec) - cur_lambda;
     while(1) {
-      double u, x, n, v, y, y2;
+      double u, n, v, y;
       u = mt_generate_uniform();
-      x = (alpha - logf((1.0 - u)/u))/beta;
-      n = floor(x + 0.5);
+      y = log(1./u-1);
+      n = floor(cur_lambda - y*beta_rec + 0.5);
       if(n < 0.)
         continue;
-
       v = mt_generate_uniform();
-      y = alpha - beta*x;
-      y2 = 1. + expf(y);
-
-      if(y + logf(v/(y2*y2)) < k + n*logf(cur_lambda) - lgammaf(n+1))
+      if(y + log(v*u*u) < k + n*log_cur_lambda - lfact(n))
         return n > ((1<<30)-2) ? ((1<<30)-2) : n;
     }
   }
