@@ -163,6 +163,12 @@ Working version
   (Damien Doligez, reports by John Whitington and Alain Frisch,
    review by Jeremy Yallop and Gabriel Scherer)
 
+- #8634: Statistical memory profiling provided by the Gc.Memprof
+   module.
+   Incomplete version: it only samples objects allocated in the major
+   heap.
+   (Jacques-Henri Jourdan, review by Stephen Dolan)
+
 ### Other libraries:
 
 - #7903, #2306: Make Thread.delay interruptible by signals again
