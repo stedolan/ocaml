@@ -151,6 +151,8 @@ CAMLprim value caml_memprof_set(value v) {
 
   if(!init) {
     int i;
+    init = 1;
+
     mt_index = 624;
     mt_state[0] = 42;
     for(i = 1; i < 624; i++)
