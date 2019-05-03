@@ -24,7 +24,6 @@
 #include "caml/osdeps.h"
 #include "caml/signals.h"
 #include "caml/signals_machdep.h"
-#include "caml/memprof.h"
 
 #ifndef NSIG
 #define NSIG 64

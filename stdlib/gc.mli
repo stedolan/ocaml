@@ -449,9 +449,9 @@ module Memprof :
         sampling_rate : float;
         (** The sampling rate in samples per word (including headers).
             Usually, with cheap callbacks, a rate of 0.001 has no visible
-            effect on performances, and 0.01 keeps similar performances. *)
+            effect on performance, and 0.01 keeps similar performance. *)
         callstack_size : int;
-        (** The lenght of the callstack recorded at every sample. *)
+        (** The length of the callstack recorded at every sample. *)
         callback : 'a callback
         (** The callback to be called at every sample. *)
     }

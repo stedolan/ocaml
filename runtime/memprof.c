@@ -149,11 +149,6 @@ CAMLprim value caml_memprof_set(value v) {
   if(sz < 0 || !(l >= 0.) || l > 1.)
     caml_failwith("caml_memprof_set");
 
-  lambda = l;
-
-  callstack_size = sz;
-  memprof_callback = Field(v, 2);
-
   if(!init) {
     int i;
     mt_index = 624;
@@ -161,8 +156,12 @@ CAMLprim value caml_memprof_set(value v) {
     for(i = 1; i < 624; i++)
       mt_state[i] = 0x6c078965 * (mt_state[i-1] ^ (mt_state[i-1] >> 30)) + i;
 
-    caml_register_global_root(&memprof_callback);
+    caml_register_generational_global_root(&memprof_callback);
   }
+
+  lambda = l;
+  callstack_size = sz;
+  caml_modify_generational_global_root(&memprof_callback, Field(v, 2));
 
   CAMLreturn(Val_unit);
 }
@@ -205,7 +204,7 @@ struct caml_memprof_postponed_block {
   value callstack;
   int32_t occurences;
   struct caml_memprof_postponed_block* next;
-} *caml_memprof_postponed_head = NULL;
+} static *caml_memprof_postponed_head = NULL;
 
 /* When allocating in the major heap, we cannot call the callback, because
    [caml_alloc_shr] is guaranteed not to call the GC. Hence, this function
@@ -243,7 +242,7 @@ void caml_memprof_handle_postponed() {
   if(caml_memprof_postponed_head == NULL)
     return;
 
-  // We first revert the list
+  // We first reverse the list
   p = caml_memprof_postponed_head;
   q = caml_memprof_postponed_head->next;
   p->next = NULL;

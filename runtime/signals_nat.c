@@ -86,8 +86,7 @@ void caml_garbage_collection(void)
   }
 #endif
 
-  if(caml_memprof_postponed_head != NULL)
-    caml_memprof_handle_postponed();
+  caml_memprof_handle_postponed();
 
   caml_process_pending_signals();
 }

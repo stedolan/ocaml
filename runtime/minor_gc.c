@@ -489,8 +489,7 @@ CAMLexport value caml_check_urgent_gc (value extra_root)
     CAML_INSTR_INT ("force_minor/check_urgent_gc@", 1);
     caml_gc_dispatch();
   }
-  if(caml_memprof_postponed_head != NULL)
-    caml_memprof_handle_postponed();
+  caml_memprof_handle_postponed();
   CAMLreturn (extra_root);
 }
 

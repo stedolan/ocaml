@@ -28,8 +28,6 @@ extern void caml_memprof_handle_postponed();
 extern int caml_memprof_suspended;
 extern void caml_memprof_set_suspended(int new_suspended);
 
-struct caml_memprof_postponed_block *caml_memprof_postponed_head;
-
 #endif
 
 #endif /* CAML_MEMPROF_H */
