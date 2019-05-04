@@ -82,8 +82,8 @@ static const double PI = 3.141592653589793;
 
    Requirement : n is a non-negative integer.
 
-   We use Ramanujan's formula. The absolute error is less than 10^-6,
-   which is way better than what we need.
+   We use Ramanujan's formula. For n < 10^8, the absolute error is
+   less than 10^-6, which is way better than what we need.
  */
 static double lfact(double n) {
   static double tab[10] = {
@@ -95,6 +95,7 @@ static double lfact(double n) {
        + 0.5723649429; /* log(pi)/2 */
 }
 
+static double next_mt_generate_poisson;
 /* Max returned value : 2^30-2. Assumes lambda >= 0. */
 static int32_t mt_generate_poisson(double len) {
   double cur_lambda = lambda * len;
@@ -104,17 +105,39 @@ static int32_t mt_generate_poisson(double len) {
     return 0;
 
   if(cur_lambda < 20) {
-    double p;
-    int32_t k;
-    k = 0;
-    p = expf(cur_lambda);
-    do {
-      k++;
-      p *= mt_generate_uniform();
-    } while(p > 1);
-    return k-1;
+    /* First algorithm when [cur_lambda] is small: we proceed by
+       repeated simulations of exponential distributions. */
+
+    next_mt_generate_poisson -= cur_lambda;
+    if(next_mt_generate_poisson > 0) {
+      /* Fast path if [cur_lambda] is small: we reuse the same
+         exponential sample accross several calls to
+         [mt_generate_poisson]. */
+      return 0;
+    } else {
+      /* We use the float versions of exp/log, since these functions
+         are significantly faster, and we really don't need much
+         precision here. The entropy contained in
+         [next_mt_generate_poisson] is anyway bounded by the entropy
+         provided by [mt_generate_uniform], which is 32bits. */
+      double p = expf(-next_mt_generate_poisson);
+      int32_t k = 0;
+      do {
+        k++;
+        p *= mt_generate_uniform();
+      } while(p > 1);
+
+      /* [p] is now uniformly distributed in [0, 1] and independent
+         from other variables (including [k]). We can therefore reuse
+         [p] for reinitializing [next_mt_generate_poisson]. */
+      next_mt_generate_poisson = -logf(p);
+
+      return k;
+    }
+
   } else {
-    /* Algorithm taken from: */
+
+    /* Second algorithm when [cur_lambda] is large. Taken from: */
     /* The Computer Generation of Poisson Random Variables
        A. C. Atkinson Journal of the Royal Statistical Society.
        Series C (Applied Statistics) Vol. 28, No. 1 (1979), pp. 29-35
@@ -124,7 +147,7 @@ static int32_t mt_generate_poisson(double len) {
     log_cur_lambda = log(cur_lambda);
     c = 0.767 - 3.36/cur_lambda;
     beta_rec = sqrt((3./(PI*PI))*cur_lambda);
-    k = logf(c*beta_rec) - cur_lambda;
+    k = log(c*beta_rec) - cur_lambda;
     while(1) {
       double u, n, v, y;
       u = mt_generate_uniform();
@@ -133,6 +156,10 @@ static int32_t mt_generate_poisson(double len) {
       if(n < 0.)
         continue;
       v = mt_generate_uniform();
+      /* When [cur_lambda] is large, we expect [n*log_cur_lambda] and
+         [lfact(n)] to be close, while both being relatively
+         large. Hence, here, we may actually need the double precision
+         in the computation of log and lfact. */
       if(y + log(v*u*u) < k + n*log_cur_lambda - lfact(n))
         return n > ((1<<30)-2) ? ((1<<30)-2) : n;
     }
@@ -159,6 +186,8 @@ CAMLprim value caml_memprof_set(value v) {
       mt_state[i] = 0x6c078965 * (mt_state[i-1] ^ (mt_state[i-1] >> 30)) + i;
 
     caml_register_generational_global_root(&memprof_callback);
+
+    next_mt_generate_poisson = -logf(mt_generate_uniform());
   }
 
   lambda = l;
