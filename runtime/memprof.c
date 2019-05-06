@@ -33,7 +33,8 @@ static uint32_t mt_index;
 
 /* [lambda] is the mean number of samples for each allocated word (including
    block headers). */
-static double lambda = 0;
+static double lambda = 0, lambda_rec = INFINITY;
+static double next_sample_shr;
 int caml_memprof_suspended = 0;
 static intnat callstack_size = 0;
 static value memprof_callback = Val_unit;
@@ -73,98 +74,11 @@ static double mt_generate_uniform(void) {
           1.16415321826934814453125e-10; /* 2^-33 */
 }
 
-/* Microsoft's C compiler does not define M_PI by default. */
-static const double PI = 3.141592653589793;
-
-/* C99's lgammaf function is not available in some compilers
-   (including MSVC). Here is our own approximate implementation of the
-   log-factorial function.
-
-   Requirement : n is a non-negative integer.
-
-   We use Ramanujan's formula. For n < 10^8, the absolute error is
-   less than 10^-6, which is way better than what we need.
- */
-static double lfact(double n) {
-  static double tab[10] = {
-    0.0000000000, 0.0000000000, 0.6931471806, 1.7917594692, 3.1780538303,
-    4.7874917428, 6.5792512120, 8.5251613611, 10.6046029027, 12.8018274801 };
-  if(n < 10)
-    return tab[(int)n];
-  return n*(log(n) - 1) + (1./6)*log(((8*n + 4)*n + 1)*n + 1./34)
-       + 0.5723649429; /* log(pi)/2 */
+static double mt_generate_exponential() {
+  return -logf(mt_generate_uniform()) * lambda_rec;
 }
 
-static double next_mt_generate_poisson;
-/* Max returned value : 2^30-2. Assumes lambda >= 0. */
-static int32_t mt_generate_poisson(double len) {
-  double cur_lambda = lambda * len;
-  CAMLassert(cur_lambda >= 0 && cur_lambda < 1e20);
 
-  if(caml_memprof_suspended || cur_lambda == 0)
-    return 0;
-
-  if(cur_lambda < 20) {
-    /* First algorithm when [cur_lambda] is small: we proceed by
-       repeated simulations of exponential distributions. */
-
-    next_mt_generate_poisson -= cur_lambda;
-    if(next_mt_generate_poisson > 0) {
-      /* Fast path if [cur_lambda] is small: we reuse the same
-         exponential sample accross several calls to
-         [mt_generate_poisson]. */
-      return 0;
-    } else {
-      /* We use the float versions of exp/log, since these functions
-         are significantly faster, and we really don't need much
-         precision here. The entropy contained in
-         [next_mt_generate_poisson] is anyway bounded by the entropy
-         provided by [mt_generate_uniform], which is 32bits. */
-      double p = expf(-next_mt_generate_poisson);
-      int32_t k = 0;
-      do {
-        k++;
-        p *= mt_generate_uniform();
-      } while(p > 1);
-
-      /* [p] is now uniformly distributed in [0, 1] and independent
-         from other variables (including [k]). We can therefore reuse
-         [p] for reinitializing [next_mt_generate_poisson]. */
-      next_mt_generate_poisson = -logf(p);
-
-      return k;
-    }
-
-  } else {
-
-    /* Second algorithm when [cur_lambda] is large. Taken from: */
-    /* The Computer Generation of Poisson Random Variables
-       A. C. Atkinson Journal of the Royal Statistical Society.
-       Series C (Applied Statistics) Vol. 28, No. 1 (1979), pp. 29-35
-       "Method PA" */
-
-    double c, beta_rec, k, log_cur_lambda;
-    log_cur_lambda = log(cur_lambda);
-    c = 0.767 - 3.36/cur_lambda;
-    beta_rec = sqrt((3./(PI*PI))*cur_lambda);
-    k = log(c*beta_rec) - cur_lambda;
-    while(1) {
-      double u, n, v, y;
-      u = mt_generate_uniform();
-      y = log(1./u-1);
-      n = floor(cur_lambda - y*beta_rec + 0.5);
-      if(n < 0.)
-        continue;
-      v = mt_generate_uniform();
-      /* When [cur_lambda] is large, we expect [n*log_cur_lambda] and
-         [lfact(n)] to be close, while both being relatively
-         large. Hence, here, we may actually need the double precision
-         in the computation of log and lfact. */
-      if(y + log(v*u*u) < k + n*log_cur_lambda - lfact(n))
-        return n > ((1<<30)-2) ? ((1<<30)-2) : n;
-    }
-  }
-}
 
 /**** Interface with the OCaml code. ****/
 
@@ -186,11 +100,11 @@ CAMLprim value caml_memprof_set(value v) {
       mt_state[i] = 0x6c078965 * (mt_state[i-1] ^ (mt_state[i-1] >> 30)) + i;
 
     caml_register_generational_global_root(&memprof_callback);
-
-    next_mt_generate_poisson = -logf(mt_generate_uniform());
   }
 
   lambda = l;
+  lambda_rec = l == 0 ? INFINITY : 1/l;
+  next_sample_shr = mt_generate_exponential();
   callstack_size = sz;
   caml_modify_generational_global_root(&memprof_callback, Field(v, 2));
 
@@ -243,8 +157,15 @@ struct caml_memprof_postponed_block {
    block in the todo-list so that the callback call is performed when
    possible. */
 void caml_memprof_track_alloc_shr(value block) {
-  int32_t occurences = mt_generate_poisson(Whsize_val(block));
   CAMLassert(Is_in_heap(block));
+  int32_t occurences = 0;
+  if (!caml_memprof_suspended && lambda > 0) {
+    next_sample_shr -= Whsize_val(block);
+    while (next_sample_shr <= 0) {
+      occurences++;
+      next_sample_shr += mt_generate_exponential();
+    }
+  }
   if(occurences > 0) {
     struct caml_memprof_postponed_block* pb =
       caml_stat_alloc_noexc(sizeof(struct caml_memprof_postponed_block));
