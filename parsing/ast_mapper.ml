@@ -52,6 +52,7 @@ type mapper = {
   include_declaration: mapper -> include_declaration -> include_declaration;
   include_description: mapper -> include_description -> include_description;
   label_declaration: mapper -> label_declaration -> label_declaration;
+  layout: mapper -> layout -> layout;
   location: mapper -> Location.t -> Location.t;
   module_binding: mapper -> module_binding -> module_binding;
   module_declaration: mapper -> module_declaration -> module_declaration;
@@ -73,12 +74,12 @@ type mapper = {
   type_extension: mapper -> type_extension -> type_extension;
   type_exception: mapper -> type_exception -> type_exception;
   type_kind: mapper -> type_kind -> type_kind;
+  type_parameter: mapper -> type_parameter -> type_parameter;
   value_binding: mapper -> value_binding -> value_binding;
   value_description: mapper -> value_description -> value_description;
   with_constraint: mapper -> with_constraint -> with_constraint;
 }
 
-let map_fst f (x, y) = (f x, y)
 let map_snd f (x, y) = (x, f y)
 let map_tuple f1 f2 (x, y) = (f1 x, f2 y)
 let map_tuple3 f1 f2 f3 (x, y, z) = (f1 x, f2 y, f3 z)
@@ -128,6 +129,18 @@ module T = struct
     in
     Of.mk ~loc ~attrs desc
 
+  let newtype sub (s, l) =
+    (map_loc sub s, map_opt (sub.layout sub) l)
+
+  let map_layout sub l =
+    { play_loc = sub.location sub l.play_loc;
+      play_desc = List.map (map_loc sub) l.play_desc }
+
+  let map_type_parameter sub p =
+    { p with
+      ptp_name = map_loc sub p.ptp_name;
+      ptp_layout = map_opt (sub.layout sub) p.ptp_layout }
+
   let map sub {ptyp_desc = desc; ptyp_loc = loc; ptyp_attributes = attrs} =
     let open Typ in
     let loc = sub.location sub loc in
@@ -147,8 +160,8 @@ module T = struct
     | Ptyp_alias (t, s) -> alias ~loc ~attrs (sub.typ sub t) s
     | Ptyp_variant (rl, b, ll) ->
         variant ~loc ~attrs (List.map (row_field sub) rl) b ll
-    | Ptyp_poly (sl, t) -> poly ~loc ~attrs
-                             (List.map (map_loc sub) sl) (sub.typ sub t)
+    | Ptyp_poly (sl, t) ->
+        poly ~loc ~attrs (List.map (newtype sub) sl) (sub.typ sub t)
     | Ptyp_package (lid, l) ->
         package ~loc ~attrs (map_loc sub lid)
           (List.map (map_tuple (map_loc sub) (sub.typ sub)) l)
@@ -159,18 +172,20 @@ module T = struct
        ptype_kind;
        ptype_private;
        ptype_manifest;
+       ptype_layout;
        ptype_attributes;
        ptype_loc} =
     let loc = sub.location sub ptype_loc in
     let attrs = sub.attributes sub ptype_attributes in
     Type.mk ~loc ~attrs (map_loc sub ptype_name)
-      ~params:(List.map (map_fst (sub.typ sub)) ptype_params)
+      ~params:(List.map (sub.type_parameter sub) ptype_params)
       ~priv:ptype_private
       ~cstrs:(List.map
                 (map_tuple3 (sub.typ sub) (sub.typ sub) (sub.location sub))
                 ptype_cstrs)
       ~kind:(sub.type_kind sub ptype_kind)
       ?manifest:(map_opt (sub.typ sub) ptype_manifest)
+      ?layout:(map_opt (sub.layout sub) ptype_layout)
 
   let map_type_kind sub = function
     | Ptype_abstract -> Ptype_abstract
@@ -195,7 +210,7 @@ module T = struct
     Te.mk ~loc ~attrs
       (map_loc sub ptyext_path)
       (List.map (sub.extension_constructor sub) ptyext_constructors)
-      ~params:(List.map (map_fst (sub.typ sub)) ptyext_params)
+      ~params:(List.map (sub.type_parameter sub) ptyext_params)
       ~priv:ptyext_private
 
   let map_type_exception sub
@@ -445,8 +460,9 @@ module E = struct
     | Pexp_poly (e, t) ->
         poly ~loc ~attrs (sub.expr sub e) (map_opt (sub.typ sub) t)
     | Pexp_object cls -> object_ ~loc ~attrs (sub.class_structure sub cls)
-    | Pexp_newtype (s, e) ->
-        newtype ~loc ~attrs (map_loc sub s) (sub.expr sub e)
+    | Pexp_newtype (s, l, e) ->
+        let (s, l) = T.newtype sub (s, l) in
+        newtype ~loc ~attrs s l (sub.expr sub e)
     | Pexp_pack me -> pack ~loc ~attrs (sub.module_expr sub me)
     | Pexp_open (o, e) ->
         open_ ~loc ~attrs (sub.open_declaration sub o) (sub.expr sub e)
@@ -560,7 +576,7 @@ module CE = struct
     let attrs = sub.attributes sub pci_attributes in
     Ci.mk ~loc ~attrs
      ~virt:pci_virt
-     ~params:(List.map (map_fst (sub.typ sub)) pl)
+     ~params:(List.map (sub.type_parameter sub) pl)
       (map_loc sub pci_name)
       (f pci_expr)
 end
@@ -591,11 +607,13 @@ let default_mapper =
       (fun this -> CE.class_infos this (this.class_type this));
     class_description =
       (fun this -> CE.class_infos this (this.class_type this));
+    layout = T.map_layout;
     type_declaration = T.map_type_declaration;
     type_kind = T.map_type_kind;
     typ = T.map;
     type_extension = T.map_type_extension;
     type_exception = T.map_type_exception;
+    type_parameter = T.map_type_parameter;
     extension_constructor = T.map_extension_constructor;
     value_description =
       (fun this {pval_name; pval_type; pval_prim; pval_loc;

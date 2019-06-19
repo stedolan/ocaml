@@ -81,6 +81,7 @@ type mapper = {
   include_declaration: mapper -> include_declaration -> include_declaration;
   include_description: mapper -> include_description -> include_description;
   label_declaration: mapper -> label_declaration -> label_declaration;
+  layout: mapper -> layout -> layout;
   location: mapper -> Location.t -> Location.t;
   module_binding: mapper -> module_binding -> module_binding;
   module_declaration: mapper -> module_declaration -> module_declaration;
@@ -102,6 +103,7 @@ type mapper = {
   type_extension: mapper -> type_extension -> type_extension;
   type_exception: mapper -> type_exception -> type_exception;
   type_kind: mapper -> type_kind -> type_kind;
+  type_parameter: mapper -> type_parameter -> type_parameter;
   value_binding: mapper -> value_binding -> value_binding;
   value_description: mapper -> value_description -> value_description;
   with_constraint: mapper -> with_constraint -> with_constraint;

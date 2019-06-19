@@ -147,6 +147,13 @@ let arg_label i ppf = function
   | Labelled s -> line i ppf "Labelled \"%s\"\n" s
 ;;
 
+let layout i ppf l =
+  list i string_loc ppf l.play_desc
+
+let layout_opt i ppf = function
+  | None -> ()
+  | Some l -> layout i ppf l
+
 let rec core_type i ppf x =
   line i ppf "core_type %a\n" fmt_location x.ptyp_loc;
   attributes i ppf x.ptyp_attributes;
@@ -191,7 +198,8 @@ let rec core_type i ppf x =
   | Ptyp_poly (sl, ct) ->
       line i ppf "Ptyp_poly%a\n"
         (fun ppf ->
-           List.iter (fun x -> fprintf ppf " %a" Pprintast.tyvar x.txt)
+           List.iter (fun (s, l) ->
+             fprintf ppf " %a %a" fmt_string_loc s (layout_opt i) l )
         )
         sl;
       core_type i ppf ct;
@@ -376,8 +384,11 @@ and expression i ppf x =
   | Pexp_object s ->
       line i ppf "Pexp_object\n";
       class_structure i ppf s
-  | Pexp_newtype (s, e) ->
+  | Pexp_newtype (s, None, e) ->
       line i ppf "Pexp_newtype \"%s\"\n" s.txt;
+      expression i ppf e
+  | Pexp_newtype (s, Some l, e) ->
+      line i ppf "Pexp_newtype \"%s\" %a\n" s.txt (layout i) l;
       expression i ppf e
   | Pexp_pack me ->
       line i ppf "Pexp_pack\n";
@@ -404,7 +415,21 @@ and value_description i ppf x =
   core_type (i+1) ppf x.pval_type;
   list (i+1) string ppf x.pval_prim
 
-and type_parameter i ppf (x, _variance) = core_type i ppf x
+and variance ppf p =
+  let s = match p with
+    | Invariant -> "Invariant"
+    | Covariant -> "Covariant"
+    | Contravariant -> "Contravariant" in
+  fprintf ppf "%s" s
+
+and type_parameter i ppf p =
+  (match p.ptp_name.txt with
+   | Some n ->
+     line i ppf "ptp_name %a\n" fmt_string_loc { p.ptp_name with txt = n }
+   | None ->
+     line i ppf "ptp_name _\n");
+  line i ppf "ptp_variance %a\n" variance p.ptp_variance;
+  line i ppf "ptp_layout %a\n" (layout_opt i) p.ptp_layout
 
 and type_declaration i ppf x =
   line i ppf "type_declaration %a %a\n" fmt_string_loc x.ptype_name
@@ -417,6 +442,8 @@ and type_declaration i ppf x =
   list (i+1) core_type_x_core_type_x_location ppf x.ptype_cstrs;
   line i ppf "ptype_kind =\n";
   type_kind (i+1) ppf x.ptype_kind;
+  line i ppf "ptype_layout =\n";
+  layout_opt (i+1) ppf x.ptype_layout;
   line i ppf "ptype_private = %a\n" fmt_private_flag x.ptype_private;
   line i ppf "ptype_manifest =\n";
   option (i+1) core_type ppf x.ptype_manifest

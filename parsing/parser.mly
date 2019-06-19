@@ -357,7 +357,8 @@ let pat_of_label ~loc lbl =
 
 let mk_newtypes ~loc newtypes exp =
   let mkexp = mkexp ~loc in
-  List.fold_right (fun newtype exp -> mkexp (Pexp_newtype (newtype, exp)))
+  List.fold_right (fun (newtype, layout) exp ->
+    mkexp (Pexp_newtype (newtype, layout, exp)))
     newtypes exp
 
 let wrap_type_annotation ~loc newtypes core_type body =
@@ -365,7 +366,8 @@ let wrap_type_annotation ~loc newtypes core_type body =
   let mk_newtypes = mk_newtypes ~loc in
   let exp = mkexp(Pexp_constraint(body,core_type)) in
   let exp = mk_newtypes newtypes exp in
-  (exp, ghtyp(Ptyp_poly(newtypes, Typ.varify_constructors newtypes core_type)))
+  let names = List.map (fun (s, _) -> s.txt) newtypes in
+  (exp, ghtyp(Ptyp_poly(newtypes, Typ.varify_constructors names core_type)))
 
 let wrap_exp_attrs ~loc body (ext, attrs) =
   let ghexp = ghexp ~loc in
@@ -1878,15 +1880,15 @@ method_:
           let loc = ($startpos($6), $endpos($8)) in
           ghexp ~loc (Pexp_poly($8, Some $6)) in
         ($4, $3, Cfk_concrete ($1, poly_exp)), $2 }
-  | override_flag attributes private_flag mkrhs(label) COLON TYPE lident_list
+  | override_flag attributes private_flag mkrhs(label) COLON newtype_list
     DOT core_type EQUAL seq_expr
-      { let poly_exp_loc = ($startpos($7), $endpos($11)) in
+      { let poly_exp_loc = ($startpos($6), $endpos($10)) in
         let poly_exp =
           let exp, poly =
             (* it seems odd to use the global ~loc here while poly_exp_loc
                is tighter, but this is what ocamlyacc does;
                TODO improve parser.mly *)
-            wrap_type_annotation ~loc:$sloc $7 $9 $11 in
+            wrap_type_annotation ~loc:$sloc $6 $8 $10 in
           ghexp ~loc:poly_exp_loc (Pexp_poly(exp, Some poly)) in
         ($4, $3,
         Cfk_concrete ($1, poly_exp)), $2 }
@@ -2192,8 +2194,8 @@ expr:
   | FUN ext_attributes labeled_simple_pattern fun_def
       { let (l,o,p) = $3 in
         Pexp_fun(l, o, p, $4), $2 }
-  | FUN ext_attributes LPAREN TYPE lident_list RPAREN fun_def
-      { (mk_newtypes ~loc:$sloc $5 $7).pexp_desc, $2 }
+  | FUN ext_attributes LPAREN newtype_list RPAREN fun_def
+      { (mk_newtypes ~loc:$sloc $4 $6).pexp_desc, $2 }
   | MATCH ext_attributes seq_expr WITH match_cases
       { Pexp_match($3, $5), $2 }
   | TRY ext_attributes seq_expr WITH match_cases
@@ -2409,8 +2411,12 @@ labeled_simple_expr:
   | OPTLABEL simple_expr %prec below_HASH
       { (Optional $1, $2) }
 ;
-%inline lident_list:
-  xs = mkrhs(LIDENT)+
+newtype:
+  x = mkrhs(LIDENT)
+    { x, None }
+;
+newtype_list:
+  TYPE xs = newtype+
     { xs }
 ;
 %inline let_ident:
@@ -2441,10 +2447,10 @@ let_binding_body:
         (ghpat ~loc:patloc
            (Ppat_constraint($1, ghtyp ~loc:typloc (Ptyp_poly($3,$5)))),
          $7) }
-  | let_ident COLON TYPE lident_list DOT core_type EQUAL seq_expr
+  | let_ident COLON newtype_list DOT core_type EQUAL seq_expr
       { let exp, poly =
-          wrap_type_annotation ~loc:$sloc $4 $6 $8 in
-        let loc = ($startpos($1), $endpos($6)) in
+          wrap_type_annotation ~loc:$sloc $3 $5 $7 in
+        let loc = ($startpos($1), $endpos($5)) in
         (ghpat ~loc (Ppat_constraint($1, poly)), exp) }
   | pattern_no_exn EQUAL seq_expr
       { ($1, $3) }
@@ -2511,8 +2517,8 @@ strict_binding:
       { $2 }
   | labeled_simple_pattern fun_binding
       { let (l, o, p) = $1 in ghexp ~loc:$sloc (Pexp_fun(l, o, p, $2)) }
-  | LPAREN TYPE lident_list RPAREN fun_binding
-      { mk_newtypes ~loc:$sloc $3 $5 }
+  | LPAREN newtype_list RPAREN fun_binding
+      { mk_newtypes ~loc:$sloc $2 $4 }
 ;
 %inline match_cases:
   xs = preceded_or_separated_nonempty_llist(BAR, match_case)
@@ -2538,8 +2544,8 @@ fun_def:
        let (l,o,p) = $1 in
        ghexp ~loc:$sloc (Pexp_fun(l, o, p, $2))
       }
-  | LPAREN TYPE lident_list RPAREN fun_def
-      { mk_newtypes ~loc:$sloc $3 $5 }
+  | LPAREN newtype_list RPAREN fun_def
+      { mk_newtypes ~loc:$sloc $2 $4 }
 ;
 %inline expr_comma_list:
   es = separated_nontrivial_llist(COMMA, expr)
@@ -2853,6 +2859,7 @@ generic_type_declaration(flag, kind):
   flag = flag
   params = type_parameters
   id = mkrhs(LIDENT)
+  layout = opt_layout
   kind_priv_manifest = kind
   cstrs = constraints
   attrs2 = post_item_attributes
@@ -2862,7 +2869,8 @@ generic_type_declaration(flag, kind):
       let attrs = attrs1 @ attrs2 in
       let loc = make_loc $sloc in
       (flag, ext),
-      Type.mk id ~params ~cstrs ~kind ~priv ?manifest ~attrs ~loc ~docs
+      Type.mk id ~params ~cstrs ~kind ~priv ?manifest ?layout
+        ~attrs ~loc ~docs
     }
 ;
 %inline generic_and_type_declaration(kind):
@@ -2870,6 +2878,7 @@ generic_type_declaration(flag, kind):
   attrs1 = attributes
   params = type_parameters
   id = mkrhs(LIDENT)
+  layout = opt_layout
   kind_priv_manifest = kind
   cstrs = constraints
   attrs2 = post_item_attributes
@@ -2879,13 +2888,17 @@ generic_type_declaration(flag, kind):
       let attrs = attrs1 @ attrs2 in
       let loc = make_loc $sloc in
       let text = symbol_text $symbolstartpos in
-      Type.mk id ~params ~cstrs ~kind ~priv ?manifest ~attrs ~loc ~docs ~text
+      Type.mk id ~params ~cstrs ~kind ~priv ?manifest ?layout
+        ~attrs ~loc ~docs ~text
     }
 ;
 %inline constraints:
   llist(preceded(CONSTRAINT, constrain))
     { $1 }
 ;
+%inline opt_layout:
+  | { None }
+  | COLON; l = layout { Some l }
 (* Lots of %inline expansion are required for [nonempty_type_kind] to be
    LR(1). At the cost of some manual expansion, it would be possible to give a
    definition that leads to a smaller grammar (after expansion) and therefore
@@ -2930,14 +2943,15 @@ type_parameters:
       { ps }
 ;
 type_parameter:
-    type_variance type_variable        { $2, $1 }
+    type_variance type_variable
+      { { ptp_name = $2; ptp_variance = $1; ptp_layout = None } }
 ;
 type_variable:
-  mktyp(
+  mkloc(
     QUOTE tyvar = ident
-      { Ptyp_var tyvar }
+      { Some tyvar }
   | UNDERSCORE
-      { Ptyp_any }
+      { None }
   ) { $1 }
 ;
 
@@ -3143,7 +3157,7 @@ with_type_binder:
 
 %inline typevar:
   QUOTE mkrhs(ident)
-    { $2 }
+    { $2, None }
 ;
 %inline typevar_list:
   nonempty_llist(typevar)

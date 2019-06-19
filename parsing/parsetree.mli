@@ -79,6 +79,12 @@ and payload =
 
 (* Type expressions *)
 
+and layout =
+    {
+     play_desc: string loc list;
+     play_loc: Location.t;
+    }
+
 and core_type =
     {
      ptyp_desc: core_type_desc;
@@ -124,7 +130,7 @@ and core_type_desc =
            [< `A|`B ]        (flag = Closed; labels = Some [])
            [< `A|`B > `X `Y ](flag = Closed; labels = Some ["X";"Y"])
          *)
-  | Ptyp_poly of string loc list * core_type
+  | Ptyp_poly of (string loc * layout option) list * core_type
         (* 'a1 ... 'an. T
 
            Can only appear in the following context:
@@ -367,8 +373,8 @@ and expression_desc =
            for methods (not values). *)
   | Pexp_object of class_structure
         (* object ... end *)
-  | Pexp_newtype of string loc * expression
-        (* fun (type t) -> E *)
+  | Pexp_newtype of string loc * layout option * expression
+        (* fun (type t) -> E and fun (type t : layout) -> E *)
   | Pexp_pack of module_expr
         (* (module ME)
 
@@ -426,16 +432,24 @@ and value_description =
 
 (* Type declarations *)
 
+and type_parameter =
+    {
+     ptp_name: string option loc; (* None represents '_' *)
+     ptp_variance: variance;
+     ptp_layout: layout option
+    }
+
 and type_declaration =
     {
      ptype_name: string loc;
-     ptype_params: (core_type * variance) list;
+     ptype_params: type_parameter list;
            (* ('a1,...'an) t; None represents  _*)
      ptype_cstrs: (core_type * core_type * Location.t) list;
            (* ... constraint T1=T1'  ... constraint Tn=Tn' *)
      ptype_kind: type_kind;
      ptype_private: private_flag;   (* = private ... *)
      ptype_manifest: core_type option;  (* = T *)
+     ptype_layout: layout option; (* : L *)
      ptype_attributes: attributes;   (* ... [@@id1] [@@id2] *)
      ptype_loc: Location.t;
     }
@@ -497,7 +511,7 @@ and constructor_arguments =
 and type_extension =
     {
      ptyext_path: Longident.t loc;
-     ptyext_params: (core_type * variance) list;
+     ptyext_params: type_parameter list;
      ptyext_constructors: extension_constructor list;
      ptyext_private: private_flag;
      ptyext_loc: Location.t;
@@ -598,7 +612,7 @@ and class_type_field_desc =
 and 'a class_infos =
     {
      pci_virt: virtual_flag;
-     pci_params: (core_type * variance) list;
+     pci_params: type_parameter list;
      pci_name: string loc;
      pci_expr: 'a;
      pci_loc: Location.t;
