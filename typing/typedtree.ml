@@ -93,7 +93,7 @@ and exp_extra =
   | Texp_constraint of core_type
   | Texp_coerce of core_type option * core_type
   | Texp_poly of core_type option
-  | Texp_newtype of string
+  | Texp_newtype of string * Types.layout
 
 and expression_desc =
     Texp_ident of Path.t * Longident.t loc * Types.value_description
@@ -440,7 +440,7 @@ and core_type_desc =
   | Ttyp_class of Path.t * Longident.t loc * core_type list
   | Ttyp_alias of core_type * string
   | Ttyp_variant of row_field list * closed_flag * label list option
-  | Ttyp_poly of string list * core_type
+  | Ttyp_poly of (string * Types.layout) list * core_type
   | Ttyp_package of package_type
 
 and package_type = {
@@ -480,10 +480,16 @@ and value_description =
     val_attributes: attribute list;
     }
 
+and type_parameter =
+  { typa_type: core_type;
+    typa_name: string option loc;
+    typa_variance: variance;
+    typa_layout: Types.layout }
+
 and type_declaration =
   { typ_id: Ident.t;
     typ_name: string loc;
-    typ_params: (core_type * variance) list;
+    typ_params: type_parameter list;
     typ_type: Types.type_declaration;
     typ_cstrs: (core_type * core_type * Location.t) list;
     typ_kind: type_kind;
@@ -527,7 +533,7 @@ and type_extension =
   {
     tyext_path: Path.t;
     tyext_txt: Longident.t loc;
-    tyext_params: (core_type * variance) list;
+    tyext_params: type_parameter list;
     tyext_constructors: extension_constructor list;
     tyext_private: private_flag;
     tyext_loc: Location.t;
@@ -600,7 +606,7 @@ and class_type_declaration =
 
 and 'a class_infos =
   { ci_virt: virtual_flag;
-    ci_params: (core_type * variance) list;
+    ci_params: type_parameter list;
     ci_id_name: string loc;
     ci_id_class: Ident.t;
     ci_id_class_type: Ident.t;

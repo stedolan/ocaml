@@ -20,7 +20,7 @@ open Typedecl_properties
 type surface_variance = bool * bool * bool
 
 val variance_of_params :
-  (Parsetree.core_type * Asttypes.variance) list -> surface_variance list
+  Parsetree.type_parameter list -> surface_variance list
 val variance_of_sdecl :
   Parsetree.type_declaration -> surface_variance list
 

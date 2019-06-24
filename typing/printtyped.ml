@@ -216,7 +216,8 @@ let rec core_type i ppf x =
       core_type i ppf ct;
   | Ttyp_poly (sl, ct) ->
       line i ppf "Ttyp_poly%a\n"
-        (fun ppf -> List.iter (fun x -> fprintf ppf " '%s" x)) sl;
+        (fun ppf -> List.iter (fun (v,l) ->
+           fprintf ppf " '%s %a" v layout l)) sl;
       core_type i ppf ct;
   | Ttyp_package { pack_path = s; pack_fields = l } ->
       line i ppf "Ttyp_package %a\n" fmt_path s;
@@ -302,8 +303,8 @@ and expression_extra i ppf x attrs =
       line i ppf "Texp_poly\n";
       attributes i ppf attrs;
       option i core_type ppf cto;
-  | Texp_newtype s ->
-      line i ppf "Texp_newtype \"%s\"\n" s;
+  | Texp_newtype (s, l) ->
+      line i ppf "Texp_newtype \"%s\" %a\n" s layout l;
       attributes i ppf attrs;
 
 and expression i ppf x =
@@ -449,7 +450,30 @@ and binding_op i ppf x =
     fmt_location x.bop_loc;
   expression i ppf x.bop_exp
 
-and type_parameter i ppf (x, _variance) = core_type i ppf x
+and variance ppf p =
+  let s = match p with
+    | Invariant -> "Invariant"
+    | Covariant -> "Covariant"
+    | Contravariant -> "Contravariant" in
+  fprintf ppf "%s" s
+
+and layout ppf l =
+  match l with
+  | [] -> fprintf ppf "[]"
+  | l :: ls ->
+    let playout = function
+      | Types.PLany -> "PLany"
+      | Types.PLvalue -> "PLvalue"
+      | Types.PLimmediate -> "PLimmediate" in
+    fprintf ppf "[%s" (playout l);
+    List.iter (fun s -> fprintf ppf " %s" (playout s)) ls;
+    fprintf ppf "]"
+
+and type_parameter i ppf p =
+  line i ppf "typa_type =\n";
+  core_type (i+1) ppf p.typa_type;
+  line i ppf "typa_variance %a\n" variance p.typa_variance;
+  line i ppf "typa_layout %a\n" layout p.typa_layout
 
 and type_declaration i ppf x =
   line i ppf "type_declaration %a %a\n" fmt_ident x.typ_id fmt_location

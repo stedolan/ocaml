@@ -77,6 +77,7 @@ let create_package_mty fake loc env (p, l) =
                ptype_cstrs = [];
                ptype_kind = Ptype_abstract;
                ptype_private = Asttypes.Public;
+               ptype_layout = None;
                ptype_manifest = if fake then None else Some t;
                ptype_attributes = [];
                ptype_loc = loc} in
@@ -112,6 +113,10 @@ let validate_name = function
   | Some name as s ->
       if name <> "" && strict_ident name.[0] then s else None
 
+let transl_layout = function
+  | None -> [Types.PLvalue]
+  | Some _ -> failwith "FIXME_layout: Layouts unimplemented"
+
 let new_global_var ?name () =
   new_global_var ?name:(validate_name name) ()
 let newvar ?name () =
@@ -126,35 +131,32 @@ let type_variable loc name =
 let valid_tyvar_name name =
   name <> "" && name.[0] <> '_'
 
-let transl_type_param env styp =
-  let loc = styp.ptyp_loc in
-  match styp.ptyp_desc with
-    Ptyp_any ->
-      let ty = new_global_var ~name:"_" () in
-        { ctyp_desc = Ttyp_any; ctyp_type = ty; ctyp_env = env;
-          ctyp_loc = loc; ctyp_attributes = styp.ptyp_attributes; }
-  | Ptyp_var name ->
-      let ty =
-        try
-          if not (valid_tyvar_name name) then
-            raise (Error (loc, Env.empty, Invalid_variable_name ("'" ^ name)));
-          ignore (TyVarMap.find name !type_variables);
-          raise Already_bound
-        with Not_found ->
-          let v = new_global_var ~name () in
-            type_variables := TyVarMap.add name v !type_variables;
-            v
-      in
-        { ctyp_desc = Ttyp_var name; ctyp_type = ty; ctyp_env = env;
-          ctyp_loc = loc; ctyp_attributes = styp.ptyp_attributes; }
-  | _ -> assert false
-
-let transl_type_param env styp =
-  (* Currently useless, since type parameters cannot hold attributes
-     (but this could easily be lifted in the future). *)
-  Builtin_attributes.warning_scope styp.ptyp_attributes
-    (fun () -> transl_type_param env styp)
-
+let transl_type_param env { ptp_name; ptp_variance; ptp_layout } =
+  let loc = ptp_name.loc in
+  let typa_type =
+    match ptp_name.txt with
+      None ->
+        let ty = new_global_var ~name:"_" () in
+          { ctyp_desc = Ttyp_any; ctyp_type = ty; ctyp_env = env;
+            ctyp_loc = loc; ctyp_attributes = []; }
+    | Some name ->
+        let ty =
+          try
+            if not (valid_tyvar_name name) then
+              raise (Error (loc, Env.empty, Invalid_variable_name ("'" ^ name)));
+            ignore (TyVarMap.find name !type_variables);
+            raise Already_bound
+          with Not_found ->
+            let v = new_global_var ~name () in
+              type_variables := TyVarMap.add name v !type_variables;
+              v
+        in
+          { ctyp_desc = Ttyp_var name; ctyp_type = ty; ctyp_env = env;
+            ctyp_loc = loc; ctyp_attributes = []; } in
+  { typa_type;
+    typa_name = ptp_name;
+    typa_variance = ptp_variance;
+    typa_layout = transl_layout ptp_layout }
 
 let new_pre_univar ?name () =
   let v = newvar ?name () in pre_univars := v :: !pre_univars; v
@@ -482,9 +484,9 @@ and transl_type_aux env policy styp =
       let ty = newty (Tvariant row) in
       ctyp (Ttyp_variant (tfields, closed, present)) ty
   | Ptyp_poly(vars, st) ->
-      let vars = List.map (fun v -> v.txt) vars in
+      let vars = List.map (fun (v,l) -> v.txt, transl_layout l) vars in
       begin_def();
-      let new_univars = List.map (fun name -> name, newvar ~name ()) vars in
+      let new_univars = List.map (fun (name,_FIXME_layout) -> name, newvar ~name ()) vars in
       let old_univars = !univars in
       univars := new_univars @ !univars;
       let cty = transl_type env policy st in

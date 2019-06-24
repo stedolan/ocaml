@@ -356,7 +356,8 @@ let transl_variance : Asttypes.variance -> _ = function
   | Invariant -> (false, false, false)
 
 let variance_of_params ptype_params =
-  List.map transl_variance (List.map snd ptype_params)
+  List.map (fun p ->
+    transl_variance p.Parsetree.ptp_variance) ptype_params
 
 let variance_of_sdecl sdecl =
   variance_of_params sdecl.Parsetree.ptype_params
@@ -369,8 +370,10 @@ let update_class_decls env cldecls =
   let decls, required =
     List.fold_right
       (fun (obj_id, obj_abbr, _cl_abbr, _clty, _cltydef, ci) (decls, req) ->
+        let variances = List.map (fun p ->
+           transl_variance p.Typedtree.typa_variance) ci.Typedtree.ci_params in
         (obj_id, obj_abbr) :: decls,
-        variance_of_params ci.Typedtree.ci_params :: req)
+        variances :: req)
       cldecls ([],[])
   in
   let decls =

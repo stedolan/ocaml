@@ -40,6 +40,13 @@ and type_desc =
   | Tpoly of type_expr * type_expr list
   | Tpackage of Path.t * Longident.t list * type_expr list
 
+and layout = prim_layout list
+
+and prim_layout =
+  | PLany
+  | PLvalue
+  | PLimmediate
+
 and row_desc =
     { row_fields: (label * row_field) list;
       row_more: type_expr;

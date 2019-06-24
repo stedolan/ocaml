@@ -219,7 +219,21 @@ let module_binding sub mb =
     (map_loc sub mb.mb_name)
     (sub.module_expr sub mb.mb_expr)
 
-let type_parameter sub (ct, v) = (sub.typ sub ct, v)
+let layout l =
+  let ltxt = function
+    | Types.PLany -> "any_layout"
+    | Types.PLvalue -> "value"
+    | Types.PLimmediate -> "immediate" in
+  { play_desc =
+      List.map (fun p -> Location.mknoloc (ltxt p)) l;
+    play_loc = Location.none }
+
+let type_parameter _sub p =
+  {
+    ptp_name = p.typa_name;
+    ptp_variance = p.typa_variance;
+    ptp_layout = Some (layout p.typa_layout)
+  }
 
 let type_declaration sub decl =
   let loc = sub.location sub decl.typ_loc in
@@ -366,7 +380,7 @@ let exp_extra sub (extra, loc, attrs) sexp =
     | Texp_constraint cty ->
         Pexp_constraint (sexp, sub.typ sub cty)
     | Texp_poly cto -> Pexp_poly (sexp, Option.map (sub.typ sub) cto)
-    | Texp_newtype s -> Pexp_newtype (mkloc s loc, sexp)
+    | Texp_newtype (s, l) -> Pexp_newtype (mkloc s loc, Some (layout l), sexp)
   in
   Exp.mk ~loc ~attrs desc
 
@@ -753,7 +767,7 @@ let core_type sub ct =
     | Ttyp_variant (list, bool, labels) ->
         Ptyp_variant (List.map (sub.row_field sub) list, bool, labels)
     | Ttyp_poly (list, ct) ->
-        let list = List.map (fun v -> mkloc v loc) list in
+        let list = List.map (fun (v,l) -> mkloc v loc, Some (layout l)) list in
         Ptyp_poly (list, sub.typ sub ct)
     | Ttyp_package pack -> Ptyp_package (sub.package_type sub pack)
   in
