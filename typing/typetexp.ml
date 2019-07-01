@@ -694,8 +694,15 @@ let transl_simple_type_delayed env styp =
   (typ, globalize_used_variables env false)
 
 let transl_type_scheme env styp =
+  let vars, styp =
+    match styp with
+    | {ptyp_desc = Ptyp_poly (vars, styp); _} -> vars, styp
+    | _ -> [], styp in
   reset_type_variables();
   begin_def();
+  List.iter (fun (name, _FIXME_layout) ->
+    let v = newvar ~name:name.txt () in
+    type_variables := TyVarMap.add name.txt v !type_variables) vars;
   let typ = transl_simple_type env false styp in
   end_def();
   generalize typ.ctyp_type;

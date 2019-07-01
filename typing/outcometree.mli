@@ -56,6 +56,8 @@ type out_value =
   | Oval_tuple of out_value list
   | Oval_variant of string * out_value option
 
+type out_layout = string list option
+
 type out_type =
   | Otyp_abstract
   | Otyp_open
@@ -72,7 +74,7 @@ type out_type =
   | Otyp_var of bool * string
   | Otyp_variant of
       bool * out_variant * bool * (string list) option
-  | Otyp_poly of string list * out_type
+  | Otyp_poly of (string * out_layout) list * out_type
   | Otyp_module of out_ident * string list * out_type list
   | Otyp_attribute of out_type * out_attribute
 
@@ -97,11 +99,11 @@ type out_module_type =
   | Omty_alias of out_ident
 and out_sig_item =
   | Osig_class of
-      bool * string * (string * (bool * bool)) list * out_class_type *
-        out_rec_status
+      bool * string * (string * (bool * bool) * out_layout) list *
+        out_class_type * out_rec_status
   | Osig_class_type of
-      bool * string * (string * (bool * bool)) list * out_class_type *
-        out_rec_status
+      bool * string * (string * (bool * bool) * out_layout) list *
+        out_class_type * out_rec_status
   | Osig_typext of out_extension_constructor * out_ext_status
   | Osig_modtype of string * out_module_type
   | Osig_module of string * out_module_type * out_rec_status
@@ -110,11 +112,12 @@ and out_sig_item =
   | Osig_ellipsis
 and out_type_decl =
   { otype_name: string;
-    otype_params: (string * (bool * bool)) list;
+    otype_params: (string * (bool * bool) * out_layout) list;
     otype_type: out_type;
     otype_private: Asttypes.private_flag;
     otype_immediate: Type_immediacy.t;
     otype_unboxed: bool;
+    otype_layout: out_layout;
     otype_cstrs: (out_type * out_type) list }
 and out_extension_constructor =
   { oext_name: string;

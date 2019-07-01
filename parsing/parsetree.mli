@@ -148,6 +148,8 @@ and core_type_desc =
            - As the pld_type field of a label_declaration.
 
            - As a core_type of a Ptyp_object node.
+
+           - As the pval_type of a value_description.
          *)
 
   | Ptyp_package of package_type

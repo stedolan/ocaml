@@ -255,8 +255,21 @@ let pr_present =
 
 let pr_var = Pprintast.tyvar
 
+let pr_layout ppf ls =
+  print_list
+    (fun ppf s -> fprintf ppf "%s" s)
+    (fun ppf -> fprintf ppf "@ *@ ")
+    ppf ls
+
+let pr_var_layout ppf (s, l) =
+  match l with
+  | None ->
+    Pprintast.tyvar ppf s
+  | Some ls ->
+    fprintf ppf "(%a@ :@ %a)" Pprintast.tyvar s pr_layout ls
+
 let pr_vars =
-  print_list pr_var (fun ppf -> fprintf ppf "@ ")
+  print_list pr_var_layout (fun ppf -> fprintf ppf "@ ")
 
 let rec print_out_type ppf =
   function
@@ -400,10 +413,19 @@ let out_type = ref print_out_type
 let print_type_parameter ppf s =
   if s = "_" then fprintf ppf "_" else pr_var ppf s
 
-let type_parameter ppf (ty, (co, cn)) =
-  fprintf ppf "%s%a"
-    (if not cn then "+" else if not co then "-" else "")
-    print_type_parameter ty
+let type_parameter ppf (ty, (co, cn), l) =
+  let v = if not cn then "+" else if not co then "-" else "" in
+  match l with
+  | None ->
+    fprintf ppf "%s%a"
+      v
+      print_type_parameter ty
+  | Some ls ->
+    fprintf ppf "%s%a : %a"
+      v
+      print_type_parameter ty
+      pr_layout ls
+
 
 let print_out_class_params ppf =
   function
@@ -630,12 +652,17 @@ and print_out_type_decl kwd ppf td =
   let type_defined ppf =
     match td.otype_params with
       [] -> pp_print_string ppf td.otype_name
-    | [param] -> fprintf ppf "@[%a@ %s@]" type_parameter param td.otype_name
+    | [(_, _, None) as param] ->
+      fprintf ppf "@[%a@ %s@]" type_parameter param td.otype_name
     | _ ->
         fprintf ppf "@[(@[%a)@]@ %s@]"
           (print_list type_parameter (fun ppf -> fprintf ppf ",@ "))
           td.otype_params
           td.otype_name
+  in
+  let print_layout ppf = function
+      None -> ()
+    | Some l -> fprintf ppf " : %a" pr_layout l
   in
   let print_manifest ppf =
     function
@@ -643,7 +670,9 @@ and print_out_type_decl kwd ppf td =
     | _ -> ()
   in
   let print_name_params ppf =
-    fprintf ppf "%s %t%a" kwd type_defined print_manifest td.otype_type
+    fprintf ppf "%s %t%a%a" kwd type_defined
+      print_layout td.otype_layout
+      print_manifest td.otype_type
   in
   let ty =
     match td.otype_type with
