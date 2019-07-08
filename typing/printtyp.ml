@@ -480,6 +480,14 @@ let print_name ppf = function
     None -> fprintf ppf "None"
   | Some name -> fprintf ppf "\"%s\"" name
 
+let print_layout ppf = function
+  | [] -> fprintf ppf "()"
+  | [x] -> fprintf ppf "%s" (Layout.to_string x)
+  | x :: xs ->
+    fprintf ppf "@[<hov>(%s" (Layout.to_string x);
+    List.iter (fun x -> fprintf ppf "@ *@ %s" (Layout.to_string x)) xs;
+    fprintf ppf ")@]"
+
 let string_of_label = function
     Nolabel -> ""
   | Labelled s -> s
@@ -495,7 +503,9 @@ let rec raw_type ppf ty =
   end
 and raw_type_list tl = raw_list raw_type tl
 and raw_type_desc ppf = function
-    Tvar name -> fprintf ppf "Tvar %a" print_name name
+    Tvar {name;layout} -> fprintf ppf "Tvar {name=%a; layout=%a}"
+                            print_name name
+                            print_layout layout
   | Tarrow(l,t1,t2,c) ->
       fprintf ppf "@[<hov1>Tarrow(\"%s\",@,%a,@,%a,@,%s)@]"
         (string_of_label l) raw_type t1 raw_type t2
@@ -519,7 +529,10 @@ and raw_type_desc ppf = function
   | Tnil -> fprintf ppf "Tnil"
   | Tlink t -> fprintf ppf "@[<1>Tlink@,%a@]" raw_type t
   | Tsubst t -> fprintf ppf "@[<1>Tsubst@,%a@]" raw_type t
-  | Tunivar name -> fprintf ppf "Tunivar %a" print_name name
+  | Tunivar {name; layout} ->
+    fprintf ppf "Tunivar {name=%a; layout=%a}"
+      print_name name
+      print_layout layout
   | Tpoly (t, tl) ->
       fprintf ppf "@[<hov1>Tpoly(@,%a,@,%a)@]"
         raw_type t
@@ -759,7 +772,7 @@ let named_weak_vars = ref String.Set.empty
 let reset_names () = names := []; name_counter := 0; named_vars := []
 let add_named_var ty =
   match ty.desc with
-    Tvar (Some name) | Tunivar (Some name) ->
+    Tvar {name=Some name;_} | Tunivar {name=Some name;_} ->
       if List.mem name !named_vars then () else
       named_vars := name :: !named_vars
   | _ -> ()
@@ -795,7 +808,7 @@ let name_of_type name_generator t =
     try TypeMap.find t !weak_var_map with Not_found ->
     let name =
       match t.desc with
-        Tvar (Some name) | Tunivar (Some name) ->
+        Tvar {name=Some name;_} | Tunivar {name=Some name;_} ->
           (* Some part of the type we've already printed has assigned another
            * unification variable to that name. We want to keep the name, so try
            * adding a number until we find a name that's not taken. *)
@@ -1139,7 +1152,17 @@ let type_scheme_max ?(b_reset_names=true) ppf ty =
   typexp true ppf ty
 (* End Maxence *)
 
-let tree_of_type_scheme ty = reset_and_mark_loops ty; tree_of_typexp true ty
+let tree_of_type_scheme ty =
+  reset_and_mark_loops ty;
+  let tree = tree_of_typexp true ty in
+  let vars_with_layout =
+    List.filter_map (function
+      | {desc=Tvar {layout; _}}, name when layout <> Types.Layout.value ->
+        Some (name, tree_of_layout layout)
+      | _ -> None) !names in
+  match vars_with_layout with
+  | [] -> tree
+  | v -> Otyp_poly (v, tree)
 
 (* Print one type declaration *)
 
@@ -1177,8 +1200,8 @@ let rec tree_of_type_decl id decl =
   | Some ty ->
       let vars = free_variables ty in
       List.iter
-        (function {desc = Tvar (Some "_")} as ty ->
-            if List.memq ty vars then ty.desc <- Tvar None
+        (function {desc = Tvar ({name=Some "_";_} as n)} as ty ->
+            if List.memq ty vars then ty.desc <- Tvar {n with name = None}
           | _ -> ())
         params
   | None -> ()
@@ -1912,7 +1935,7 @@ let hide_variant_name t =
   | {desc = Tvariant row} as t when (row_repr row).row_name <> None ->
       newty2 t.level
         (Tvariant {(row_repr row) with row_name = None;
-                   row_more = newvar2 (row_more row).level})
+                   row_more = newvar2 ~layout:Layout.value (row_more row).level})
   | _ -> t
 
 let prepare_expansion (t, t') =
@@ -2061,6 +2084,10 @@ let explanation intro prev env = function
       reset_and_mark_loops y;
       Some(dprintf "@,@[<hov>The type variable %a occurs inside@ %a@]"
             marked_type_expr x marked_type_expr y)
+  | Trace.Layout l ->
+      Some(dprintf "@,A type with layout %a was expected,@ \
+                    but one with layout %a was provided"
+            print_layout l.expected print_layout l.got)
 
 let mismatch intro env trace =
   Trace.explain trace (fun ~prev h -> explanation intro prev env h)

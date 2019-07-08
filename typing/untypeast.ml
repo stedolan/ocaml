@@ -220,12 +220,8 @@ let module_binding sub mb =
     (sub.module_expr sub mb.mb_expr)
 
 let layout l =
-  let ltxt = function
-    | Types.PLany -> "any_layout"
-    | Types.PLvalue -> "value"
-    | Types.PLimmediate -> "immediate" in
   { play_desc =
-      List.map (fun p -> Location.mknoloc (ltxt p)) l;
+      List.map (fun p -> Location.mknoloc (Types.Layout.to_string p)) l;
     play_loc = Location.none }
 
 let type_parameter _sub p =

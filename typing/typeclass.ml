@@ -1271,7 +1271,7 @@ and class_expr_aux cl_num val_env met_env scl =
 (* Approximate the type of the constructor to allow recursive use *)
 (* of optional parameters                                         *)
 
-let var_option = Predef.type_option (Btype.newgenvar ())
+let var_option = Predef.type_option (Btype.newgenvar Layout.value)
 
 let rec approx_declaration cl =
   match cl.pcl_desc with

@@ -107,7 +107,8 @@ let enter_type rec_flag env sdecl (id, uid) =
   if not needed then env else
   let decl =
     { type_params =
-        List.map (fun _ -> Btype.newgenvar ()) sdecl.ptype_params;
+        List.map (fun {ptp_layout;_} ->
+          Btype.newgenvar (transl_layout ptp_layout)) sdecl.ptype_params;
       type_arity = arity;
       type_kind = Type_abstract;
       type_private = sdecl.ptype_private;
@@ -981,8 +982,9 @@ let transl_extension_constructor env type_path type_params
             Ctype.free_variables (Btype.newgenty (Ttuple args))
           in
             List.iter
-              (function {desc = Tvar (Some "_")} as ty ->
-                          if List.memq ty vars then ty.desc <- Tvar None
+              (function {desc = Tvar ({name = Some "_"; _} as tv)} as ty ->
+                          if List.memq ty vars then
+                            ty.desc <- Tvar { tv with name = None }
                         | _ -> ())
               typext_params
         end;
@@ -1290,6 +1292,8 @@ let rec parse_native_repr_attributes env core_type ty ~global_repr =
       parse_native_repr_attributes env ct2 t2 ~global_repr
     in
     (repr_arg :: repr_args, repr_res)
+  | Ptyp_poly (_, pty), _, _ ->
+     parse_native_repr_attributes env pty ty ~global_repr
   | Ptyp_arrow _, _, _ | _, Tarrow _, _ -> assert false
   | _ -> ([], make_native_repr env core_type ty ~global_repr)
 

@@ -96,6 +96,7 @@ module Unification_trace = struct
     | Escape of {context:type_expr option; kind: 'a escape}
     | Incompatible_fields of {name:string; diff:type_expr diff }
     | Rec_occur of type_expr * type_expr
+    | Layout of layout diff
 
   type t = desc elt list
   let short t = { t; expanded = None }
@@ -112,7 +113,8 @@ module Unification_trace = struct
     | Rec_occur (_,_)
     | Escape {kind=(Univ _ | Self|Constructor _ | Module_type _ ); _}
     | Variant _ | Obj _
-    | Incompatible_fields _ as x -> x
+    | Incompatible_fields _
+    | Layout _ as x -> x
   let map f = List.map (map_elt f)
 
 
@@ -140,6 +142,8 @@ module Unification_trace = struct
   let escape kind =  Escape { kind; context = None}
   let scope_escape x = Unify[escape (Equation (short x))]
   let rec_occur x y = Unify[Rec_occur(x, y)]
+  let layout l =
+    Unify[Layout l]
   let incompatible_fields name got expected =
     Incompatible_fields {name; diff={got; expected} }
 
@@ -270,9 +274,10 @@ let proper_abbrevs path tl abbrev =
 let newty2             = Btype.newty2
 let newty desc         = newty2 !current_level desc
 
-let newvar ?name ()         = newty2 !current_level (Tvar name)
-let newvar2 ?name level     = newty2 level (Tvar name)
-let new_global_var ?name () = newty2 !global_level (Tvar name)
+let newvar ?name ?(layout=Layout.value) () =
+  newty2 !current_level (Tvar {name; layout})
+let newvar2 ?name ~layout level = newty2 level (Tvar {name; layout})
+let new_global_var ?name layout = newty2 !global_level (Tvar {name; layout})
 
 let newobj fields      = newty (Tobject (fields, ref None))
 
@@ -1111,7 +1116,9 @@ let rec copy ?partial ?keep_names scope ty =
             if keep then ty.level else !current_level
           else generic_level
     in
-    if forget <> generic_level then newty2 forget (Tvar None) else
+    if forget <> generic_level then
+    newty2 forget (Tvar {name = None; layout = Layout.any })
+    else
     let desc = ty.desc in
     For_copy.save_desc scope ty desc;
     let t = newvar() in          (* Stub *)
@@ -1176,7 +1183,7 @@ let rec copy ?partial ?keep_names scope ty =
                     let more' =
                       if more.id != more'.id then more' else
                       let lv = if keep then more.level else !current_level in
-                      newty2 lv (Tvar None)
+                      newty2 lv (Tvar { name = None; layout = Layout.any })
                     in
                     let not_reither (_, f) =
                       match row_field_repr f with
@@ -1266,7 +1273,7 @@ let new_declaration expansion_scope manifest =
   }
 
 let existential_name cstr ty = match repr ty with
-  | {desc = Tvar (Some name)} -> "$" ^ cstr.cstr_name ^ "_'" ^ name
+  | {desc = Tvar {name = Some name; _}} -> "$" ^ cstr.cstr_name ^ "_'" ^ name
   | _ -> "$" ^ cstr.cstr_name
 
 let instance_constructor ?in_pattern cstr =
@@ -1439,7 +1446,11 @@ let instance_poly' cleanup_scope ~keep_names fixed univars sch =
   let univars = List.map repr univars in
   let copy_var ty =
     match ty.desc with
-      Tunivar name -> if keep_names then newty (Tvar name) else newvar ()
+      Tunivar {name; layout} ->
+      if keep_names then
+        newty (Tvar {name; layout})
+      else
+        newvar ~layout ()
     | _ -> assert false
   in
   let vars = List.map copy_var univars in
@@ -1708,9 +1719,10 @@ let enforce_constraints env ty =
     {desc = Tconstr (path, args, _abbrev); level = level} ->
       begin try
         let decl = Env.find_type path env in
+        (* FIXME_layout: what does this do? *)
         ignore
           (subst env level Public (ref Mnil) None decl.type_params args
-             (newvar2 level))
+             (newvar2 ~layout:Layout.any level))
       with Not_found -> ()
       end
   | _ ->
@@ -2007,9 +2019,9 @@ let polyfy env ty vars =
   let subst_univar scope ty =
     let ty = repr ty in
     match ty.desc with
-    | Tvar name when ty.level = generic_level ->
+    | Tvar {name; layout} when ty.level = generic_level ->
         For_copy.save_desc scope ty ty.desc;
-        let t = newty (Tunivar name) in
+        let t = newty (Tunivar {name; layout}) in
         ty.desc <- Tsubst t;
         Some t
     | _ -> None
@@ -2125,7 +2137,8 @@ let reify env t =
     if TypeSet.mem ty !visited then () else begin
       visited := TypeSet.add ty !visited;
       match ty.desc with
-        Tvar o ->
+        (* FIXME_layout: should add the layout to the ctor decl in env *)
+        Tvar {name = o; layout = _FIXME_layout} ->
           let path, t = create_fresh_constr ty.level o in
           link_type ty t;
           if ty.level < fresh_constr_scope then
@@ -2136,7 +2149,7 @@ let reify env t =
             if is_fixed r then iterator (row_more r) else
             let m = r.row_more in
             match m.desc with
-              Tvar o ->
+              Tvar {name = o; layout = _FIXME_layout } ->
                 let path, t = create_fresh_constr m.level o in
                 let row =
                   let row_fixed = Some (Reified path) in
@@ -2514,8 +2527,60 @@ let unify_eq t1 t2 =
       try TypePairs.find unify_eq_set (order_type_pair t1 t2); true
       with Not_found -> false
 
+let rec cmp_layout refine_var fail ok ty layout =
+  let ty = repr ty in
+  let check_sub l =
+    if Layout.subset l layout then ok else
+      fail l layout in
+      (* raise (Trace.layout { got = l; expected = layout }) in *)
+  match ty.desc with
+  | Tvar tv ->
+    begin match Layout.inter tv.layout layout with
+    | Some layout' ->
+      if layout' = tv.layout then ok else refine_var ty.desc layout'
+    | None ->
+      fail tv.layout layout
+    end
+  | Tconstr _ ->
+    (* FIXME_layout *)
+    ok
+  | Tarrow _
+  | Ttuple _
+  | Tobject _
+  | Tvariant _
+  | Tpackage _->
+    check_sub Layout.value
+  | Tpoly (ty, _tyl) ->
+    cmp_layout refine_var fail ok ty layout
+  | Tunivar uv ->
+    check_sub uv.layout
+  | Tlink _ -> assert false
+  | Tsubst _ -> assert false
+  | Tfield _ | Tnil ->
+    check_sub Layout.value (* FIXME_layout *)
+
+(* Verify that ty has a given layout,
+   refining layouts of type variables if necessary *)
+let constrain_layout ty layout =
+  cmp_layout
+    (fun v layout -> set_layout v layout)
+    (fun got expected -> raise (Trace.layout {got; expected}))
+    ()
+    ty layout
+
+(* Check whether ty has a given layout,
+   keeping type variables rigid *)
+let check_layout ty layout =
+  cmp_layout
+    (fun _ _ -> false)
+    (fun _ _ -> false)
+    true
+    ty layout
+
 let unify1_var env t1 t2 =
-  assert (is_Tvar t1);
+  begin match t1.desc with
+  | Tvar tv -> constrain_layout t2 tv.layout
+  | _ -> assert false end;
   occur env t1 t2;
   occur_univar env t2;
   let d1 = t1.desc in
@@ -2547,6 +2612,7 @@ let rec unify (env:Env.t ref) t1 t2 =
     | (_, Tvar _) ->
         unify1_var !env t2 t1
     | (Tunivar _, Tunivar _) ->
+      assert false |> ignore; (* FIXME_layout *)
         unify_univar t1 t2 !univar_pairs;
         update_level !env t1.level t2;
         update_scope t1.scope t2;
@@ -2620,15 +2686,18 @@ and unify3 env t1 t1' t2 t2' =
 
   begin match (d1, d2) with (* handle vars and univars specially *)
     (Tunivar _, Tunivar _) ->
+      (*FIXME_layout *)
       unify_univar t1' t2' !univar_pairs;
       link_type t1' t2'
-  | (Tvar _, _) ->
+  | (Tvar tv, _) ->
       occur !env t1' t2;
       occur_univar !env t2;
+      constrain_layout t2 tv.layout;
       link_type t1' t2;
-  | (_, Tvar _) ->
+  | (_, Tvar tv) ->
       occur !env t2' t1;
       occur_univar !env t1;
+      constrain_layout t1 tv.layout;
       link_type t2' t1;
   | (Tfield _, Tfield _) -> (* special case for GADTs *)
       unify_fields env t1' t2'
@@ -2784,21 +2853,22 @@ and unify_list env tl1 tl2 =
 and make_rowvar level use1 rest1 use2 rest2  =
   let set_name ty name =
     match ty.desc with
-      Tvar None -> set_type_desc ty (Tvar name)
+      Tvar ({ name = None; _ } as n) ->
+       set_type_desc ty (Tvar {n with name})
     | _ -> ()
   in
   let name =
     match rest1.desc, rest2.desc with
-      Tvar (Some _ as name1), Tvar (Some _ as name2) ->
+      Tvar {name = Some _ as name1; _}, Tvar {name = Some _ as name2; _} ->
         if rest1.level <= rest2.level then name1 else name2
-    | Tvar (Some _ as name), _ ->
+    | Tvar {name = Some _ as name; _}, _ ->
         if use2 then set_name rest2 name; name
-    | _, Tvar (Some _ as name) ->
+    | _, Tvar {name = Some _ as name; _} ->
         if use1 then set_name rest2 name; name
     | _ -> None
   in
   if use1 then rest1 else
-  if use2 then rest2 else newvar2 ?name level
+  if use2 then rest2 else newvar2 ?name ~layout:Layout.value level
 
 and unify_fields env ty1 ty2 =          (* Optimization *)
   let (fields1, rest1) = flatten_fields ty1
@@ -2857,7 +2927,9 @@ and unify_row env row1 row2 =
     | Some _, Some _ -> if rm2.level < rm1.level then rm2 else rm1
     | Some _, None -> rm1
     | None, Some _ -> rm2
-    | None, None -> newty2 (min rm1.level rm2.level) (Tvar None)
+    | None, None -> 
+       newty2 (min rm1.level rm2.level)
+         (Tvar {name = None; layout = Layout.value})
   in
   let fixed = merge_fixed_explanation fixed1 fixed2
   and closed = row1.row_closed || row2.row_closed in
@@ -3066,9 +3138,10 @@ let unify_var env t1 t2 =
   match t1.desc, t2.desc with
     Tvar _, Tconstr _ when deep_occur t1 t2 ->
       unify (ref env) t1 t2
-  | Tvar _, _ ->
+  | Tvar tv1, _ ->
       let reset_tracing = check_trace_gadt_instances env in
       begin try
+        constrain_layout t2 tv1.layout;
         occur env t1 t2;
         update_level env t1.level t2;
         update_scope t1.scope t2;
@@ -3113,7 +3186,8 @@ let filter_arrow env t l =
   match t.desc with
     Tvar _ ->
       let lv = t.level in
-      let t1 = newvar2 lv and t2 = newvar2 lv in
+      let t1 = newvar2 ~layout:Layout.any lv
+      and t2 = newvar2 ~layout:Layout.any lv in
       let t' = newty2 lv (Tarrow (l, t1, t2, Cok)) in
       link_type t t';
       (t1, t2)
@@ -3129,7 +3203,8 @@ let rec filter_method_field env name priv ty =
   match ty.desc with
     Tvar _ ->
       let level = ty.level in
-      let ty1 = newvar2 level and ty2 = newvar2 level in
+      let ty1 = newvar2 ~layout:Layout.value level
+      and ty2 = newvar2 ~layout:Layout.value level in
       let ty' = newty2 level (Tfield (name,
                                       begin match priv with
                                         Private -> Fvar (ref None)
@@ -3217,7 +3292,8 @@ let rec moregen inst_nongen type_pairs env t1 t2 =
 
   try
     match (t1.desc, t2.desc) with
-      (Tvar _, _) when may_instantiate inst_nongen t1 ->
+      (Tvar tv, _) when may_instantiate inst_nongen t1 &&
+                        check_layout t2 tv.layout ->
         moregen_occur env t1.level t2;
         update_scope t1.scope t2;
         occur env t1 t2;
@@ -3235,7 +3311,8 @@ let rec moregen inst_nongen type_pairs env t1 t2 =
         with Not_found ->
           TypePairs.add type_pairs (t1', t2') ();
           match (t1'.desc, t2'.desc) with
-            (Tvar _, _) when may_instantiate inst_nongen t1' ->
+            (Tvar tv, _) when may_instantiate inst_nongen t1' &&
+                              check_layout t2 tv.layout ->
               moregen_occur env t1'.level t2;
               update_scope t1'.scope t2;
               link_type t1' t2
@@ -3450,6 +3527,7 @@ let matches env ty ty' =
   let vars = rigidify ty in
   cleanup_abbrev ();
   let ok =
+    (* FIXME_layout: check that layouts have not been refined *)
     try unify env ty ty'; all_distinct_vars env vars
     with Unify _ -> false
   in
@@ -3482,6 +3560,7 @@ let rec eqtype rename type_pairs subst env t1 t2 =
   try
     match (t1.desc, t2.desc) with
       (Tvar _, Tvar _) when rename ->
+        (* FIXME_layout *)
         begin try
           normalize_subst subst;
           if List.assq t1 !subst != t2 then raise (Unify [])
@@ -4039,7 +4118,7 @@ let rec build_subtype env visited loops posi level t =
              as this occurrence might break the occur check.
              XXX not clear whether this correct anyway... *)
           if List.exists (deep_occur ty) tl1 then raise Not_found;
-          ty.desc <- Tvar None;
+          ty.desc <- Tvar {name = None; layout = Layout.value };
           let t'' = newvar () in
           let loops = (ty, t'') :: loops in
           (* May discard [visited] as level is going down *)
@@ -4382,7 +4461,8 @@ let rec unalias_object ty =
   | Tunivar _ ->
       ty
   | Tconstr _ ->
-      newvar2 ty.level
+      (*FIXME_layout constructor layouts. Also wtf. *)
+      newvar2 ~layout:Layout.value ty.level
   | _ ->
       assert false
 
@@ -4563,7 +4643,7 @@ let rec nondep_type_rec ?(expand_private=false) env ids ty =
   | Tlink ty -> nondep_type_rec env ids ty
   | _ -> try TypeHash.find nondep_hash ty
   with Not_found ->
-    let ty' = newgenvar () in        (* Stub *)
+    let ty' = newgenvar Layout.any in        (* Stub *)
     TypeHash.add nondep_hash ty ty';
     ty'.desc <-
       begin match ty.desc with

@@ -873,7 +873,8 @@ let close_variant env row =
     (* this unification cannot fail *)
     Ctype.unify env row.row_more
       (Btype.newgenty
-         (Tvariant {row with row_fields = []; row_more = Btype.newgenvar();
+         (Tvariant {row with row_fields = [];
+                    row_more = Btype.newgenvar Layout.value;
                     row_closed = true; row_name = nm}))
   end
 

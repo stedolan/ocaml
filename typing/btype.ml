@@ -45,7 +45,7 @@ let new_id = ref (-1)
 let newty2 level desc  =
   incr new_id; { desc; level; scope = lowest_level; id = !new_id }
 let newgenty desc      = newty2 generic_level desc
-let newgenvar ?name () = newgenty (Tvar name)
+let newgenvar ?name layout = newgenty (Tvar {name; layout})
 (*
 let newmarkedvar level =
   incr new_id; { desc = Tvar; level = pivot_level - level; id = !new_id }
@@ -76,6 +76,7 @@ type change =
   | Ccommu of commutable ref * commutable
   | Cuniv of type_expr option ref * type_expr option
   | Ctypeset of TypeSet.t ref * TypeSet.t
+  | Cvar_layout of type_desc * layout
 
 type changes =
     Change of change * changes ref
@@ -481,7 +482,8 @@ let rec norm_univar ty =
   | _                  -> assert false
 
 let rec copy_type_desc ?(keep_names=false) f = function
-    Tvar _ as ty        -> if keep_names then ty else Tvar None
+    Tvar (_ as ty)      ->
+      Tvar { ty with name = if keep_names then ty.name else None }
   | Tarrow (p, ty1, ty2, c)-> Tarrow (p, f ty1, f ty2, copy_commu c)
   | Ttuple l            -> Ttuple (List.map f l)
   | Tconstr (p, l, _)   -> Tconstr (p, List.map f l, ref Mnil)
@@ -716,6 +718,8 @@ let undo_change = function
   | Ccommu (r, v) -> r := v
   | Cuniv  (r, v) -> r := v
   | Ctypeset (r, v) -> r := v
+  | Cvar_layout (Tvar tv, l) -> tv.layout <- l
+  | Cvar_layout _ -> assert false
 
 type snapshot = changes ref * int
 let last_snapshot = ref 0
@@ -729,12 +733,14 @@ let link_type ty ty' =
   (* Name is a user-supplied name for this unification variable (obtained
    * through a type annotation for instance). *)
   match desc, ty'.desc with
-    Tvar name, Tvar name' ->
+    Tvar {name; layout}, Tvar ({name=name'; layout=layout'} as desc') ->
+      assert (Layout.subset layout' layout);
       begin match name, name' with
-      | Some _, None ->  log_type ty'; ty'.desc <- Tvar name
+      | Some _, None ->  log_type ty'; ty'.desc <- Tvar {desc' with name}
       | None, Some _ ->  ()
       | Some _, Some _ ->
-          if ty.level < ty'.level then (log_type ty'; ty'.desc <- Tvar name)
+          if ty.level < ty'.level then
+            (log_type ty'; ty'.desc <- Tvar {desc' with name})
       | None, None   ->  ()
       end
   | _ -> ()
@@ -767,6 +773,10 @@ let set_commu rc c =
   log_change (Ccommu (rc, !rc)); rc := c
 let set_typeset rs s =
   log_change (Ctypeset (rs, !rs)); rs := s
+let set_layout v l =
+  match v with
+  | Tvar tv -> log_change (Cvar_layout (v, tv.layout)); tv.layout <- l
+  | _ -> assert false
 
 let snapshot () =
   let old = !last_snapshot in

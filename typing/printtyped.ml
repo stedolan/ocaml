@@ -461,12 +461,8 @@ and layout ppf l =
   match l with
   | [] -> fprintf ppf "[]"
   | l :: ls ->
-    let playout = function
-      | Types.PLany -> "PLany"
-      | Types.PLvalue -> "PLvalue"
-      | Types.PLimmediate -> "PLimmediate" in
-    fprintf ppf "[%s" (playout l);
-    List.iter (fun s -> fprintf ppf " %s" (playout s)) ls;
+    fprintf ppf "[%s" (Types.Layout.to_string l);
+    List.iter (fun s -> fprintf ppf " %s" (Types.Layout.to_string s)) ls;
     fprintf ppf "]"
 
 and type_parameter i ppf p =

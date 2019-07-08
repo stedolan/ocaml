@@ -1474,7 +1474,7 @@ and type_pat_aux
       raise (Error (loc, !env, Invalid_interval))
   | Ppat_tuple spl ->
       assert (List.length spl >= 2);
-      let spl_ann = List.map (fun p -> (p,newgenvar ())) spl in
+      let spl_ann = List.map (fun p -> (p,newgenvar Layout.value)) spl in
       let ty = newgenty (Ttuple(List.map snd spl_ann)) in
       begin_def ();
       let expected_ty = instance expected_ty in
@@ -1583,12 +1583,13 @@ and type_pat_aux
             pat_attributes = sp.ppat_attributes;
             pat_env = !env })
   | Ppat_variant(l, sarg) ->
-      let arg_type = match sarg with None -> [] | Some _ -> [newgenvar()] in
+      let arg_type =
+        match sarg with None -> [] | Some _ -> [newgenvar Layout.value] in
       let row = { row_fields =
                     [l, Reither(sarg = None, arg_type, true, ref None)];
                   row_bound = ();
                   row_closed = false;
-                  row_more = newgenvar ();
+                  row_more = newgenvar Layout.value;
                   row_fixed = None;
                   row_name = None } in
       begin_def ();
@@ -1663,7 +1664,7 @@ and type_pat_aux
             lid_sp_list (fun lbl_pat_list -> k' (make_record_pat lbl_pat_list))
       end
   | Ppat_array spl ->
-      let ty_elt = newgenvar() in
+      let ty_elt = newgenvar Layout.value in
       begin_def ();
       let expected_ty = instance expected_ty in
       end_def ();
@@ -1756,7 +1757,7 @@ and type_pat_aux
         end
       end
   | Ppat_lazy sp1 ->
-      let nv = newgenvar () in
+      let nv = newgenvar Layout.value in
       unify_pat_types ~refine loc env (Predef.type_lazy_t nv) expected_ty;
       (* do not explode under lazy: PR#7421 *)
       type_pat Value ~mode:(no_explosion mode) sp1 nv (fun p1 ->
@@ -2514,7 +2515,7 @@ let unify_exp env exp expected_ty =
 
 let rec type_exp ?recarg env sexp =
   (* We now delegate everything to type_expect *)
-  type_expect ?recarg env sexp (mk_expected (newvar ()))
+  type_expect ?recarg env sexp (mk_expected (newvar ~layout:Layout.any ()))
 
 (* Typing of an expression with an expected type.
    This provide better error messages, and allows controlled
@@ -2750,7 +2751,7 @@ and type_expect_
         exp_env = env }
   | Pexp_tuple sexpl ->
       assert (List.length sexpl >= 2);
-      let subtypes = List.map (fun _ -> newgenvar ()) sexpl in
+      let subtypes = List.map (fun _ -> newgenvar Layout.value) sexpl in
       let to_unify = newgenty (Ttuple subtypes) in
       with_explanation (fun () ->
         unify_exp_types loc env to_unify ty_expected);
@@ -2966,7 +2967,7 @@ and type_expect_
         exp_attributes = sexp.pexp_attributes;
         exp_env = env }
   | Pexp_array(sargl) ->
-      let ty = newgenvar() in
+      let ty = newgenvar Layout.value in
       let to_unify = Predef.type_array ty in
       with_explanation (fun () ->
         unify_exp_types loc env to_unify ty_expected);
@@ -3413,7 +3414,7 @@ and type_expect_
         exp_env = env;
       }
   | Pexp_lazy e ->
-      let ty = newgenvar () in
+      let ty = newgenvar Layout.value in
       let to_unify = Predef.type_lazy_t ty in
       with_explanation (fun () ->
         unify_exp_types loc env to_unify ty_expected);
@@ -3477,13 +3478,14 @@ and type_expect_
       in
       re { exp with exp_extra =
              (Texp_poly cty, loc, sexp.pexp_attributes) :: exp.exp_extra }
-  | Pexp_newtype({txt=name}, _FIXME_layout, sbody) ->
+  | Pexp_newtype({txt=name}, layout, sbody) ->
       let ty =
         if Typetexp.valid_tyvar_name name then
           newvar ~name ()
         else
           newvar ()
       in
+      let _FIXME_layout = Typetexp.transl_layout layout in
       (* remember original level *)
       begin_def ();
       (* Create a fake abstract type declaration for name. *)

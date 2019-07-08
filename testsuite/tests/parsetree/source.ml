@@ -583,6 +583,7 @@ type imm : immediate = int
 type ('a, 'b : immediate, 'c : value * immediate) t = 'a
 let f (type a (b : immediate) (c : value * immediate)) (x : a) : a = x
 let f : 'a ('b : immediate) ('c : value * immediate) . 'a -> 'a = fun x -> x
+external idimm : ('a : immediate) . 'a -> 'a = "%identity"
 
 (* Test toplevel printing *)
 

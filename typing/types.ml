@@ -26,7 +26,7 @@ type type_expr =
     id: int }
 
 and type_desc =
-    Tvar of string option
+    Tvar of { name : string option; mutable layout : layout }
   | Tarrow of arg_label * type_expr * type_expr * commutable
   | Ttuple of type_expr list
   | Tconstr of Path.t * type_expr list * abbrev_memo ref
@@ -36,7 +36,7 @@ and type_desc =
   | Tlink of type_expr
   | Tsubst of type_expr         (* for copying *)
   | Tvariant of row_desc
-  | Tunivar of string option
+  | Tunivar of { name : string option; layout : layout }
   | Tpoly of type_expr * type_expr list
   | Tpackage of Path.t * Longident.t list * type_expr list
 
@@ -46,6 +46,7 @@ and prim_layout =
   | PLany
   | PLvalue
   | PLimmediate
+  | PLfloat
 
 and row_desc =
     { row_fields: (label * row_field) list;
@@ -220,6 +221,43 @@ module Separability = struct
   let default_signature ~arity =
     let default_mode = if Config.flat_float_array then Deepsep else Ind in
     List.init arity (fun _ -> default_mode)
+end
+
+(* Layouts *)
+module Layout = struct
+  type t = layout
+  let value = [PLvalue] and immediate = [PLimmediate] and any = [PLany]
+  let prim_inter s t =
+    match s, t with
+    | PLany, x | x, PLany -> x
+    | PLimmediate, (PLvalue | PLimmediate)
+    | PLvalue, PLimmediate -> PLimmediate
+    | PLvalue, PLvalue -> PLvalue
+    | PLfloat, PLfloat -> PLfloat
+    | (PLvalue | PLimmediate), PLfloat
+    | PLfloat, (PLvalue | PLimmediate) ->
+      raise_notrace Exit
+  let inter s t =
+    try Some (List.map2 prim_inter s t) with
+    | Invalid_argument _ ->
+      (* Not same length *)
+      None
+    | Exit ->
+      (* No intersection *)
+      None
+  let subset s t =
+    (inter s t = Some s)
+  let of_string = function
+    | "any_layout" -> Some PLany
+    | "value" -> Some PLvalue
+    | "immediate" -> Some PLimmediate
+    | "float" -> Some PLfloat
+    | _ -> None
+  let to_string = function
+    | PLany -> "any_layout"
+    | PLvalue -> "value"
+    | PLimmediate -> "immediate"
+    | PLfloat -> "float"
 end
 
 (* Type definitions *)

@@ -62,9 +62,9 @@ type type_expr =
     id: int }
 
 and type_desc =
-  | Tvar of string option
-  (** [Tvar (Some "a")] ==> ['a] or ['_a]
-      [Tvar None]       ==> [_] *)
+  | Tvar of { name : string option; mutable layout : layout }
+  (** [name = Some "a"]   ==> ['a] or ['_a]
+      [name = None]       ==> [_] *)
 
   | Tarrow of arg_label * type_expr * type_expr * commutable
   (** [Tarrow (Nolabel,      e1, e2, c)] ==> [e1    -> e2]
@@ -117,7 +117,7 @@ and type_desc =
   | Tvariant of row_desc
   (** Representation of polymorphic variants, see [row_desc]. *)
 
-  | Tunivar of string option
+  | Tunivar of { name : string option; layout : layout }
   (** Occurrence of a type variable introduced by a
       forall quantifier / [Tpoly]. *)
 
@@ -135,6 +135,7 @@ and prim_layout =
   | PLany
   | PLvalue
   | PLimmediate
+  | PLfloat
 
 (** [  `X | `Y ]       (row_closed = true)
     [< `X | `Y ]       (row_closed = true)
@@ -340,6 +341,18 @@ module Separability : sig
 
   val default_signature : arity:int -> signature
   (** The most pessimistic separability for a completely unknown type. *)
+end
+
+(* Layouts *)
+module Layout : sig
+  type t = layout
+  val value : t
+  val immediate : t
+  val any : t
+  val inter : t -> t -> t option
+  val subset : t -> t -> bool
+  val of_string : string -> prim_layout option
+  val to_string : prim_layout -> string
 end
 
 (* Type definitions *)

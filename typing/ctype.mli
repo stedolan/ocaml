@@ -61,6 +61,7 @@ module Unification_trace: sig
     | Escape of {context: type_expr option; kind:'a escape}
     | Incompatible_fields of {name:string; diff: type_expr diff }
     | Rec_occur of type_expr * type_expr
+    | Layout of layout diff
 
   type t = desc elt list
 
@@ -115,10 +116,10 @@ val set_levels: levels -> unit
 val create_scope : unit -> int
 
 val newty: type_desc -> type_expr
-val newvar: ?name:string -> unit -> type_expr
-val newvar2: ?name:string -> int -> type_expr
+val newvar: ?name:string -> ?layout:Types.layout -> unit -> type_expr
+val newvar2: ?name:string -> layout:Types.layout -> int -> type_expr
         (* Return a fresh variable *)
-val new_global_var: ?name:string -> unit -> type_expr
+val new_global_var: ?name:string -> layout -> type_expr
         (* Return a fresh variable, bound at toplevel
            (as type variables ['a] in type constraints). *)
 val newobj: type_expr -> type_expr

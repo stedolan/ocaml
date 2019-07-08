@@ -132,11 +132,12 @@ let newpersty desc =
   { desc; level = generic_level; scope = Btype.lowest_level; id = !new_id }
 
 (* ensure that all occurrences of 'Tvar None' are physically shared *)
+  (*FIXME_layout
 let tvar_none = Tvar None
-let tunivar_none = Tunivar None
+    let tunivar_none = Tunivar None *)
 let norm = function
-  | Tvar None -> tvar_none
-  | Tunivar None -> tunivar_none
+(*  | Tvar None -> tvar_none
+    | Tunivar None -> tunivar_none*)
   | d -> d
 
 let ctype_apply_env_empty = ref (fun _ -> assert false)
@@ -172,7 +173,11 @@ let rec typexp copy_scope s ty =
     let has_fixed_row =
       not (is_Tconstr ty) && is_constr_row ~allow_ident:false tm in
     (* Make a stub *)
-    let ty' = if s.for_saving then newpersty (Tvar None) else newgenvar () in
+    let ty' =
+      if s.for_saving then
+        newpersty (Tvar {name = None; layout = Types.Layout.any})
+      else
+        newgenvar Types.Layout.any in
     ty'.scope <- ty.scope;
     ty.desc <- Tsubst ty';
     ty'.desc <-

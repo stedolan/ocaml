@@ -159,7 +159,7 @@ let common_initial_env add_type add_extension empty_env =
   let add_type = mk_add_type add_type
   and add_type1 type_ident
       ~variance ~separability ?(kind=fun _ -> Type_abstract) env =
-    let param = newgenvar () in
+    let param = newgenvar Layout.value in
     let decl =
       {type_params = [param];
        type_arity = 1;
