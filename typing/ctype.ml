@@ -725,7 +725,7 @@ let rec generalize ty =
     set_level ty generic_level;
     begin match ty.desc with
       Tconstr (_, _, abbrev) ->
-        iter_abbrev generalize !abbrev
+      iter_abbrev generalize !abbrev
     | _ -> ()
     end;
     iter_type_expr generalize ty
@@ -920,9 +920,10 @@ let update_level env level ty =
       update_level env level true ty
   end
 
-(* Lower level of type variables inside contravariant branches *)
+(* Iterate over type variables of level >= var_level that
+   appear contravariantly in ty *)
 
-let rec lower_contravariant env var_level visited contra ty =
+let rec iter_contravariant_vars env var_level visited fn contra ty =
   let ty = repr ty in
   let must_visit =
     ty.level > var_level &&
@@ -932,9 +933,9 @@ let rec lower_contravariant env var_level visited contra ty =
   in
   if must_visit then begin
     Hashtbl.add visited ty.id contra;
-    let lower_rec = lower_contravariant env var_level visited in
+    let iter_rec = iter_contravariant_vars env var_level visited fn in
     match ty.desc with
-      Tvar _ -> if contra then set_level ty var_level
+      Tvar _ -> if contra then fn ty
     | Tconstr (_, [], _) -> ()
     | Tconstr (path, tyl, _abbrev) ->
        let variance, maybe_expand =
@@ -953,26 +954,39 @@ let rec lower_contravariant env var_level visited contra ty =
               (fun v t ->
                 if v = Variance.null then () else
                   if Variance.(mem May_weak v)
-                  then lower_rec true t
-                  else lower_rec contra t)
+                  then iter_rec true t
+                  else iter_rec contra t)
               variance tyl in
           if maybe_expand then (* we expand cautiously to avoid missing cmis *)
             match !forward_try_expand_once env ty with
-            | ty -> lower_rec contra ty
+            | ty -> iter_rec contra ty
             | exception Cannot_expand -> not_expanded ()
           else not_expanded ()
     | Tpackage (_, _, tyl) ->
-        List.iter (lower_rec true) tyl
+        List.iter (iter_rec true) tyl
     | Tarrow (_, t1, t2, _) ->
-        lower_rec true t1;
-        lower_rec contra t2
+        iter_rec true t1;
+        iter_rec contra t2
     | _ ->
-        iter_type_expr (lower_rec contra) ty
+        iter_type_expr (iter_rec contra) ty
   end
+
+(* Lower level of type variables inside contravariant branches *)
 
 let lower_contravariant env ty =
   simple_abbrevs := Mnil;
-  lower_contravariant env !nongen_level (Hashtbl.create 7) false ty
+  let lower v = set_level v !nongen_level in
+  iter_contravariant_vars env !nongen_level (Hashtbl.create 7) lower false ty
+
+let tighten_contravariant_layouts env ty =
+  simple_abbrevs := Mnil;
+  let tighten ty =
+    match ty.desc with
+    | Tvar tv ->
+      if not (Layout.is_compilable tv.layout) then
+        tv.layout <- Layout.approx_compilable tv.layout
+    | _ -> assert false in
+  iter_contravariant_vars env !nongen_level (Hashtbl.create 7) tighten false ty
 
 (* Correct the levels of type [ty]. *)
 let correct_levels ty =

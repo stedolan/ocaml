@@ -353,6 +353,8 @@ module Layout : sig
   val subset : t -> t -> bool
   val of_string : string -> prim_layout option
   val to_string : prim_layout -> string
+  val is_compilable : t -> bool
+  val approx_compilable : t -> t
 end
 
 (* Type definitions *)

@@ -99,6 +99,7 @@ type parse_tables =
 exception YYexit of Obj.t
 
 val yyparse :
+  ('a : value) ('b : value) .
   parse_tables -> int -> (Lexing.lexbuf -> 'a) -> Lexing.lexbuf -> 'b
 val peek_val : parser_env -> int -> 'a
 val is_current_lookahead : 'a -> bool

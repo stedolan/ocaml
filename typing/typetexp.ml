@@ -182,10 +182,11 @@ and transl_type_aux env policy styp =
   match styp.ptyp_desc with
     Ptyp_any ->
       let ty =
+        (* FIXME_layout: should it be Layout.any when policy = Univars too? *)
         if policy = Univars then new_pre_univar Layout.value else
           if policy = Fixed then
             raise (Error (styp.ptyp_loc, env, Unbound_type_variable "_"))
-          else newvar Layout.value
+          else newvar Layout.any
       in
       ctyp Ttyp_any ty
   | Ptyp_var name ->
@@ -198,8 +199,9 @@ and transl_type_aux env policy styp =
         instance (fst (TyVarMap.find name !used_variables))
       with Not_found ->
         let v =
+          (* FIXME_layout: should it be Layout.any when policy = Univars too? *)
           if policy = Univars then new_pre_univar ~name Layout.value
-          else newvar ~name Layout.value
+          else newvar ~name Layout.any
         in
         used_variables := TyVarMap.add name (v, styp.ptyp_loc) !used_variables;
         v
@@ -649,7 +651,8 @@ let globalize_used_variables env fixed =
       with Not_found ->
         if fixed && Btype.is_Tvar (repr ty) then
           raise(Error(loc, env, Unbound_type_variable ("'"^name)));
-        let v2 = new_global_var Layout.any in
+        (* FIXME_layout: layout of v2 (GADT existentials) *)
+        let v2 = new_global_var Layout.value in
         r := (loc, v, v2) :: !r;
         type_variables := TyVarMap.add name v2 !type_variables)
     !used_variables;
@@ -721,6 +724,7 @@ let transl_type_scheme env styp =
       TyVarMap.add name (v, loc) acc) TyVarMap.empty vars in
   let typ = transl_simple_type_prevars prevars env false styp in
   end_def();
+  tighten_contravariant_layouts env typ.ctyp_type;
   generalize typ.ctyp_type;
   match vars with
   | [] -> typ

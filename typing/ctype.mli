@@ -164,6 +164,9 @@ val generalize: type_expr -> unit
 val lower_contravariant: Env.t -> type_expr -> unit
         (* Lower level of type variables inside contravariant branches;
            to be used before generalize for expansive expressions *)
+val tighten_contravariant_layouts: Env.t -> type_expr -> unit
+        (* Restrict layouts of type variables inside contravariant branches;
+           to be used before generalize for nonexpansive expressions *)
 val generalize_structure: type_expr -> unit
         (* Same, but variables are only lowered to !current_level *)
 val generalize_spine: type_expr -> unit

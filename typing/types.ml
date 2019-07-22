@@ -258,6 +258,10 @@ module Layout = struct
     | PLvalue -> "value"
     | PLimmediate -> "immediate"
     | PLfloat -> "float"
+  let is_compilable x =
+    List.for_all (function PLany -> false | _ -> true) x
+  let approx_compilable x =
+    List.map (function PLany -> PLvalue | l -> l) x
 end
 
 (* Type definitions *)

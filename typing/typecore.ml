@@ -2167,6 +2167,12 @@ and is_nonexpansive_opt = function
 
 let maybe_expansive e = not (is_nonexpansive e)
 
+let adjust_contravariant env maybe_expansive e =
+  if maybe_expansive then
+    lower_contravariant env e
+  else
+    tighten_contravariant_layouts env e
+
 let check_recursive_bindings env valbinds =
   let ids = let_bound_idents valbinds in
   List.iter
@@ -2212,10 +2218,12 @@ let rec type_approx env sexp =
   match sexp.pexp_desc with
     Pexp_let (_, _, e) -> type_approx env e
   | Pexp_fun (p, _, _, e) ->
-      let ty = if is_optional p then type_option (newvar ()) else newvar () in
+      let ty =
+        if is_optional p then type_option (newvar ())
+        else newvar ~layout:Layout.any () in
       newty (Tarrow(p, ty, type_approx env e, Cok))
   | Pexp_function ({pc_rhs=e}::_) ->
-      newty (Tarrow(Nolabel, newvar (), type_approx env e, Cok))
+      newty (Tarrow(Nolabel, newvar ~layout:Layout.any (), type_approx env e, Cok))
   | Pexp_match (_, {pc_rhs=e}::_) -> type_approx env e
   | Pexp_try (e, _) -> type_approx env e
   | Pexp_tuple l -> newty (Ttuple(List.map (type_approx env) l))
@@ -2708,7 +2716,8 @@ and type_expect_
         if List.memq ty seen then () else
         match ty.desc with
           Tarrow (_l, ty_arg, ty_fun, _com) ->
-            (try unify_var env (newvar()) ty_arg with Unify _ -> assert false);
+            (try unify_var env (newvar ~layout:Layout.any ()) ty_arg
+             with Unify _ -> assert false);
             lower_args (ty::seen) ty_fun
         | _ -> ()
       in
@@ -2729,7 +2738,7 @@ and type_expect_
       begin_def ();
       let arg = type_exp env sarg in
       end_def ();
-      if maybe_expansive arg then lower_contravariant env arg.exp_type;
+      adjust_contravariant env (maybe_expansive arg) arg.exp_type;
       generalize arg.exp_type;
       let cases, partial =
         type_cases Computation env arg.exp_type ty_expected true loc caselist in
@@ -4059,8 +4068,7 @@ and type_label_exp create env loc ty_expected
     try
       if (vars = []) then arg
       else begin
-        if maybe_expansive arg then
-          lower_contravariant env arg.exp_type;
+        adjust_contravariant env (maybe_expansive arg) arg.exp_type;
         generalize_and_check_univars env "field value" arg label.lbl_arg vars;
         {arg with exp_type = instance arg.exp_type}
       end
@@ -4611,7 +4619,7 @@ and type_cases
     else ty_res, (fun env -> env)
   in
   (* Unify all cases (delayed to keep it order-free) *)
-  let ty_arg' = newvar () in
+  let ty_arg' = newvar ~layout:Layout.any () in
   let unify_pats ty =
     List.iter (fun { typed_pat = pat; pat_type_for_unif = pat_ty; _ } ->
       unify_pat_types pat.pat_loc (ref env) pat_ty ty
@@ -4629,7 +4637,8 @@ and type_cases
   (* Post-processing and generalization *)
   if take_partial_instance <> None then unify_pats (instance ty_arg);
   List.iter (fun { pat_vars; _ } ->
-    iter_pattern_variables_type (fun t -> unify_var env (newvar()) t) pat_vars
+    iter_pattern_variables_type (fun t ->
+      unify_var env (newvar ~layout:Layout.any ()) t) pat_vars
   ) half_typed_cases;
   end_def ();
   generalize ty_arg';
@@ -4962,8 +4971,7 @@ and type_let
   end_def();
   List.iter2
     (fun pat (exp, _) ->
-       if maybe_expansive exp then
-         lower_contravariant env pat.pat_type)
+       adjust_contravariant env (maybe_expansive exp) pat.pat_type)
     pat_list exp_list;
   iter_pattern_variables_type generalize pvs;
   List.iter2
@@ -5076,7 +5084,7 @@ let type_expression env sexp =
   begin_def();
   let exp = type_exp env sexp in
   end_def();
-  if maybe_expansive exp then lower_contravariant env exp.exp_type;
+  adjust_contravariant env (maybe_expansive exp) exp.exp_type;
   generalize exp.exp_type;
   match sexp.pexp_desc with
     Pexp_ident lid ->

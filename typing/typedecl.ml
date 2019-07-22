@@ -133,7 +133,8 @@ let update_type temp_env env id loc =
   let decl = Env.find_type path temp_env in
   match decl.type_manifest with None -> ()
   | Some ty ->
-      let params = List.map (fun _ -> Ctype.newvar ()) decl.type_params in
+      let params = List.map (fun _ -> Ctype.newvar ~layout:Layout.any ())
+                     decl.type_params in
       try Ctype.unify env (Ctype.newconstr path params) ty
       with Ctype.Unify trace ->
         raise (Error(loc, Type_clash (env, trace)))
