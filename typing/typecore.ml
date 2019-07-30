@@ -4220,8 +4220,9 @@ and type_cases ?exception_allowed ?in_function env ty_arg ty_res partial_flag
   List.iter (fun f -> f()) !pattern_force;
   (* Post-processing and generalization *)
   if take_partial_instance <> None then unify_pats (instance ty_arg);
-  List.iter (fun { pat_vars; _ } ->
-    iter_pattern_variables_type (fun t -> unify_var env (newvar()) t) pat_vars
+  List.iter (fun { pat_vars; branch_env; _ } ->
+    iter_pattern_variables_type (fun t ->
+      unify_var branch_env (newvar()) t) pat_vars
   ) half_typed_cases;
   end_def ();
   generalize ty_arg';
