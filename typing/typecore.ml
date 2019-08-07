@@ -2276,14 +2276,15 @@ let check_univars env kind exp ty_expected vars =
            since body is not generic,  instance_poly only makes
            copies of nodes that have a Tvar as descendant *)
         let _, ty' = instance_poly true tl body in
-        let vars, exp_ty = instance_parameterized_type vars exp.exp_type in
+        let newvars, exp_ty =
+          instance_parameterized_type (List.map fst vars) exp.exp_type in
         unify_exp_types exp.exp_loc env exp_ty ty';
-        exp_ty, vars
+        exp_ty, (List.map2 (fun (_oldv, l) newv -> newv, l) vars newvars)
     | _ -> assert false
   in
   end_def ();
   generalize exp_ty;
-  List.iter generalize vars;
+  List.iter (fun (v, _l) -> generalize v) vars;
   let ty, complete = polyfy env exp_ty vars in
   if not complete then
     let ty_expected = instance ty_expected in
@@ -2293,7 +2294,7 @@ let check_univars env kind exp ty_expected vars =
 let generalize_and_check_univars env kind exp ty_expected vars =
   generalize exp.exp_type;
   generalize ty_expected;
-  List.iter generalize vars;
+  List.iter (fun (v, _l) -> generalize v) vars;
   check_univars env kind exp ty_expected vars
 
 let check_partial_application statement exp =

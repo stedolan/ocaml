@@ -108,6 +108,7 @@ val marked_type_expr: formatter -> type_expr -> unit
     (see #8860 for examples).
  *)
 
+val layout : formatter -> layout -> unit
 val constructor_arguments: formatter -> constructor_arguments -> unit
 val tree_of_type_scheme: type_expr -> out_type
 val type_sch : formatter -> type_expr -> unit

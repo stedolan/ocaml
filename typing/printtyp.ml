@@ -480,7 +480,7 @@ let print_name ppf = function
     None -> fprintf ppf "None"
   | Some name -> fprintf ppf "\"%s\"" name
 
-let print_layout ppf = function
+let layout ppf = function
   | [] -> fprintf ppf "()"
   | [x] -> fprintf ppf "%s" (Layout.to_string x)
   | x :: xs ->
@@ -503,9 +503,9 @@ let rec raw_type ppf ty =
   end
 and raw_type_list tl = raw_list raw_type tl
 and raw_type_desc ppf = function
-    Tvar {name;layout} -> fprintf ppf "Tvar {name=%a; layout=%a}"
-                            print_name name
-                            print_layout layout
+    Tvar {name;layout=l} -> fprintf ppf "Tvar {name=%a; layout=%a}"
+                             print_name name
+                             layout l
   | Tarrow(l,t1,t2,c) ->
       fprintf ppf "@[<hov1>Tarrow(\"%s\",@,%a,@,%a,@,%s)@]"
         (string_of_label l) raw_type t1 raw_type t2
@@ -529,10 +529,10 @@ and raw_type_desc ppf = function
   | Tnil -> fprintf ppf "Tnil"
   | Tlink t -> fprintf ppf "@[<1>Tlink@,%a@]" raw_type t
   | Tsubst t -> fprintf ppf "@[<1>Tsubst@,%a@]" raw_type t
-  | Tunivar {name; layout} ->
+  | Tunivar {name; layout=l} ->
     fprintf ppf "Tunivar {name=%a; layout=%a}"
       print_name name
-      print_layout layout
+      layout l
   | Tpoly (t, tl) ->
       fprintf ppf "@[<hov1>Tpoly(@,%a,@,%a)@]"
         raw_type t
@@ -1047,7 +1047,12 @@ let rec tree_of_typexp sch ty =
              printed once when used as proxy *)
           List.iter add_delayed tyl;
           (* FIXME_layout *)
-          let tl = List.map (fun t -> name_of_type new_name t, None) tyl in
+          let univar_layout t =
+            match t.desc with
+            | Tunivar {layout; _} -> tree_of_layout layout
+            | _ -> assert false in
+          let tl = List.map (fun t -> name_of_type new_name t,
+                                      univar_layout t) tyl in
           let tr = Otyp_poly (tl, tree_of_typexp sch ty) in
           (* Forget names when we leave scope *)
           remove_names tyl;
@@ -1281,11 +1286,14 @@ let rec tree_of_type_decl id decl =
   let ty, layout, priv =
     match decl.type_kind with
     | Type_abstract ->
+        let l = tree_of_layout decl.type_layout in
         begin match ty_manifest with
         | None ->
-          (Otyp_abstract, tree_of_layout decl.type_layout, Public)
+          (Otyp_abstract, l, Public)
         | Some ty ->
-            tree_of_typexp false ty, None, decl.type_private
+            tree_of_typexp false ty,
+            (if Layout.subset decl.type_layout Layout.value then None else l),
+            decl.type_private
         end
     | Type_variant cstrs ->
         tree_of_manifest (Otyp_sum (List.map tree_of_constructor cstrs)),
@@ -2087,7 +2095,7 @@ let explanation intro prev env = function
   | Trace.Layout l ->
       Some(dprintf "@,A type with layout %a was expected,@ \
                     but one with layout %a was provided"
-            print_layout l.expected print_layout l.got)
+            layout l.expected layout l.got)
 
 let mismatch intro env trace =
   Trace.explain trace (fun ~prev h -> explanation intro prev env h)

@@ -41,7 +41,7 @@ type error =
   | Not_a_variant of type_expr
   | Variant_tags of string * string
   | Invalid_variable_name of string
-  | Cannot_quantify of string * type_expr
+  | Cannot_quantify of string * type_expr * layout
   | Multiple_constraints_on_type of Longident.t
   | Method_mismatch of string * type_expr * type_expr
   | Opened_object of Path.t option
@@ -507,18 +507,20 @@ and transl_type_aux env policy styp =
       end_def();
       generalize ty;
       let ty_list =
-        List.fold_left
-          (fun tyl (name, ty1) ->
+        List.fold_left2
+          (fun tyl (_, vlayout) (name, ty1) ->
             let v = Btype.proxy ty1 in
             if deep_occur v ty then begin
               match v.desc with
-                Tvar {name; layout} when v.level = Btype.generic_level ->
+                Tvar {name; layout} when
+                  v.level = Btype.generic_level && layout = vlayout->
                   v.desc <- Tunivar {name; layout};
                   v :: tyl
               | _ ->
-                raise (Error (styp.ptyp_loc, env, Cannot_quantify (name, v)))
+                raise (Error (styp.ptyp_loc, env,
+                              Cannot_quantify (name, v, vlayout)))
             end else tyl)
-          [] new_univars
+          [] vars new_univars
       in
       let ty' = Btype.newgenty (Tpoly(ty, List.rev ty_list)) in
       unify_var env (newvar Layout.any) ty';
@@ -811,16 +813,22 @@ let report_error env ppf = function
         lab1 lab2 "Change one of them."
   | Invalid_variable_name name ->
       fprintf ppf "The type variable name %s is not allowed in programs" name
-  | Cannot_quantify (name, v) ->
+  | Cannot_quantify (name, v, layout) ->
       fprintf ppf
         "@[<hov>The universal type variable %a cannot be generalized:@ "
         Pprintast.tyvar name;
-      if Btype.is_Tvar v then
+      begin match v.desc with
+      | Tvar {layout = layout'; _} when layout = layout' ->
         fprintf ppf "it escapes its scope"
-      else if Btype.is_Tunivar v then
+      | Tvar {layout = layout'; _ } ->
+        fprintf ppf "it has layout %a, but should have %a"
+          Printtyp.layout layout'
+          Printtyp.layout layout
+      | Tunivar _ ->
         fprintf ppf "it is already bound to another variable"
-      else
-        fprintf ppf "it is bound to@ %a" Printtyp.type_expr v;
+      | _ ->
+        fprintf ppf "it is bound to@ %a" Printtyp.type_expr v
+      end;
       fprintf ppf ".@]";
   | Multiple_constraints_on_type s ->
       fprintf ppf "Multiple constraints for type %a" longident s

@@ -1462,13 +1462,13 @@ let instance_poly' cleanup_scope ~keep_names fixed univars sch =
     match ty.desc with
       Tunivar {name; layout} ->
       if keep_names then
-        newty (Tvar {name; layout})
+        newty (Tvar {name; layout}), layout
       else
-        newvar ~layout ()
+        newvar ~layout (), layout
     | _ -> assert false
   in
   let vars = List.map copy_var univars in
-  let pairs = List.map2 (fun u v -> u, (v, [])) univars vars in
+  let pairs = List.map2 (fun u (v,_) -> u, (v, [])) univars vars in
   delayed_copy := [];
   let ty = copy_sep cleanup_scope fixed (compute_univars sch) [] pairs sch in
   List.iter Lazy.force !delayed_copy;
@@ -1893,14 +1893,15 @@ let rec unify_univar t1 t2 = function
     (cl1, cl2) :: rem ->
       let find_univ t cl =
         try
-          let (_, r) = List.find (fun (t',_) -> t == repr t') cl in
-          Some r
+          let (_, l, r) = List.find (fun (t',_,_) -> t == repr t') cl in
+          Some (l, r)
         with Not_found -> None
       in
       begin match find_univ t1 cl1, find_univ t2 cl2 with
-        Some {contents=Some t'2}, Some _ when t2 == repr t'2 ->
+        Some (_, {contents=Some t'2}), Some _ when t2 == repr t'2 ->
           ()
-      | Some({contents=None} as r1), Some({contents=None} as r2) ->
+      | Some (l1, ({contents=None} as r1)),
+        Some (l2, ({contents=None} as r2)) when l1 = l2 ->
           set_univar r1 t2; set_univar r2 t1
       | None, None ->
           unify_univar t1 t2 rem
@@ -1962,13 +1963,13 @@ let occur_univar env ty =
 
 (* Grouping univars by families according to their binders *)
 let add_univars =
-  List.fold_left (fun s (t,_) -> TypeSet.add (repr t) s)
+  List.fold_left (fun s (t,_,_) -> TypeSet.add (repr t) s)
 
 let get_univar_family univar_pairs univars =
   if univars = [] then TypeSet.empty else
   let insert s = function
       cl1, (_::_ as cl2) ->
-        if List.exists (fun (t1,_) -> TypeSet.mem (repr t1) s) cl1 then
+        if List.exists (fun (t1,_,_) -> TypeSet.mem (repr t1) s) cl1 then
           add_univars s cl2
         else s
     | _ -> s
@@ -2019,8 +2020,11 @@ let enter_poly env univar_pairs t1 tl1 t2 tl2 f =
      univars_escape env old_univars tl1 (newty(Tpoly(t2,tl2)));
   if List.exists (fun t -> TypeSet.mem t known_univars) tl2 then
     univars_escape env old_univars tl2 (newty(Tpoly(t1,tl1)));
-  let cl1 = List.map (fun t -> t, ref None) tl1
-  and cl2 = List.map (fun t -> t, ref None) tl2 in
+  let univar_entry = function
+    | { desc = Tunivar { layout; _ }; _ } as t -> t, layout, ref None
+    | _ -> assert false in
+  let cl1 = List.map univar_entry tl1
+  and cl2 = List.map univar_entry tl2 in
   univar_pairs := (cl1,cl2) :: (cl2,cl1) :: old_univars;
   Misc.try_finally (fun () -> f t1 t2)
     ~always:(fun () -> univar_pairs := old_univars)
@@ -2030,10 +2034,11 @@ let univar_pairs = ref []
 (**** Instantiate a generic type into a poly type ***)
 
 let polyfy env ty vars =
-  let subst_univar scope ty =
+  let subst_univar scope (ty, tylayout) =
     let ty = repr ty in
     match ty.desc with
-    | Tvar {name; layout} when ty.level = generic_level ->
+    | Tvar {name; layout} when ty.level = generic_level 
+      (*FIXME_layout: equality or sub here? *) && layout = tylayout ->
         For_copy.save_desc scope ty ty.desc;
         let t = newty (Tunivar {name; layout}) in
         ty.desc <- Tsubst t;
@@ -2041,8 +2046,8 @@ let polyfy env ty vars =
     | _ -> None
   in
   (* need to expand twice? cf. Ctype.unify2 *)
-  let vars = List.map (expand_head env) vars in
-  let vars = List.map (expand_head env) vars in
+  let vars = List.map (fun (v, l) -> expand_head env v, l) vars in
+  let vars = List.map (fun (v, l) -> expand_head env v, l) vars in
   For_copy.with_scope (fun scope ->
     let vars' = List.filter_map (subst_univar scope) vars in
     let ty = copy scope ty in
@@ -2054,6 +2059,8 @@ let polyfy env ty vars =
 (* assumption: [ty] is fully generalized. *)
 let reify_univars env ty =
   let vars = free_variables ty in
+  let vars = List.map (function {desc = Tvar { layout; _ }; _} as t -> t, layout
+                              | t -> t, Layout.value) vars in
   let ty, _ = polyfy env ty vars in
   ty
 
@@ -2626,7 +2633,6 @@ let rec unify (env:Env.t ref) t1 t2 =
     | (_, Tvar _) ->
         unify1_var !env t2 t1
     | (Tunivar _, Tunivar _) ->
-      assert false |> ignore; (* FIXME_layout *)
         unify_univar t1 t2 !univar_pairs;
         update_level !env t1.level t2;
         update_scope t1.scope t2;
@@ -3573,7 +3579,7 @@ let rec eqtype rename type_pairs subst env t1 t2 =
 
   try
     match (t1.desc, t2.desc) with
-      (Tvar _, Tvar _) when rename ->
+      (Tvar {layout=l1;_}, Tvar {layout=l2;_}) when rename && l1 = l2 ->
         (* FIXME_layout *)
         begin try
           normalize_subst subst;
@@ -3595,7 +3601,7 @@ let rec eqtype rename type_pairs subst env t1 t2 =
         with Not_found ->
           TypePairs.add type_pairs (t1', t2') ();
           match (t1'.desc, t2'.desc) with
-            (Tvar _, Tvar _) when rename ->
+            (Tvar {layout=l1;_}, Tvar {layout=l2;_}) when rename && l1 = l2 ->
               begin try
                 normalize_subst subst;
                 if List.assq t1' !subst != t2' then raise (Unify [])
@@ -3632,7 +3638,7 @@ let rec eqtype rename type_pairs subst env t1 t2 =
           | (Tpoly (t1, tl1), Tpoly (t2, tl2)) ->
               enter_poly env univar_pairs t1 tl1 t2 tl2
                 (eqtype rename type_pairs subst env)
-          | (Tunivar _, Tunivar _) ->
+          | (Tunivar {layout=l1;_}, Tunivar {layout=l2;_}) when l1 = l2 ->
               unify_univar t1' t2' !univar_pairs
           | (_, _) ->
               raise (Unify [])
