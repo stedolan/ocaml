@@ -350,6 +350,17 @@ val closed_class:
         type_expr list -> class_signature -> closed_class_failure option
         (* Check whether all type variables are bound *)
 
+val constrain_layout : Env.t -> type_expr -> layout -> unit
+        (* Constrain a type to have a given layout, restricting
+           the layouts of variables if necessary *)
+val check_layout : Env.t -> type_expr -> layout -> bool
+        (* Check whether a type has a given layout, without
+           affecting any type variables *)
+val layout_supremum : Env.t -> type_expr -> layout
+        (* Compute an approximate upper bound on a type's layout.
+           That is, check_layout env t (layout_supremum env t) is true,
+           but layout_supremum env t is not necessarily minimal. *)
+
 val unalias: type_expr -> type_expr
 val signature_of_class_type: class_type -> class_signature
 val self_type: class_type -> type_expr

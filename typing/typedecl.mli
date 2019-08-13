@@ -100,6 +100,7 @@ type error =
   | Bad_unboxed_attribute of string
   | Boxed_and_unboxed
   | Nonrec_gadt
+  | Layout_mismatch of layout
 
 exception Error of Location.t * error
 

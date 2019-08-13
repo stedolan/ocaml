@@ -173,6 +173,7 @@ type type_mismatch =
   | Kind
   | Constraint
   | Manifest
+  | Layout
   | Variance
   | Record_mismatch of record_mismatch
   | Variant_mismatch of variant_mismatch
@@ -261,6 +262,7 @@ let report_type_mismatch0 first second decl ppf err =
   | Constraint -> pr "Their constraints differ."
   | Manifest -> ()
   | Variance -> pr "Their variances do not agree."
+  | Layout -> pr "Their layouts are incompatible."
   | Record_mismatch err -> report_record_mismatch first second decl ppf err
   | Variant_mismatch err -> report_variant_mismatch first second decl ppf err
   | Unboxed_representation ord ->
@@ -389,9 +391,17 @@ let type_declarations ?(equality = false) ~loc env ~mark name
   if decl1.type_arity <> decl2.type_arity then Some Arity else
   if not (private_flags decl1 decl2) then Some Privacy else
   let err = match (decl1.type_manifest, decl2.type_manifest) with
-      (_, None) ->
-        if Ctype.equal env true decl1.type_params decl2.type_params
-        then None else Some Constraint
+      (man1, None) ->
+        let layout_ok = match man1 with
+          | None -> Layout.subset decl1.type_layout decl2.type_layout
+          | Some ty1 -> Ctype.check_layout env ty1 decl2.type_layout in
+        if not layout_ok then
+          Some Layout
+        else if not (Ctype.equal env true
+                       decl1.type_params decl2.type_params) then
+          Some Constraint
+        else
+          None
     | (Some ty1, Some ty2) ->
         if type_manifest env ty1 decl1.type_params ty2 decl2.type_params
             decl2.type_private

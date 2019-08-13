@@ -1319,6 +1319,7 @@ let temp_abbrev loc env id arity uid =
        type_immediate = Unknown;
        type_unboxed = unboxed_false_default_false;
        type_uid = uid;
+       type_layout = Layout.value; (* FIXME_layout *)
       }
       env
   in
@@ -1578,6 +1579,7 @@ let class_infos define_class kind
      type_immediate = Unknown;
      type_unboxed = unboxed_false_default_false;
      type_uid = dummy_class.cty_uid;
+     type_layout = Layout.value;
     }
   in
   let (cl_params, cl_ty) =
@@ -1602,6 +1604,7 @@ let class_infos define_class kind
      type_immediate = Unknown;
      type_unboxed = unboxed_false_default_false;
      type_uid = dummy_class.cty_uid;
+     type_layout = Layout.value;
     }
   in
   ((cl, id, clty, ty_id, cltydef, obj_id, obj_abbr, cl_id, cl_abbr, ci_params,

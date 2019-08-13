@@ -59,6 +59,7 @@ type type_mismatch =
   | Kind
   | Constraint
   | Manifest
+  | Layout
   | Variance
   | Record_mismatch of record_mismatch
   | Variant_mismatch of variant_mismatch

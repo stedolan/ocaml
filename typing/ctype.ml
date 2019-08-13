@@ -1268,7 +1268,7 @@ let get_new_abstract_name s =
   if index = 0 && s <> "" && s.[String.length s - 1] <> '$' then s else
   Printf.sprintf "%s%d" s index
 
-let new_declaration expansion_scope manifest =
+let new_declaration expansion_scope manifest layout =
   {
     type_params = [];
     type_arity = 0;
@@ -1284,6 +1284,7 @@ let new_declaration expansion_scope manifest =
     type_immediate = Unknown;
     type_unboxed = unboxed_false_default_false;
     type_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+    type_layout = layout;
   }
 
 let existential_name cstr ty = match repr ty with
@@ -1296,7 +1297,8 @@ let instance_constructor ?in_pattern cstr =
     | None -> ()
     | Some (env, expansion_scope) ->
         let process existential =
-          let decl = new_declaration expansion_scope None in
+          (* FIXME_layout: Existentials of other layouts sound fun *)
+          let decl = new_declaration expansion_scope None Layout.value in
           let name = existential_name cstr existential in
           let path =
             Path.Pident
@@ -2139,14 +2141,14 @@ let get_gadt_equations_level () =
    They need to be removed using this function *)
 let reify env t =
   let fresh_constr_scope = get_gadt_equations_level () in
-  let create_fresh_constr lev name =
+  let create_fresh_constr lev name layout =
     let name = match name with Some s -> "$'"^s | _ -> "$" in
     let path =
       Path.Pident
         (Ident.create_scoped ~scope:fresh_constr_scope
            (get_new_abstract_name name))
     in
-    let decl = new_declaration fresh_constr_scope None in
+    let decl = new_declaration fresh_constr_scope None layout in
     let new_env = Env.add_local_type path decl !env in
     let t = newty2 lev (Tconstr (path,[],ref Mnil))  in
     env := new_env;
@@ -2158,9 +2160,8 @@ let reify env t =
     if TypeSet.mem ty !visited then () else begin
       visited := TypeSet.add ty !visited;
       match ty.desc with
-        (* FIXME_layout: should add the layout to the ctor decl in env *)
-        Tvar {name = o; layout = _FIXME_layout} ->
-          let path, t = create_fresh_constr ty.level o in
+        Tvar {name = o; layout} ->
+          let path, t = create_fresh_constr ty.level o layout in
           link_type ty t;
           if ty.level < fresh_constr_scope then
             raise Trace.(Unify [escape (Constructor path)])
@@ -2171,7 +2172,7 @@ let reify env t =
             let m = r.row_more in
             match m.desc with
               Tvar {name = o; layout = _FIXME_layout } ->
-                let path, t = create_fresh_constr m.level o in
+                let path, t = create_fresh_constr m.level o Layout.value in
                 let row =
                   let row_fixed = Some (Reified path) in
                   {r with row_fields=[]; row_fixed; row_more = t} in
@@ -2450,10 +2451,11 @@ let add_gadt_equation env source destination =
     (Path.name source) !Btype.print_raw destination; *)
   if local_non_recursive_abbrev !env source destination then begin
     let destination = duplicate_type destination in
+    let layout = (Env.find_type source !env).type_layout in
     let expansion_scope =
       max (Path.scope source) (get_gadt_equations_level ())
     in
-    let decl = new_declaration expansion_scope (Some destination) in
+    let decl = new_declaration expansion_scope (Some destination) layout in
     env := Env.add_local_type source decl !env;
     cleanup_abbrev ()
   end
@@ -2548,12 +2550,11 @@ let unify_eq t1 t2 =
       try TypePairs.find unify_eq_set (order_type_pair t1 t2); true
       with Not_found -> false
 
-let rec cmp_layout refine_var fail ok ty layout =
+let rec cmp_layout env refine_var fail ok ty layout =
   let ty = repr ty in
   let check_sub l =
     if Layout.subset l layout then ok else
       fail l layout in
-      (* raise (Trace.layout { got = l; expected = layout }) in *)
   match ty.desc with
   | Tvar tv ->
     begin match Layout.inter tv.layout layout with
@@ -2562,9 +2563,20 @@ let rec cmp_layout refine_var fail ok ty layout =
     | None ->
       fail tv.layout layout
     end
-  | Tconstr _ ->
-    (* FIXME_layout *)
-    ok
+  | Tconstr (path, _tl, _abbrev) ->
+    begin match Env.find_type path env with
+    | exception Not_found ->
+      failwith ("Unknown type " ^ Format.asprintf "%a" Path.print path)
+    | { type_layout; _ } when Layout.subset type_layout layout ->
+      ok
+    | { type_layout; _ } ->
+      (* If that check failed, it might still be OK:
+         we need to expand aliases to find out *)
+      match try_expand_head try_expand_once env ty with
+      | exception Cannot_expand ->
+        fail type_layout layout
+      | ty' ->
+        cmp_layout env refine_var fail ok ty' layout end
   | Tarrow _
   | Ttuple _
   | Tobject _
@@ -2572,7 +2584,7 @@ let rec cmp_layout refine_var fail ok ty layout =
   | Tpackage _->
     check_sub Layout.value
   | Tpoly (ty, _tyl) ->
-    cmp_layout refine_var fail ok ty layout
+    cmp_layout env refine_var fail ok ty layout
   | Tunivar uv ->
     check_sub uv.layout
   | Tlink _ -> assert false
@@ -2582,8 +2594,9 @@ let rec cmp_layout refine_var fail ok ty layout =
 
 (* Verify that ty has a given layout,
    refining layouts of type variables if necessary *)
-let constrain_layout ty layout =
+let constrain_layout env ty layout =
   cmp_layout
+    env
     (fun v layout -> set_layout v layout)
     (fun got expected -> raise (Trace.layout {got; expected}))
     ()
@@ -2591,16 +2604,41 @@ let constrain_layout ty layout =
 
 (* Check whether ty has a given layout,
    keeping type variables rigid *)
-let check_layout ty layout =
+let check_layout env ty layout =
   cmp_layout
+    env
     (fun _ _ -> false)
     (fun _ _ -> false)
     true
     ty layout
 
+(* Compute an upper bound on the layout of a type,
+   regardless of how Tvars are later instantiated *)
+let rec layout_supremum env ty =
+  match (repr ty).desc with
+  | Tvar {layout; _} -> layout
+  | Tunivar {layout; _} -> layout
+  | Tconstr (path, _tl, _abbrev) ->
+    begin match Env.find_type path env with
+    | exception Not_found -> Layout.any
+    | { type_layout; _ } -> type_layout
+    end
+  | Tarrow _
+  | Ttuple _
+  | Tobject _
+  | Tvariant _
+  | Tpackage _ -> Layout.value
+  | Tpoly (ty, _) -> layout_supremum env ty
+  | Tlink _ -> assert false
+  | Tsubst _ -> assert false
+  | Tfield _ | Tnil ->
+    (* FIXME_layout: row layout? *)
+    Layout.value
+
+
 let unify1_var env t1 t2 =
   begin match t1.desc with
-  | Tvar tv -> constrain_layout t2 tv.layout
+  | Tvar tv -> constrain_layout env t2 tv.layout
   | _ -> assert false end;
   occur env t1 t2;
   occur_univar env t2;
@@ -2712,12 +2750,12 @@ and unify3 env t1 t1' t2 t2' =
   | (Tvar tv, _) ->
       occur !env t1' t2;
       occur_univar !env t2;
-      constrain_layout t2 tv.layout;
+      constrain_layout !env t2 tv.layout;
       link_type t1' t2;
   | (_, Tvar tv) ->
       occur !env t2' t1;
       occur_univar !env t1;
-      constrain_layout t1 tv.layout;
+      constrain_layout !env t1 tv.layout;
       link_type t2' t1;
   | (Tfield _, Tfield _) -> (* special case for GADTs *)
       unify_fields env t1' t2'
@@ -2770,7 +2808,7 @@ and unify3 env t1 t1' t2 t2' =
                       reify env t1; reify env t2
                   end)
               inj (List.combine tl1 tl2)
-      | (Tconstr (path,[],_),
+     | (Tconstr (path,[],_),
          Tconstr (path',[],_))
         when is_instantiable !env path && is_instantiable !env path'
         && !generate_equations ->
@@ -2791,6 +2829,7 @@ and unify3 env t1 t1' t2 t2' =
       | (Tconstr (_,_,_), _) | (_, Tconstr (_,_,_)) when !umode = Pattern ->
           reify env t1';
           reify env t2';
+          (* FIXME_layout *)
           if !generate_equations then mcomp !env t1' t2'
       | (Tobject (fi1, nm1), Tobject (fi2, _)) ->
           unify_fields env fi1 fi2;
@@ -3161,7 +3200,7 @@ let unify_var env t1 t2 =
   | Tvar tv1, _ ->
       let reset_tracing = check_trace_gadt_instances env in
       begin try
-        constrain_layout t2 tv1.layout;
+        constrain_layout env t2 tv1.layout;
         occur env t1 t2;
         update_level env t1.level t2;
         update_scope t1.scope t2;
@@ -3313,7 +3352,7 @@ let rec moregen inst_nongen type_pairs env t1 t2 =
   try
     match (t1.desc, t2.desc) with
       (Tvar tv, _) when may_instantiate inst_nongen t1 &&
-                        check_layout t2 tv.layout ->
+                        check_layout env t2 tv.layout ->
         moregen_occur env t1.level t2;
         update_scope t1.scope t2;
         occur env t1 t2;
@@ -3332,7 +3371,7 @@ let rec moregen inst_nongen type_pairs env t1 t2 =
           TypePairs.add type_pairs (t1', t2') ();
           match (t1'.desc, t2'.desc) with
             (Tvar tv, _) when may_instantiate inst_nongen t1' &&
-                              check_layout t2 tv.layout ->
+                              check_layout env t2 tv.layout ->
               moregen_occur env t1'.level t2;
               update_scope t1'.scope t2;
               link_type t1' t2
@@ -4774,6 +4813,7 @@ let nondep_type_decl env mid is_covariant decl =
       type_immediate = decl.type_immediate;
       type_unboxed = decl.type_unboxed;
       type_uid = decl.type_uid;
+      type_layout = decl.type_layout;
     }
   with Nondep_cannot_erase _ as exn ->
     clear_hash ();

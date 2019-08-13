@@ -133,9 +133,12 @@ and ident_nil = ident_create "[]"
 and ident_cons = ident_create "::"
 and ident_none = ident_create "None"
 and ident_some = ident_create "Some"
-
 let mk_add_type add_type type_ident
-      ?manifest ?(immediate=Type_immediacy.Unknown) ?(kind=Type_abstract) env =
+      ?manifest
+      ?(immediate=Type_immediacy.Unknown)
+      ?(layout=Layout.value)
+      ?(kind=Type_abstract)
+      env =
   let decl =
     {type_params = [];
      type_arity = 0;
@@ -151,6 +154,7 @@ let mk_add_type add_type type_ident
      type_immediate = immediate;
      type_unboxed = unboxed_false_default_false;
      type_uid = Uid.of_predef_id type_ident;
+     type_layout = layout;
     }
   in
   add_type type_ident decl env
@@ -173,6 +177,7 @@ let common_initial_env add_type add_extension empty_env =
        type_expansion_scope = lowest_level;
        type_attributes = [];
        type_immediate = Unknown;
+       type_layout = Layout.value;
        type_unboxed = unboxed_false_default_false;
        type_uid = Uid.of_predef_id type_ident;
       }
@@ -225,14 +230,14 @@ let common_initial_env add_type add_extension empty_env =
     ) (
   add_type1 ident_array ~variance:Variance.full ~separability:Separability.Ind (
   add_type ident_exn ~kind:Type_open (
-  add_type ident_unit ~immediate:Always
+  add_type ident_unit ~immediate:Always ~layout:Layout.immediate
     ~kind:(Type_variant([cstr ident_void []])) (
-  add_type ident_bool ~immediate:Always
+  add_type ident_bool ~immediate:Always ~layout:Layout.immediate
     ~kind:(Type_variant([cstr ident_false []; cstr ident_true []])) (
   add_type ident_float (
   add_type ident_string (
-  add_type ident_char ~immediate:Always (
-  add_type ident_int ~immediate:Always (
+  add_type ident_char ~immediate:Always ~layout:Layout.immediate (
+  add_type ident_int ~immediate:Always ~layout:Layout.immediate (
   add_type ident_extension_constructor (
   add_type ident_floatarray (
     empty_env))))))))))))))))))))))))))))

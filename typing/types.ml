@@ -281,6 +281,7 @@ type type_declaration =
     type_immediate: Type_immediacy.t;
     type_unboxed: unboxed_status;
     type_uid: Uid.t;
+    type_layout: layout;
  }
 
 and type_kind =

@@ -65,6 +65,7 @@ type error =
   | Bad_unboxed_attribute of string
   | Boxed_and_unboxed
   | Nonrec_gadt
+  | Layout_mismatch of layout
 
 open Typedtree
 
@@ -105,6 +106,7 @@ let enter_type rec_flag env sdecl (id, uid) =
   in
   let arity = List.length sdecl.ptype_params in
   if not needed then env else
+  let layout = transl_layout sdecl.ptype_layout in
   let decl =
     { type_params =
         List.map (fun {ptp_layout;_} ->
@@ -114,7 +116,7 @@ let enter_type rec_flag env sdecl (id, uid) =
       type_private = sdecl.ptype_private;
       type_manifest =
         begin match sdecl.ptype_manifest with None -> None
-        | Some _ -> Some(Ctype.newvar ()) end;
+        | Some _ -> Some(Ctype.newvar ~layout ()) end;
       type_variance = List.map (fun _ -> Variance.full) sdecl.ptype_params;
       type_separability = Types.Separability.default_signature ~arity;
       type_is_newtype = false;
@@ -124,6 +126,7 @@ let enter_type rec_flag env sdecl (id, uid) =
       type_immediate = Unknown;
       type_unboxed = unboxed_false_default_false;
       type_uid = uid;
+      type_layout = layout;
     }
   in
   add_type ~check:true id decl env
@@ -398,6 +401,27 @@ let transl_declaration env sdecl (id, uid) =
         Some cty, Some cty.ctyp_type
     in
     let arity = List.length params in
+    let layout =
+      match sdecl.ptype_layout, man, kind with
+      | l, None, Type_abstract ->
+        transl_layout l
+      | None, Some man, Type_abstract ->
+        Ctype.layout_supremum env man
+      | Some lay as l, Some man, Type_abstract ->
+        let l = transl_layout l in
+        if not (Ctype.check_layout env man l) then
+          raise(Error(lay.play_loc, Layout_mismatch l));
+        l
+      | Some lay as l, _, (Type_open | Type_record _ | Type_variant _) ->
+        (* FIXME_layout: support records of other layouts *)
+        let l = transl_layout l in
+        if not (Layout.subset Layout.value l) then
+          raise(Error(lay.play_loc, Layout_mismatch l));
+        l
+      | None, _, (Type_open | Type_record _ | Type_variant _) ->
+        (* FIXME_layout: support records of other layouts *)
+        Layout.value
+    in
     let decl =
       { type_params = params;
         type_arity = arity;
@@ -413,6 +437,7 @@ let transl_declaration env sdecl (id, uid) =
         type_immediate = Unknown;
         type_unboxed = unboxed_status;
         type_uid = uid;
+        type_layout = layout;
       } in
 
   (* Check constraints *)
@@ -1474,6 +1499,7 @@ let transl_with_constraint id row_path ~sig_env ~sig_decl ~outer_env sdecl =
       type_immediate = Unknown;
       type_unboxed;
       type_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+      type_layout = sig_decl.type_layout; (* FIXME_layout decl. Should check! *)
     }
   in
   begin match row_path with None -> ()
@@ -1513,6 +1539,7 @@ let transl_with_constraint id row_path ~sig_env ~sig_decl ~outer_env sdecl =
       type_loc = new_sig_decl.type_loc;
       type_attributes = new_sig_decl.type_attributes;
       type_uid = new_sig_decl.type_uid;
+      type_layout = new_sig_decl.type_layout; (* FIXME_layout *)
 
       type_variance = new_type_variance;
       type_immediate = new_type_immediate;
@@ -1554,6 +1581,7 @@ let abstract_type_decl arity =
       type_immediate = Unknown;
       type_unboxed = unboxed_false_default_false;
       type_uid = Uid.internal_not_actually_unique;
+      type_layout = Layout.any;
      } in
   Ctype.end_def();
   generalize_decl decl;
@@ -1865,7 +1893,9 @@ let report_error ppf = function
   | Nonrec_gadt ->
       fprintf ppf
         "@[GADT case syntax cannot be used in a 'nonrec' block.@]"
-
+  | Layout_mismatch l ->
+      fprintf ppf "@[This type does not have layout %a@]"
+        Printtyp.layout l
 let () =
   Location.register_error_of_exn
     (function

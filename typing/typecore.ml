@@ -3489,13 +3489,13 @@ and type_expect_
       re { exp with exp_extra =
              (Texp_poly cty, loc, sexp.pexp_attributes) :: exp.exp_extra }
   | Pexp_newtype({txt=name}, layout, sbody) ->
+      let layout = Typetexp.transl_layout layout in
       let ty =
         if Typetexp.valid_tyvar_name name then
-          newvar ~name ()
+          newvar ~layout ~name ()
         else
-          newvar ()
+          newvar ~layout ()
       in
-      let _FIXME_layout = Typetexp.transl_layout layout in
       (* remember original level *)
       begin_def ();
       (* Create a fake abstract type declaration for name. *)
@@ -3514,6 +3514,7 @@ and type_expect_
         type_immediate = Unknown;
         type_unboxed = unboxed_false_default_false;
         type_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+        type_layout = layout;
       }
       in
       let scope = create_scope () in

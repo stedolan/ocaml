@@ -315,6 +315,9 @@ let type_declaration' copy_scope s decl =
     type_immediate = decl.type_immediate;
     type_unboxed = decl.type_unboxed;
     type_uid = decl.type_uid;
+    (* FIXME_layout: is this right? Check with a (S with type 'a t =...) modtype
+       If it's wrong, is the immediate/unboxed defn above also wrong? *)
+    type_layout = decl.type_layout;
   }
 
 let type_declaration s decl =
