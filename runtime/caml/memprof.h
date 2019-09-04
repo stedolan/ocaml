@@ -33,7 +33,11 @@ extern void caml_memprof_track_interned(header_t* block, header_t* blockend);
 extern void caml_memprof_renew_minor_sample(void);
 extern value* caml_memprof_young_trigger;
 
-extern void caml_memprof_scan_roots(scanning_action f);
+extern void caml_memprof_oldify_young_roots(void);
+extern void caml_memprof_minor_update(void);
+extern void caml_memprof_do_roots(scanning_action f);
+extern void caml_memprof_update_clean_phase(void);
+extern void caml_memprof_invert_tracked(void);
 
 #endif
 

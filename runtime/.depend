@@ -52,7 +52,8 @@ compact_b.$(O): compact.c caml/address_class.h caml/config.h caml/m.h caml/s.h \
  caml/config.h caml/finalise.h caml/roots.h caml/memory.h caml/gc.h \
  caml/major_gc.h caml/freelist.h caml/minor_gc.h caml/address_class.h \
  caml/domain.h caml/freelist.h caml/gc.h caml/gc_ctrl.h caml/major_gc.h \
- caml/memory.h caml/mlvalues.h caml/roots.h caml/weak.h caml/compact.h
+ caml/memory.h caml/mlvalues.h caml/roots.h caml/weak.h caml/compact.h \
+ caml/memprof.h
 compare_b.$(O): compare.c caml/custom.h caml/mlvalues.h caml/config.h caml/m.h \
  caml/s.h caml/misc.h caml/domain_state.h caml/domain_state.tbl \
  caml/fail.h caml/memory.h caml/gc.h caml/major_gc.h caml/freelist.h \
@@ -185,7 +186,7 @@ major_gc_b.$(O): major_gc.c caml/compact.h caml/config.h caml/m.h caml/s.h \
  caml/memory.h caml/gc.h caml/major_gc.h caml/freelist.h caml/minor_gc.h \
  caml/address_class.h caml/domain.h caml/freelist.h caml/gc.h \
  caml/gc_ctrl.h caml/major_gc.h caml/misc.h caml/mlvalues.h caml/roots.h \
- caml/signals.h caml/weak.h
+ caml/signals.h caml/weak.h caml/memprof.h
 md5_b.$(O): md5.c caml/alloc.h caml/misc.h caml/config.h caml/m.h caml/s.h \
  caml/mlvalues.h caml/domain_state.h caml/domain_state.tbl caml/fail.h \
  caml/md5.h caml/io.h caml/memory.h caml/gc.h caml/major_gc.h \
@@ -204,7 +205,7 @@ memprof_b.$(O): memprof.c caml/memprof.h caml/config.h caml/m.h caml/s.h \
  caml/minor_gc.h caml/address_class.h caml/domain.h caml/fail.h \
  caml/alloc.h caml/callback.h caml/signals.h caml/memory.h \
  caml/minor_gc.h caml/backtrace_prim.h caml/backtrace.h caml/exec.h \
- caml/weak.h caml/stack.h caml/misc.h
+ caml/weak.h caml/stack.h caml/misc.h caml/compact.h
 meta_b.$(O): meta.c caml/alloc.h caml/misc.h caml/config.h caml/m.h caml/s.h \
  caml/mlvalues.h caml/domain_state.h caml/domain_state.tbl caml/config.h \
  caml/fail.h caml/fix_code.h caml/interp.h caml/intext.h caml/io.h \
@@ -408,7 +409,8 @@ compact_bd.$(O): compact.c caml/address_class.h caml/config.h caml/m.h caml/s.h 
  caml/config.h caml/finalise.h caml/roots.h caml/memory.h caml/gc.h \
  caml/major_gc.h caml/freelist.h caml/minor_gc.h caml/address_class.h \
  caml/domain.h caml/freelist.h caml/gc.h caml/gc_ctrl.h caml/major_gc.h \
- caml/memory.h caml/mlvalues.h caml/roots.h caml/weak.h caml/compact.h
+ caml/memory.h caml/mlvalues.h caml/roots.h caml/weak.h caml/compact.h \
+ caml/memprof.h
 compare_bd.$(O): compare.c caml/custom.h caml/mlvalues.h caml/config.h caml/m.h \
  caml/s.h caml/misc.h caml/domain_state.h caml/domain_state.tbl \
  caml/fail.h caml/memory.h caml/gc.h caml/major_gc.h caml/freelist.h \
@@ -546,7 +548,7 @@ major_gc_bd.$(O): major_gc.c caml/compact.h caml/config.h caml/m.h caml/s.h \
  caml/memory.h caml/gc.h caml/major_gc.h caml/freelist.h caml/minor_gc.h \
  caml/address_class.h caml/domain.h caml/freelist.h caml/gc.h \
  caml/gc_ctrl.h caml/major_gc.h caml/misc.h caml/mlvalues.h caml/roots.h \
- caml/signals.h caml/weak.h
+ caml/signals.h caml/weak.h caml/memprof.h
 md5_bd.$(O): md5.c caml/alloc.h caml/misc.h caml/config.h caml/m.h caml/s.h \
  caml/mlvalues.h caml/domain_state.h caml/domain_state.tbl caml/fail.h \
  caml/md5.h caml/io.h caml/memory.h caml/gc.h caml/major_gc.h \
@@ -565,7 +567,7 @@ memprof_bd.$(O): memprof.c caml/memprof.h caml/config.h caml/m.h caml/s.h \
  caml/minor_gc.h caml/address_class.h caml/domain.h caml/fail.h \
  caml/alloc.h caml/callback.h caml/signals.h caml/memory.h \
  caml/minor_gc.h caml/backtrace_prim.h caml/backtrace.h caml/exec.h \
- caml/weak.h caml/stack.h caml/misc.h
+ caml/weak.h caml/stack.h caml/misc.h caml/compact.h
 meta_bd.$(O): meta.c caml/alloc.h caml/misc.h caml/config.h caml/m.h caml/s.h \
  caml/mlvalues.h caml/domain_state.h caml/domain_state.tbl caml/config.h \
  caml/fail.h caml/fix_code.h caml/interp.h caml/intext.h caml/io.h \
@@ -769,7 +771,8 @@ compact_bi.$(O): compact.c caml/address_class.h caml/config.h caml/m.h caml/s.h 
  caml/config.h caml/finalise.h caml/roots.h caml/memory.h caml/gc.h \
  caml/major_gc.h caml/freelist.h caml/minor_gc.h caml/address_class.h \
  caml/domain.h caml/freelist.h caml/gc.h caml/gc_ctrl.h caml/major_gc.h \
- caml/memory.h caml/mlvalues.h caml/roots.h caml/weak.h caml/compact.h
+ caml/memory.h caml/mlvalues.h caml/roots.h caml/weak.h caml/compact.h \
+ caml/memprof.h
 compare_bi.$(O): compare.c caml/custom.h caml/mlvalues.h caml/config.h caml/m.h \
  caml/s.h caml/misc.h caml/domain_state.h caml/domain_state.tbl \
  caml/fail.h caml/memory.h caml/gc.h caml/major_gc.h caml/freelist.h \
@@ -902,7 +905,7 @@ major_gc_bi.$(O): major_gc.c caml/compact.h caml/config.h caml/m.h caml/s.h \
  caml/memory.h caml/gc.h caml/major_gc.h caml/freelist.h caml/minor_gc.h \
  caml/address_class.h caml/domain.h caml/freelist.h caml/gc.h \
  caml/gc_ctrl.h caml/major_gc.h caml/misc.h caml/mlvalues.h caml/roots.h \
- caml/signals.h caml/weak.h
+ caml/signals.h caml/weak.h caml/memprof.h
 md5_bi.$(O): md5.c caml/alloc.h caml/misc.h caml/config.h caml/m.h caml/s.h \
  caml/mlvalues.h caml/domain_state.h caml/domain_state.tbl caml/fail.h \
  caml/md5.h caml/io.h caml/memory.h caml/gc.h caml/major_gc.h \
@@ -921,7 +924,7 @@ memprof_bi.$(O): memprof.c caml/memprof.h caml/config.h caml/m.h caml/s.h \
  caml/minor_gc.h caml/address_class.h caml/domain.h caml/fail.h \
  caml/alloc.h caml/callback.h caml/signals.h caml/memory.h \
  caml/minor_gc.h caml/backtrace_prim.h caml/backtrace.h caml/exec.h \
- caml/weak.h caml/stack.h caml/misc.h
+ caml/weak.h caml/stack.h caml/misc.h caml/compact.h
 meta_bi.$(O): meta.c caml/alloc.h caml/misc.h caml/config.h caml/m.h caml/s.h \
  caml/mlvalues.h caml/domain_state.h caml/domain_state.tbl caml/config.h \
  caml/fail.h caml/fix_code.h caml/interp.h caml/intext.h caml/io.h \
@@ -1125,7 +1128,8 @@ compact_bpic.$(O): compact.c caml/address_class.h caml/config.h caml/m.h caml/s.
  caml/config.h caml/finalise.h caml/roots.h caml/memory.h caml/gc.h \
  caml/major_gc.h caml/freelist.h caml/minor_gc.h caml/address_class.h \
  caml/domain.h caml/freelist.h caml/gc.h caml/gc_ctrl.h caml/major_gc.h \
- caml/memory.h caml/mlvalues.h caml/roots.h caml/weak.h caml/compact.h
+ caml/memory.h caml/mlvalues.h caml/roots.h caml/weak.h caml/compact.h \
+ caml/memprof.h
 compare_bpic.$(O): compare.c caml/custom.h caml/mlvalues.h caml/config.h caml/m.h \
  caml/s.h caml/misc.h caml/domain_state.h caml/domain_state.tbl \
  caml/fail.h caml/memory.h caml/gc.h caml/major_gc.h caml/freelist.h \
@@ -1258,7 +1262,7 @@ major_gc_bpic.$(O): major_gc.c caml/compact.h caml/config.h caml/m.h caml/s.h \
  caml/memory.h caml/gc.h caml/major_gc.h caml/freelist.h caml/minor_gc.h \
  caml/address_class.h caml/domain.h caml/freelist.h caml/gc.h \
  caml/gc_ctrl.h caml/major_gc.h caml/misc.h caml/mlvalues.h caml/roots.h \
- caml/signals.h caml/weak.h
+ caml/signals.h caml/weak.h caml/memprof.h
 md5_bpic.$(O): md5.c caml/alloc.h caml/misc.h caml/config.h caml/m.h caml/s.h \
  caml/mlvalues.h caml/domain_state.h caml/domain_state.tbl caml/fail.h \
  caml/md5.h caml/io.h caml/memory.h caml/gc.h caml/major_gc.h \
@@ -1277,7 +1281,7 @@ memprof_bpic.$(O): memprof.c caml/memprof.h caml/config.h caml/m.h caml/s.h \
  caml/minor_gc.h caml/address_class.h caml/domain.h caml/fail.h \
  caml/alloc.h caml/callback.h caml/signals.h caml/memory.h \
  caml/minor_gc.h caml/backtrace_prim.h caml/backtrace.h caml/exec.h \
- caml/weak.h caml/stack.h caml/misc.h
+ caml/weak.h caml/stack.h caml/misc.h caml/compact.h
 meta_bpic.$(O): meta.c caml/alloc.h caml/misc.h caml/config.h caml/m.h caml/s.h \
  caml/mlvalues.h caml/domain_state.h caml/domain_state.tbl caml/config.h \
  caml/fail.h caml/fix_code.h caml/interp.h caml/intext.h caml/io.h \
@@ -1480,7 +1484,8 @@ compact_n.$(O): compact.c caml/address_class.h caml/config.h caml/m.h caml/s.h \
  caml/config.h caml/finalise.h caml/roots.h caml/memory.h caml/gc.h \
  caml/major_gc.h caml/freelist.h caml/minor_gc.h caml/address_class.h \
  caml/domain.h caml/freelist.h caml/gc.h caml/gc_ctrl.h caml/major_gc.h \
- caml/memory.h caml/mlvalues.h caml/roots.h caml/weak.h caml/compact.h
+ caml/memory.h caml/mlvalues.h caml/roots.h caml/weak.h caml/compact.h \
+ caml/memprof.h
 compare_n.$(O): compare.c caml/custom.h caml/mlvalues.h caml/config.h caml/m.h \
  caml/s.h caml/misc.h caml/domain_state.h caml/domain_state.tbl \
  caml/fail.h caml/memory.h caml/gc.h caml/major_gc.h caml/freelist.h \
@@ -1611,7 +1616,7 @@ major_gc_n.$(O): major_gc.c caml/compact.h caml/config.h caml/m.h caml/s.h \
  caml/memory.h caml/gc.h caml/major_gc.h caml/freelist.h caml/minor_gc.h \
  caml/address_class.h caml/domain.h caml/freelist.h caml/gc.h \
  caml/gc_ctrl.h caml/major_gc.h caml/misc.h caml/mlvalues.h caml/roots.h \
- caml/signals.h caml/weak.h
+ caml/signals.h caml/weak.h caml/memprof.h
 md5_n.$(O): md5.c caml/alloc.h caml/misc.h caml/config.h caml/m.h caml/s.h \
  caml/mlvalues.h caml/domain_state.h caml/domain_state.tbl caml/fail.h \
  caml/md5.h caml/io.h caml/memory.h caml/gc.h caml/major_gc.h \
@@ -1630,7 +1635,7 @@ memprof_n.$(O): memprof.c caml/memprof.h caml/config.h caml/m.h caml/s.h \
  caml/minor_gc.h caml/address_class.h caml/domain.h caml/fail.h \
  caml/alloc.h caml/callback.h caml/signals.h caml/memory.h \
  caml/minor_gc.h caml/backtrace_prim.h caml/backtrace.h caml/exec.h \
- caml/weak.h caml/stack.h caml/misc.h
+ caml/weak.h caml/stack.h caml/misc.h caml/compact.h
 meta_n.$(O): meta.c caml/alloc.h caml/misc.h caml/config.h caml/m.h caml/s.h \
  caml/mlvalues.h caml/domain_state.h caml/domain_state.tbl caml/config.h \
  caml/fail.h caml/fix_code.h caml/interp.h caml/intext.h caml/io.h \
@@ -1833,7 +1838,8 @@ compact_nd.$(O): compact.c caml/address_class.h caml/config.h caml/m.h caml/s.h 
  caml/config.h caml/finalise.h caml/roots.h caml/memory.h caml/gc.h \
  caml/major_gc.h caml/freelist.h caml/minor_gc.h caml/address_class.h \
  caml/domain.h caml/freelist.h caml/gc.h caml/gc_ctrl.h caml/major_gc.h \
- caml/memory.h caml/mlvalues.h caml/roots.h caml/weak.h caml/compact.h
+ caml/memory.h caml/mlvalues.h caml/roots.h caml/weak.h caml/compact.h \
+ caml/memprof.h
 compare_nd.$(O): compare.c caml/custom.h caml/mlvalues.h caml/config.h caml/m.h \
  caml/s.h caml/misc.h caml/domain_state.h caml/domain_state.tbl \
  caml/fail.h caml/memory.h caml/gc.h caml/major_gc.h caml/freelist.h \
@@ -1969,7 +1975,7 @@ major_gc_nd.$(O): major_gc.c caml/compact.h caml/config.h caml/m.h caml/s.h \
  caml/memory.h caml/gc.h caml/major_gc.h caml/freelist.h caml/minor_gc.h \
  caml/address_class.h caml/domain.h caml/freelist.h caml/gc.h \
  caml/gc_ctrl.h caml/major_gc.h caml/misc.h caml/mlvalues.h caml/roots.h \
- caml/signals.h caml/weak.h
+ caml/signals.h caml/weak.h caml/memprof.h
 md5_nd.$(O): md5.c caml/alloc.h caml/misc.h caml/config.h caml/m.h caml/s.h \
  caml/mlvalues.h caml/domain_state.h caml/domain_state.tbl caml/fail.h \
  caml/md5.h caml/io.h caml/memory.h caml/gc.h caml/major_gc.h \
@@ -1988,7 +1994,7 @@ memprof_nd.$(O): memprof.c caml/memprof.h caml/config.h caml/m.h caml/s.h \
  caml/minor_gc.h caml/address_class.h caml/domain.h caml/fail.h \
  caml/alloc.h caml/callback.h caml/signals.h caml/memory.h \
  caml/minor_gc.h caml/backtrace_prim.h caml/backtrace.h caml/exec.h \
- caml/weak.h caml/stack.h caml/misc.h
+ caml/weak.h caml/stack.h caml/misc.h caml/compact.h
 meta_nd.$(O): meta.c caml/alloc.h caml/misc.h caml/config.h caml/m.h caml/s.h \
  caml/mlvalues.h caml/domain_state.h caml/domain_state.tbl caml/config.h \
  caml/fail.h caml/fix_code.h caml/interp.h caml/intext.h caml/io.h \
@@ -2191,7 +2197,8 @@ compact_ni.$(O): compact.c caml/address_class.h caml/config.h caml/m.h caml/s.h 
  caml/config.h caml/finalise.h caml/roots.h caml/memory.h caml/gc.h \
  caml/major_gc.h caml/freelist.h caml/minor_gc.h caml/address_class.h \
  caml/domain.h caml/freelist.h caml/gc.h caml/gc_ctrl.h caml/major_gc.h \
- caml/memory.h caml/mlvalues.h caml/roots.h caml/weak.h caml/compact.h
+ caml/memory.h caml/mlvalues.h caml/roots.h caml/weak.h caml/compact.h \
+ caml/memprof.h
 compare_ni.$(O): compare.c caml/custom.h caml/mlvalues.h caml/config.h caml/m.h \
  caml/s.h caml/misc.h caml/domain_state.h caml/domain_state.tbl \
  caml/fail.h caml/memory.h caml/gc.h caml/major_gc.h caml/freelist.h \
@@ -2322,7 +2329,7 @@ major_gc_ni.$(O): major_gc.c caml/compact.h caml/config.h caml/m.h caml/s.h \
  caml/memory.h caml/gc.h caml/major_gc.h caml/freelist.h caml/minor_gc.h \
  caml/address_class.h caml/domain.h caml/freelist.h caml/gc.h \
  caml/gc_ctrl.h caml/major_gc.h caml/misc.h caml/mlvalues.h caml/roots.h \
- caml/signals.h caml/weak.h
+ caml/signals.h caml/weak.h caml/memprof.h
 md5_ni.$(O): md5.c caml/alloc.h caml/misc.h caml/config.h caml/m.h caml/s.h \
  caml/mlvalues.h caml/domain_state.h caml/domain_state.tbl caml/fail.h \
  caml/md5.h caml/io.h caml/memory.h caml/gc.h caml/major_gc.h \
@@ -2341,7 +2348,7 @@ memprof_ni.$(O): memprof.c caml/memprof.h caml/config.h caml/m.h caml/s.h \
  caml/minor_gc.h caml/address_class.h caml/domain.h caml/fail.h \
  caml/alloc.h caml/callback.h caml/signals.h caml/memory.h \
  caml/minor_gc.h caml/backtrace_prim.h caml/backtrace.h caml/exec.h \
- caml/weak.h caml/stack.h caml/misc.h
+ caml/weak.h caml/stack.h caml/misc.h caml/compact.h
 meta_ni.$(O): meta.c caml/alloc.h caml/misc.h caml/config.h caml/m.h caml/s.h \
  caml/mlvalues.h caml/domain_state.h caml/domain_state.tbl caml/config.h \
  caml/fail.h caml/fix_code.h caml/interp.h caml/intext.h caml/io.h \
@@ -2544,7 +2551,8 @@ compact_npic.$(O): compact.c caml/address_class.h caml/config.h caml/m.h caml/s.
  caml/config.h caml/finalise.h caml/roots.h caml/memory.h caml/gc.h \
  caml/major_gc.h caml/freelist.h caml/minor_gc.h caml/address_class.h \
  caml/domain.h caml/freelist.h caml/gc.h caml/gc_ctrl.h caml/major_gc.h \
- caml/memory.h caml/mlvalues.h caml/roots.h caml/weak.h caml/compact.h
+ caml/memory.h caml/mlvalues.h caml/roots.h caml/weak.h caml/compact.h \
+ caml/memprof.h
 compare_npic.$(O): compare.c caml/custom.h caml/mlvalues.h caml/config.h caml/m.h \
  caml/s.h caml/misc.h caml/domain_state.h caml/domain_state.tbl \
  caml/fail.h caml/memory.h caml/gc.h caml/major_gc.h caml/freelist.h \
@@ -2675,7 +2683,7 @@ major_gc_npic.$(O): major_gc.c caml/compact.h caml/config.h caml/m.h caml/s.h \
  caml/memory.h caml/gc.h caml/major_gc.h caml/freelist.h caml/minor_gc.h \
  caml/address_class.h caml/domain.h caml/freelist.h caml/gc.h \
  caml/gc_ctrl.h caml/major_gc.h caml/misc.h caml/mlvalues.h caml/roots.h \
- caml/signals.h caml/weak.h
+ caml/signals.h caml/weak.h caml/memprof.h
 md5_npic.$(O): md5.c caml/alloc.h caml/misc.h caml/config.h caml/m.h caml/s.h \
  caml/mlvalues.h caml/domain_state.h caml/domain_state.tbl caml/fail.h \
  caml/md5.h caml/io.h caml/memory.h caml/gc.h caml/major_gc.h \
@@ -2694,7 +2702,7 @@ memprof_npic.$(O): memprof.c caml/memprof.h caml/config.h caml/m.h caml/s.h \
  caml/minor_gc.h caml/address_class.h caml/domain.h caml/fail.h \
  caml/alloc.h caml/callback.h caml/signals.h caml/memory.h \
  caml/minor_gc.h caml/backtrace_prim.h caml/backtrace.h caml/exec.h \
- caml/weak.h caml/stack.h caml/misc.h
+ caml/weak.h caml/stack.h caml/misc.h caml/compact.h
 meta_npic.$(O): meta.c caml/alloc.h caml/misc.h caml/config.h caml/m.h caml/s.h \
  caml/mlvalues.h caml/domain_state.h caml/domain_state.tbl caml/config.h \
  caml/fail.h caml/fix_code.h caml/interp.h caml/intext.h caml/io.h \

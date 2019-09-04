@@ -121,31 +121,36 @@ let delete_alarm a = a := false
 
 module Memprof =
   struct
-    type alloc_kind =
-      | Minor
-      | Major
-      | Unmarshalled
+    type allocation =
+      { n_samples : int;
+        size : int;
+        tag : int;
+        unmarshalled : bool;
+        callstack : Printexc.raw_backtrace }
 
-    type sample_info = {
-        n_samples: int; kind: alloc_kind; tag: int;
-        size: int; callstack: Printexc.raw_backtrace;
-    }
+    external set_ctrl :
+      float -> int ->
+      (allocation -> 'minor option) ->
+      (allocation -> 'major option) ->
+      ('minor -> 'major option) ->
+      ('minor -> unit) ->
+      ('major -> unit) ->
+      unit
+      = "caml_memprof_set_byt" "caml_memprof_set"
 
-    type 'a callback = sample_info -> (Obj.t, 'a) Ephemeron.K1.t option
+    let start
+      ~sampling_rate
+      ?(callstack_size = 0)
+      ?(minor_alloc_callback = fun _ -> None)
+      ?(major_alloc_callback = fun _ -> None)
+      ?(promote_callback = fun _ -> None)
+      ?(minor_dealloc_callback = fun _ -> ())
+      ?(major_dealloc_callback = fun _ -> ()) () =
+      set_ctrl sampling_rate callstack_size minor_alloc_callback
+               major_alloc_callback promote_callback minor_dealloc_callback
+               major_dealloc_callback
 
-    type 'a ctrl = {
-        sampling_rate : float;
-        callstack_size : int;
-        callback : 'a callback
-    }
-
-    let stopped_ctrl = {
-        sampling_rate = 0.; callstack_size = 0;
-        callback = fun _ -> assert false
-    }
-
-    external set_ctrl : 'a ctrl -> unit = "caml_memprof_set"
-
-    let start = set_ctrl
-    let stop () = set_ctrl stopped_ctrl
+    let stop () =
+      set_ctrl 0. 0 (fun _ -> None) (fun _ -> None) (fun _ -> None)
+               (fun _ -> ()) (fun _ -> ())
   end
