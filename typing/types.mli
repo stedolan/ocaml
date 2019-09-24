@@ -135,7 +135,10 @@ and prim_layout =
   | PLany
   | PLvalue
   | PLimmediate
+  | PLboxed_float
+  | PLboxed_int of Primitive.boxed_integer
   | PLfloat
+  | PLbits of Primitive.boxed_integer
 
 (** [  `X | `Y ]       (row_closed = true)
     [< `X | `Y ]       (row_closed = true)
@@ -349,8 +352,11 @@ module Layout : sig
   val value : t
   val immediate : t
   val any : t
+  val float : t
   val inter : t -> t -> t option
+  val lub : t -> t -> t
   val subset : t -> t -> bool
+  val equal : t -> t -> bool
   val of_string : string -> prim_layout option
   val to_string : prim_layout -> string
   val is_compilable : t -> bool

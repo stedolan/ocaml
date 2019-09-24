@@ -1135,7 +1135,7 @@ let rec copy ?partial ?keep_names scope ty =
     else
     let desc = ty.desc in
     For_copy.save_desc scope ty desc;
-    let t = newvar() in          (* Stub *)
+    let t = newvar ~layout:Layout.any () in          (* Stub *)
     set_scope t ty.scope;
     ty.desc <- Tsubst t;
     t.desc <-
@@ -1505,7 +1505,7 @@ let subst env level priv abbrev ty params args body =
   let old_level = !current_level in
   current_level := level;
   try
-    let body0 = newvar () in          (* Stub *)
+    let body0 = newvar ~layout:Layout.any () in      (* Stub *)
     begin match ty with
       None      -> ()
     | Some ({desc = Tconstr (path, tl, _)} as ty) ->

@@ -46,7 +46,10 @@ and prim_layout =
   | PLany
   | PLvalue
   | PLimmediate
+  | PLboxed_float
+  | PLboxed_int of Primitive.boxed_integer
   | PLfloat
+  | PLbits of Primitive.boxed_integer
 
 and row_desc =
     { row_fields: (label * row_field) list;
@@ -226,16 +229,36 @@ end
 (* Layouts *)
 module Layout = struct
   type t = layout
-  let value = [PLvalue] and immediate = [PLimmediate] and any = [PLany]
+  let value = [PLvalue] and immediate = [PLimmediate]
+  and any = [PLany] and float = [PLfloat]
   let prim_inter s t =
     match s, t with
     | PLany, x | x, PLany -> x
+
     | PLimmediate, (PLvalue | PLimmediate)
     | PLvalue, PLimmediate -> PLimmediate
+
+    | PLboxed_float, (PLvalue | PLboxed_float)
+    | PLvalue, PLboxed_float -> PLboxed_float
+
+    | PLboxed_int b, PLvalue
+    | PLvalue, PLboxed_int b -> PLboxed_int b
+    | PLboxed_int b, PLboxed_int b' when b = b' ->
+      PLboxed_int b
+
     | PLvalue, PLvalue -> PLvalue
+
+    | (PLimmediate | PLboxed_float | PLboxed_int _),
+      (PLimmediate | PLboxed_float | PLboxed_int _) ->
+      raise_notrace Exit
+
+    | PLbits s, PLbits t ->
+      if s = t then PLbits s else raise_notrace Exit
+    | PLbits _, _ | _, PLbits _ ->
+      raise_notrace Exit
+
     | PLfloat, PLfloat -> PLfloat
-    | (PLvalue | PLimmediate), PLfloat
-    | PLfloat, (PLvalue | PLimmediate) ->
+    | _, PLfloat | PLfloat, _ ->
       raise_notrace Exit
   let inter s t =
     try Some (List.map2 prim_inter s t) with
@@ -245,19 +268,43 @@ module Layout = struct
     | Exit ->
       (* No intersection *)
       None
+  let prim_lub s t =
+    match s, t with
+    | x, y when x = y -> x
+    | (PLvalue | PLimmediate | PLboxed_float | PLboxed_int _),
+      (PLvalue | PLimmediate | PLboxed_float | PLboxed_int _) ->
+      PLvalue
+    | _, _ -> PLany
+  let lub s t =
+    List.map2 prim_lub s t
   let subset s t =
     (inter s t = Some s)
+  let equal s t = s = t
   let of_string = function
     | "any_layout" -> Some PLany
     | "value" -> Some PLvalue
     | "immediate" -> Some PLimmediate
     | "float" -> Some PLfloat
+    | "boxed_float" -> Some PLboxed_float
+    | "boxed_nativeint" -> Some (PLboxed_int Pnativeint)
+    | "boxed_int32" -> Some (PLboxed_int Pint32)
+    | "boxed_int64" -> Some (PLboxed_int Pint64)
+    | "bits32" -> Some (PLbits Pint32)
+    | "bits64" -> Some (PLbits Pint64)
+    | "bitsnat" -> Some (PLbits Pnativeint)
     | _ -> None
   let to_string = function
     | PLany -> "any_layout"
     | PLvalue -> "value"
     | PLimmediate -> "immediate"
     | PLfloat -> "float"
+    | PLboxed_float -> "boxed_float"
+    | PLboxed_int Pnativeint -> "boxed_nativeint"
+    | PLboxed_int Pint32 -> "boxed_int32"
+    | PLboxed_int Pint64 -> "boxed_int64"
+    | PLbits Pint32 -> "bits32"
+    | PLbits Pint64 -> "bits64"
+    | PLbits Pnativeint -> "bitsnat"
   let is_compilable x =
     List.for_all (function PLany -> false | _ -> true) x
   let equal_any = function

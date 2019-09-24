@@ -244,6 +244,10 @@ let transl_labels env closed lbls =
 let transl_constructor_arguments env closed = function
   | Pcstr_tuple l ->
       let l = List.map (transl_simple_type env closed) l in
+      List.iter (fun t ->
+        try Ctype.constrain_layout env t.ctyp_type Layout.value
+        with Ctype.Unify _ ->
+          raise (Error (t.ctyp_loc, Layout_mismatch Layout.value))) l;
       Types.Cstr_tuple (List.map (fun t -> t.ctyp_type) l),
       Cstr_tuple l
   | Pcstr_record l ->
@@ -498,7 +502,7 @@ let rec check_constraints_rec env loc visited ty =
   visited := TypeSet.add ty !visited;
   match ty.desc with
   | Tconstr (path, args, _) ->
-      let args' = List.map (fun _ -> Ctype.newvar ()) args in
+      let args' = List.map (fun _ -> Ctype.newvar ~layout:Layout.any ()) args in
       let ty' = Ctype.newconstr path args' in
       begin try Ctype.enforce_constraints env ty'
       with Ctype.Unify _ -> assert false

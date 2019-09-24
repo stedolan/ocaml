@@ -182,11 +182,10 @@ and transl_type_aux env policy styp =
   match styp.ptyp_desc with
     Ptyp_any ->
       let ty =
-        (* FIXME_layout: should it be Layout.any when policy = Univars too? *)
         if policy = Univars then new_pre_univar Layout.value else
           if policy = Fixed then
             raise (Error (styp.ptyp_loc, env, Unbound_type_variable "_"))
-          else newvar Layout.any
+          else newvar Layout.value
       in
       ctyp Ttyp_any ty
   | Ptyp_var name ->
@@ -200,7 +199,7 @@ and transl_type_aux env policy styp =
       with Not_found ->
         let v =
           (* FIXME_layout: should it be Layout.any when policy = Univars too? *)
-          if policy = Univars then new_pre_univar ~name Layout.value
+          if policy = Univars then new_pre_univar ~name Layout.any
           else newvar ~name Layout.any
         in
         used_variables := TyVarMap.add name (v, styp.ptyp_loc) !used_variables;
@@ -287,7 +286,8 @@ and transl_type_aux env policy styp =
             | Longident.Lapply(_, _) -> fatal_error "Typetexp.transl_type"
           in
           let path, decl = Env.find_type_by_name lid2 env in
-          ignore(Env.lookup_cltype ~loc:lid.loc lid.txt env);
+          (* FIXME_layout: this is a hack for unboxed #types *)
+          (* ignore(Env.lookup_cltype ~loc:lid.loc lid.txt env); *)
           (path, decl, false)
         with Not_found ->
           ignore (Env.lookup_cltype ~loc:lid.loc lid.txt env); assert false
@@ -338,6 +338,8 @@ and transl_type_aux env policy styp =
       | Tobject (fi, _) ->
           let _, tv = flatten_fields fi in
           if policy = Univars then pre_univars := tv :: !pre_univars;
+          ty
+      | Tconstr _ ->
           ty
       | _ ->
           assert false
