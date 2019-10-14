@@ -48,14 +48,14 @@ let check_counts_full_major force_promote =
           assert (info.tag = 0 || info.tag = 1);
           if !enable then begin
               incr nalloc_minor;
-              Some ()
+              Some 42
           end else
             None)
         ~major_alloc_callback:(fun _ -> assert false)
-        ~promote_callback:(fun _ ->
-           incr npromote;
+        ~promote_callback:(fun k ->
+           assert (k = 42); incr npromote;
            Some ())
-        ~minor_dealloc_callback:(fun _ -> incr ndealloc_minor)
+        ~minor_dealloc_callback:(fun k -> assert (k = 42); incr ndealloc_minor)
         ~major_dealloc_callback:(fun _ -> incr ndealloc_major)
         ~sampling_rate:0.01 ();
   allocate_arrays 1 250 100 true;
