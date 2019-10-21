@@ -29,6 +29,7 @@
 #include "caml/stack.h"
 #include "caml/misc.h"
 #include "caml/compact.h"
+#include "caml/printexc.h"
 
 static uint32_t mt_state[624];
 static uint32_t mt_index;
@@ -317,18 +318,17 @@ static void mark_deleted(struct tracked* t)
 
 static void check_exn(value res)
 {
-  if (Is_exception_result(res)) {
-    fprintf(stderr, "memprof exn\n");
-    abort();
-  }
+  if (Is_exception_result(res))
+    caml_fatal_uncaught_exception(Extract_exception(res));
 }
 
 /* Run any needed callbacks for a given entry. (No-op if none are needed) */
-static void run_callbacks(struct tracked* t)
+static void run_callbacks(uintnat cur)
 {
   CAMLparam0();
   CAMLlocal1(sample_info);
   value res;
+  struct tracked* t = &tracked.entries[cur];
   if (t->delete) CAMLreturn0;
 
   if (!t->cb_alloc) {
@@ -352,6 +352,7 @@ static void run_callbacks(struct tracked* t)
     } else {
       CAMLassert(Is_block(res) && Tag_val(res) == 0 && Wosize_val(res) == 1);
       t->user_data = Field(res, 0);
+      if (cur < tracked.young) tracked.young = cur;
     }
   }
 
@@ -365,6 +366,7 @@ static void run_callbacks(struct tracked* t)
     } else {
       CAMLassert(Is_block(res) && Tag_val(res) == 0 && Wosize_val(res) == 1);
       t->user_data = Field(res, 0);
+      if (cur < tracked.young) tracked.young = cur;
     }
   }
 
@@ -389,8 +391,9 @@ void caml_memprof_handle_postponed()
     return;
   caml_memprof_suspended = 1;
   while (tracked.callback < tracked.len) {
-    if (tracked.callback < i) i = tracked.callback;
-    run_callbacks(&tracked.entries[tracked.callback++]);
+    uintnat cur = tracked.callback++;
+    if (tracked.callback < i) i = cur;
+    run_callbacks(cur);
   }
   /* Nothing should have been added */
   CAMLassert(tracked.len == prev_len);
@@ -420,7 +423,7 @@ void caml_memprof_oldify_young_roots()
 
 void caml_memprof_minor_update(void)
 {
-  uintnat i;
+  uintnat i, found_placeholder = 0;
   for (i = tracked.young; i < tracked.len; i++) {
     struct tracked *t = &tracked.entries[i];
     CAMLassert(Is_block(t->block) || t->delete || t->deallocated ||
@@ -435,13 +438,16 @@ void caml_memprof_minor_update(void)
         t->block = Val_unit;
         t->deallocated = 1;
       }
+    } else if (t->block == Placeholder_value) {
+      CAMLassert(i == tracked.len - 1);
+      found_placeholder = 1;
     }
   }
   if (tracked.callback > tracked.young) {
     tracked.callback = tracked.young;
     if (!caml_memprof_suspended) caml_set_something_to_do();
   }
-  tracked.young = tracked.len;
+  tracked.young = tracked.len - (found_placeholder ? 1 : 0);
 }
 
 void caml_memprof_do_roots(scanning_action f)
@@ -584,8 +590,9 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml)
   callstack = capture_callstack();
   t = new_tracked(occurrences, Make_header(wosize, tag, Caml_white),
                   0, 1, Placeholder_value, callstack);
+  CAMLassert(t == &tracked.entries[tracked.len - 1]);
   caml_memprof_suspended = 1;
-  run_callbacks(t);
+  run_callbacks(tracked.len - 1);
   caml_memprof_suspended = 0;
 
   /* We can now restore the minor heap in the state needed by

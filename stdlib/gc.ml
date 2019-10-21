@@ -150,7 +150,13 @@ module Memprof =
                major_alloc_callback promote_callback minor_dealloc_callback
                major_dealloc_callback
 
-    let stop () =
-      set_ctrl 0. 0 (fun _ -> None) (fun _ -> None) (fun _ -> None)
-               (fun _ -> ()) (fun _ -> ())
+    let stop =
+      let sampling_rate = 0. in
+      let callstack_size = 0 in
+      let minor_alloc_callback _ = None in
+      let major_alloc_callback _ = None in
+      let promote_callback _ = None in
+      let minor_dealloc_callback _ = () in
+      let major_dealloc_callback _ = () in
+      fun () -> set_ctrl sampling_rate callstack_size minor_alloc_callback major_alloc_callback promote_callback minor_dealloc_callback major_dealloc_callback
   end
