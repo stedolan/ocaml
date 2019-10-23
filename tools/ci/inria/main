@@ -245,6 +245,6 @@ $make --warn-undefined-variables install
 rm -rf "$instdir"
 cd testsuite
 if test -n "$jobs" && test -x /usr/bin/parallel
-then PARALLEL="$jobs $PARALLEL" $make --warn-undefined-variables parallel
-else $make --warn-undefined-variables all
+then OCAMLRUNPARAM=v=0 USE_RUNTIME=d PARALLEL="$jobs $PARALLEL" $make --warn-undefined-variables parallel
+else OCAMLRUNPARAM=v=0 USE_RUNTIME=d $make --warn-undefined-variables all
 fi
