@@ -273,73 +273,105 @@ struct
       let known_tags =
           Tag.Map.merge (fun _tag case1 case2 -> join_knowns_tags case1 case2)
             known1 known2
-        in
-        let other_tags : case Or_bottom.t =
-          match other1, other2 with
-          | Bottom, Bottom ->
-            Bottom
-          | Ok other1, Bottom ->
-            (* See the previous cases *)
-            let env =
-              Meet_or_join_env.create_for_join
-                (Meet_or_join_env.target_join_env env)
-                ~left_env:(Meet_or_join_env.left_join_env env)
-                ~right_env:(Meet_or_join_env.left_join_env env)
-            in
-            let other1 = join_case env other1 other1 in
-            Ok other1
-          | Bottom, Ok other2 ->
-            (* See the previous cases *)
-            let env =
-              Meet_or_join_env.create_for_join
-                (Meet_or_join_env.target_join_env env)
-                ~left_env:(Meet_or_join_env.right_join_env env)
-                ~right_env:(Meet_or_join_env.right_join_env env)
-            in
-            let other2 = join_case env other2 other2 in
-            Ok other2
-          | Ok other1, Ok other2 ->
-            Ok (join_case env other1 other2)
-        in
-        { known_tags; other_tags }
+      in
+      let other_tags : case Or_bottom.t =
+        match other1, other2 with
+        | Bottom, Bottom ->
+          Bottom
+        | Ok other1, Bottom ->
+          (* See the previous cases *)
+          let env =
+            Meet_or_join_env.create_for_join
+              (Meet_or_join_env.target_join_env env)
+              ~left_env:(Meet_or_join_env.left_join_env env)
+              ~right_env:(Meet_or_join_env.left_join_env env)
+          in
+          let other1 = join_case env other1 other1 in
+          Ok other1
+        | Bottom, Ok other2 ->
+          (* See the previous cases *)
+          let env =
+            Meet_or_join_env.create_for_join
+              (Meet_or_join_env.target_join_env env)
+              ~left_env:(Meet_or_join_env.right_join_env env)
+              ~right_env:(Meet_or_join_env.right_join_env env)
+          in
+          let other2 = join_case env other2 other2 in
+          Ok other2
+        | Ok other1, Ok other2 ->
+          Ok (join_case env other1 other2)
+      in
+      { known_tags; other_tags }
 
-      let get_singleton { known_tags; other_tags; } =
-        match other_tags with
-        | Ok _ -> None
-        | Bottom ->
-          match Tag.Map.get_singleton known_tags with
-          | None -> None
-          | Some (tag, { maps_to; index }) ->
-            match index with
-            | At_least _ -> None
-            | Known index ->
-              Some ((tag, index), maps_to)
+    let get_singleton { known_tags; other_tags; } =
+      match other_tags with
+      | Ok _ -> None
+      | Bottom ->
+        match Tag.Map.get_singleton known_tags with
+        | None -> None
+        | Some (tag, { maps_to; index }) ->
+          match index with
+          | At_least _ -> None
+          | Known index ->
+            Some ((tag, index), maps_to)
 
-      let all_tags { known_tags; other_tags; } : Tag.Set.t Or_unknown.t =
-        match other_tags with
-        | Ok _ -> Unknown
-        | Bottom -> Known (Tag.Map.keys known_tags)
+    let all_tags { known_tags; other_tags; } : Tag.Set.t Or_unknown.t =
+      match other_tags with
+      | Ok _ -> Unknown
+      | Bottom -> Known (Tag.Map.keys known_tags)
 
-      let all_tags_and_indexes { known_tags; other_tags; } : _ Or_unknown.t =
-        match other_tags with
-        | Ok _ -> Unknown
-        | Bottom -> Known (Tag.Map.map (fun case -> case.index) known_tags)
+    let all_tags_and_indexes { known_tags; other_tags; } : _ Or_unknown.t =
+      match other_tags with
+      | Ok _ -> Unknown
+      | Bottom -> Known (Tag.Map.map (fun case -> case.index) known_tags)
 
-      let free_names { known_tags; other_tags; } =
-        let from_known_tags =
-          Tag.Map.fold (fun _tag { maps_to; index = _ } free_names ->
-              Name_occurrences.union free_names
-                (Maps_to.free_names maps_to))
-            known_tags
-            Name_occurrences.empty
-        in
-        match other_tags with
-        | Bottom ->
+    let free_names { known_tags; other_tags; } =
+      let from_known_tags =
+        Tag.Map.fold (fun _tag { maps_to; index = _ } free_names ->
+            Name_occurrences.union free_names
+              (Maps_to.free_names maps_to))
+          known_tags
+          Name_occurrences.empty
+      in
+      match other_tags with
+      | Bottom ->
+        from_known_tags
+      | Ok { maps_to; index = _ } ->
+        Name_occurrences.union
+          (Maps_to.free_names maps_to)
           from_known_tags
-        | Ok { maps_to; index = _ } ->
-          Name_occurrences.union
-            (Maps_to.free_names maps_to)
-            from_known_tags
+
+    let all_ids_for_export { known_tags; other_tags; } =
+      let from_known_tags =
+        Tag.Map.fold (fun _tag { maps_to; index = _ } ids ->
+            Ids_for_export.union ids
+              (Maps_to.all_ids_for_export maps_to))
+          known_tags
+          Ids_for_export.empty
+      in
+      match other_tags with
+      | Bottom ->
+        from_known_tags
+      | Ok { maps_to; index = _ } ->
+        Ids_for_export.union
+          (Maps_to.all_ids_for_export maps_to)
+          from_known_tags
+
+    let import import_map { known_tags; other_tags; } =
+      let known_tags =
+        Tag.Map.map (fun { maps_to; index; } ->
+            let maps_to = Maps_to.import import_map maps_to in
+            { maps_to; index; })
+          known_tags
+      in
+      let other_tags : _ Or_bottom.t =
+        match other_tags with
+        | Bottom -> Bottom
+        | Ok { maps_to; index; } ->
+          let maps_to = Maps_to.import import_map maps_to in
+          Ok { maps_to; index; }
+      in
+      { known_tags; other_tags; }
 
     let map_maps_to { known_tags; other_tags; }
           ~(f : Maps_to.t -> Maps_to.t Or_bottom.t)

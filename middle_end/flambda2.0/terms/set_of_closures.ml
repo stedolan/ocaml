@@ -140,6 +140,28 @@ let apply_name_permutation
       closure_elements = closure_elements';
     }
 
+let all_ids_for_export
+      { function_decls;
+        closure_elements;
+      } =
+  let function_decls_ids =
+    Function_declarations.all_ids_for_export function_decls
+  in
+  Var_within_closure.Map.fold (fun _closure_var simple ids ->
+      Ids_for_export.add_simple ids simple)
+    closure_elements
+    function_decls_ids
+
+let import import_map { function_decls; closure_elements; } =
+  let function_decls =
+    Function_declarations.import import_map function_decls
+  in
+  let closure_elements =
+    Var_within_closure.Map.map (Ids_for_export.Import_map.simple import_map)
+      closure_elements
+  in
+  { function_decls; closure_elements; }
+
 let filter_function_declarations t ~f =
   let function_decls =
     Function_declarations.filter t.function_decls ~f

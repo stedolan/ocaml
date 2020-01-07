@@ -1078,3 +1078,28 @@ let n_way_join ~env_at_fork envs_with_levels ~params =
   match envs_with_levels with
   | [] -> empty (), Continuation_extra_params_and_args.empty
   | envs_with_levels -> join ~env_at_fork envs_with_levels ~params
+
+let all_ids_for_export t =
+  let variables = Variable.Map.keys t.defined_vars in
+  let ids = Ids_for_export.create ~variables () in
+  let equation name ty ids =
+    let ids =
+      Ids_for_export.union ids
+        (Type_grammar.all_ids_for_export ty)
+    in
+    Ids_for_export.add_name ids name
+  in
+  let ids = Name.Map.fold equation t.equations ids in
+  let cse prim simple ids =
+    let ids, _ =
+      Flambda_primitive.Eligible_for_cse.fold_args prim
+        ~init:ids ~f:(fun ids simple ->
+          Ids_for_export.add_simple ids simple, simple)
+    in
+    Ids_for_export.add_simple ids simple
+  in
+  let ids = Flambda_primitive.Eligible_for_cse.Map.fold cse t.cse ids in
+  ids
+
+let import _import_map _t =
+  Misc.fatal_error "Import not implemented on Typing_env_level"

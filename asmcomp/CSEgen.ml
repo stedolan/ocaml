@@ -351,7 +351,7 @@ method private cse n i k =
      self#cse_array n1 cases (fun cases ->
        self#cse empty_numbering i.next (fun next ->
           k {i with desc = Iswitch(index, cases); next; }))
-  | Icatch(rec_flag, handlers, body) ->
+  | Icatch(rec_flag, ts, handlers, body) ->
       let handler_code = List.map (fun (_, _, handler) -> handler) handlers in
       self#cse_list empty_numbering handler_code (fun handler_code ->
         let handlers =
@@ -360,7 +360,7 @@ method private cse n i k =
         in
         self#cse n body (fun body ->
           self#cse empty_numbering i.next (fun next ->
-            k { i with desc = Icatch(rec_flag, handlers, body); next; })))
+            k { i with desc = Icatch(rec_flag, ts, handlers, body); next; })))
   | Itrywith(body, kind, (ts, handler)) ->
       self#cse n body (fun body ->
         self#cse empty_numbering handler (fun handler ->

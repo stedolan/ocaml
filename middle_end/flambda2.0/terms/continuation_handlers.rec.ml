@@ -45,6 +45,16 @@ let apply_name_permutation t perm =
     t
     Continuation.Map.empty
 
+let all_ids_for_export t =
+  Continuation.Map.fold (fun _k handler ids ->
+      Ids_for_export.union ids
+        (Continuation_handler.all_ids_for_export handler))
+    t
+    Ids_for_export.empty
+
+let import import_map t =
+  Continuation.Map.map (Continuation_handler.import import_map) t
+
 let domain t = Continuation.Map.keys t
 
 let contains_exn_handler t =

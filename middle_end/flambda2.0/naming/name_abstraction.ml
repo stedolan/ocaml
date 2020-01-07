@@ -18,7 +18,7 @@
 
 module type Term = sig
   include Contains_names.S
-  val apply_name_permutation : t -> Name_permutation.t -> t
+  include Contains_ids.S with type t := t
   val print : Format.formatter -> t -> unit
   val print_with_cache : cache:Printing_cache.t -> Format.formatter -> t -> unit
 end
@@ -121,6 +121,13 @@ module Make (Bindable : Bindable.S) (Term : Term) = struct
     let in_binding_position = Bindable.singleton_occurrence_in_terms name in
     let free_in_term = Term.free_names term in
     Name_occurrences.diff free_in_term in_binding_position
+
+  let all_ids_for_export (name, term) =
+    Ids_for_export.union (Bindable.all_ids_for_export name)
+      (Term.all_ids_for_export term)
+
+  let import import_map (name, term) =
+    (Bindable.import import_map name, Term.import import_map term)
 end [@@@inline always]
 
 module Make_list (Bindable : Bindable.S) (Term : Term) = struct
@@ -237,6 +244,18 @@ module Make_list (Bindable : Bindable.S) (Term : Term) = struct
     in
     let free_in_term = Term.free_names term in
     Name_occurrences.diff free_in_term in_binding_position
+
+  let all_ids_for_export (names, term) =
+    let term_ids = Term.all_ids_for_export term in
+    List.fold_left (fun ids name ->
+        Ids_for_export.union ids (Bindable.all_ids_for_export name))
+      term_ids
+      names
+
+  let import import_map (names, term) =
+    let names = List.map (Bindable.import import_map) names in
+    let term = Term.import import_map term in
+    names, term
 end [@@@inline always]
 
 module Make_map (Bindable : Bindable.S) (Term : Term) = struct

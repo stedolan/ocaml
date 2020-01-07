@@ -145,3 +145,19 @@ let apply_name_permutation ({ bound_vars_and_body; defining_expr; } as t)
     { bound_vars_and_body = bound_vars_and_body';
       defining_expr = defining_expr';
     }
+
+let all_ids_for_export { bound_vars_and_body; defining_expr; } =
+  let defining_expr_ids =
+    Named.all_ids_for_export defining_expr
+  in
+  let bound_vars_and_body_ids =
+    Bound_vars_and_body.all_ids_for_export bound_vars_and_body
+  in
+  Ids_for_export.union defining_expr_ids bound_vars_and_body_ids
+
+let import import_map { bound_vars_and_body; defining_expr; } =
+  let defining_expr = Named.import import_map defining_expr in
+  let bound_vars_and_body =
+    Bound_vars_and_body.import import_map bound_vars_and_body
+  in
+  { bound_vars_and_body; defining_expr; }

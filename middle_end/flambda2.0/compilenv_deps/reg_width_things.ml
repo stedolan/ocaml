@@ -132,6 +132,7 @@ end
 module Variable_data = struct
   type t = {
     compilation_unit : Compilation_unit.t;
+    previous_compilation_units : Compilation_unit.t list;
     name : string;
     name_stamp : int;
     user_visible : bool;
@@ -139,7 +140,8 @@ module Variable_data = struct
 
   let flags = var_flags
 
-  let print ppf { compilation_unit; name; name_stamp; user_visible; } =
+  let print ppf { compilation_unit; previous_compilation_units = _;
+                  name; name_stamp; user_visible; } =
     Format.fprintf ppf "@[<hov 1>(\
         @[<hov 1>(compilation_unit@ %a)@]@ \
         @[<hov 1>(name@ %s)@]@ \
@@ -151,23 +153,39 @@ module Variable_data = struct
       name_stamp
       user_visible
 
-  let hash { compilation_unit; name = _; name_stamp; user_visible = _; } =
+  let hash { compilation_unit; previous_compilation_units;
+             name = _; name_stamp; user_visible = _; } =
     (* The [name_stamp] uniquely determines [name] and [user_visible]. *)
-    Hashtbl.hash (Compilation_unit.hash compilation_unit, name_stamp)
+    Hashtbl.hash (List.map Compilation_unit.hash
+                    (compilation_unit :: previous_compilation_units),
+                  name_stamp)
 
   let equal t1 t2 =
     if t1 == t2 then true
     else
-      let { compilation_unit = compilation_unit1; name = _;
-            name_stamp = name_stamp1; user_visible = _; 
+      let { compilation_unit = compilation_unit1;
+            previous_compilation_units = previous_compilation_units1;
+            name = _; name_stamp = name_stamp1; user_visible = _; 
           } = t1
       in
-      let { compilation_unit = compilation_unit2; name = _;
-            name_stamp = name_stamp2; user_visible = _; 
+      let { compilation_unit = compilation_unit2;
+            previous_compilation_units = previous_compilation_units2;
+            name = _; name_stamp = name_stamp2; user_visible = _; 
           } = t2
+      in
+      let rec previous_compilation_units_match l1 l2 =
+        match l1, l2 with
+        | [], [] -> true
+        | [], _ :: _ | _ :: _, [] -> false
+        | unit1 :: tl1, unit2 :: tl2 ->
+          Compilation_unit.equal unit1 unit2
+          && previous_compilation_units_match tl1 tl2
       in
       Int.equal name_stamp1 name_stamp2
         && Compilation_unit.equal compilation_unit1 compilation_unit2
+        && previous_compilation_units_match
+             previous_compilation_units1
+             previous_compilation_units2
 end
 
 module Symbol_data = struct
@@ -229,6 +247,7 @@ end
 
 module Const = struct
   type t = Id.t
+  type exported = Const_data.t
 
   module Table = Table_by_int_id.Make (Const_data)
   let grand_table_of_constants = ref (Table.create ())
@@ -288,10 +307,20 @@ module Const = struct
   module Map = Patricia_tree.Make_map (struct let print = print end) (Set)
   (* CR mshinwell: The [Tbl]s will still print integers! *)
   module Tbl = Identifiable.Make_tbl (Numbers.Int) (Map)
+
+  let export t = find_data t
+
+  let import (data : exported) =
+    create data
+
+  let map_compilation_unit _f data =
+    (* No compilation unit in the data *)
+    data
 end
 
 module Variable = struct
   type t = Id.t
+  type exported = Variable_data.t
 
   module Table = Table_by_int_id.Make (Variable_data)
   let grand_table_of_variables = ref (Table.create ())
@@ -316,6 +345,7 @@ module Variable = struct
     in
     let data : Variable_data.t =
       { compilation_unit = Compilation_unit.get_current_exn ();
+        previous_compilation_units = [];
         name;
         name_stamp;
         user_visible = Option.is_some user_visible;
@@ -329,7 +359,15 @@ module Variable = struct
     let hash = Id.hash
 
     (* CR mshinwell: colour? *)
-    let print ppf t = Format.fprintf ppf "%s/%d" (name t) (name_stamp t)
+    let print ppf t =
+      let cu = compilation_unit t in
+      if Compilation_unit.equal cu (Compilation_unit.get_current_exn ())
+      then Format.fprintf ppf "%s/%d" (name t) (name_stamp t)
+      else
+        Format.fprintf ppf "%a.%s/%d"
+          Compilation_unit.print cu
+          (name t)
+          (name_stamp t)
 
     let output chan t = print (Format.formatter_of_out_channel chan) t
   end
@@ -343,10 +381,26 @@ module Variable = struct
   module Set = Patricia_tree.Make_set (struct let print = print end)
   module Map = Patricia_tree.Make_map (struct let print = print end) (Set)
   module Tbl = Identifiable.Make_tbl (Numbers.Int) (Map)
+
+  let export t = find_data t
+
+  let import (data : exported) =
+    Table.add !grand_table_of_variables data
+
+  let map_compilation_unit f (data : exported) : exported =
+    let new_compilation_unit = f data.compilation_unit in
+    if Compilation_unit.equal new_compilation_unit data.compilation_unit
+    then data
+    else
+      { data with compilation_unit = new_compilation_unit;
+                  previous_compilation_units =
+                    data.compilation_unit :: data.previous_compilation_units;
+      }
 end
 
 module Symbol = struct
   type t = Id.t
+  type exported = Symbol_data.t
 
   module Table = Table_by_int_id.Make (Symbol_data)
   let grand_table_of_symbols = ref (Table.create ())
@@ -399,6 +453,14 @@ module Symbol = struct
   module Set = Patricia_tree.Make_set (struct let print = print end)
   module Map = Patricia_tree.Make_map (struct let print = print end) (Set)
   module Tbl = Identifiable.Make_tbl (Numbers.Int) (Map)
+
+  let export t = find_data t
+
+  let import (data : exported) =
+    Table.add !grand_table_of_symbols data
+
+  let map_compilation_unit f (data : exported) : exported =
+    { data with compilation_unit = f data.compilation_unit; }
 end
 
 module Name = struct
@@ -442,6 +504,7 @@ end
 
 module Simple = struct
   type t = Id.t
+  type exported = Simple_data.t
 
   module Table = Table_by_int_id.Make (Simple_data)
   (* This table only holds [Simple]s that have auxiliary data associated
@@ -535,6 +598,20 @@ module Simple = struct
   module Set = Patricia_tree.Make_set (struct let print = print end)
   module Map = Patricia_tree.Make_map (struct let print = print end) (Set)
   module Tbl = Identifiable.Make_tbl (Numbers.Int) (Map)
+
+  let export t = find_data t
+
+  let import map (data : exported) =
+    let simple = map data.simple in
+    let data : Simple_data.t =
+      { simple; rec_info = data.rec_info; }
+    in
+    Table.add !grand_table_of_simples data
+
+  let map_compilation_unit _f data =
+    (* The compilation unit is not associated with the simple directly,
+       only with the underlying name, which has its own entry. *)
+    data
 end
 
 let initialise () =

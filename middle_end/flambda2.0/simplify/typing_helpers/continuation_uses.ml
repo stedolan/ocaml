@@ -226,3 +226,11 @@ Format.eprintf "The extra params and args are:@ %a\n%!"
       is_single_inlinable_use;
       is_single_use;
     }
+
+let get_typing_env_no_more_than_one_use t =
+  match t.uses with
+  | [] -> None
+  | [use] -> Some (U.typing_env_at_use use)
+  | _::_ ->
+    Misc.fatal_errorf "Only zero or one continuation use(s) expected:@ %a"
+      print t

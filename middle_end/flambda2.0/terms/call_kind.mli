@@ -54,6 +54,8 @@ type t = private
 
 include Expr_std.S with type t := t
 
+include Contains_ids.S with type t := t
+
 val direct_function_call
    : Code_id.t
   -> Closure_id.t

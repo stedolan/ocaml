@@ -33,7 +33,6 @@ module type S = sig
             Bottom = "No value can flow to this point": the least element.
         *)
       | Equals of Simple.t
-      | Type of Export_id.t
   end
 
   type t
@@ -44,7 +43,6 @@ module type S = sig
 
   val create_no_alias : head Or_unknown_or_bottom.t -> t
   val create_equals : Simple.t -> t
-  val create_type : Export_id.t -> t
 
   val create : head -> t
 
@@ -62,18 +60,22 @@ module type S = sig
 
   include Contains_names.S with type t := t
 
+  include Contains_ids.S with type t := t
+
   val apply_rec_info : t -> Rec_info.t -> t Or_bottom.t
 
   val expand_head
      : force_to_kind:(flambda_type -> t)  (* CR mshinwell: "of_type"? *)
     -> t
     -> typing_env
+    -> Flambda_kind.t
     -> head Or_unknown_or_bottom.t
 
   val expand_head'
      : force_to_kind:(flambda_type -> t)  (* CR mshinwell: "of_type"? *)
     -> t
     -> typing_env
+    -> Flambda_kind.t
     -> t
 
   module Make_meet_or_join (_ : Lattice_ops_intf.S
@@ -87,6 +89,7 @@ module type S = sig
       -> force_to_kind:(flambda_type -> t)  (* CR mshinwell: "of_type"? *)
       -> to_type:(t -> flambda_type)
       -> meet_or_join_env
+      -> Flambda_kind.t
       -> flambda_type
       -> flambda_type
       -> t

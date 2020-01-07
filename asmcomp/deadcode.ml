@@ -80,7 +80,7 @@ let rec deadcode i =
         exits = Array.fold_left
                   (fun acc c -> Int.Set.union acc c.exits) s.exits dc;
       }
-  | Icatch(rec_flag, handlers, body) ->
+  | Icatch(rec_flag, ts, handlers, body) ->
     let body' = deadcode body in
     let s = deadcode i.next in
     let handlers' =
@@ -134,7 +134,8 @@ let rec deadcode i =
       }
     | _ ->
       let handlers = List.map (fun (n,ts,h) -> (n,ts,h.i)) used_handlers in
-      { i = { i with desc = Icatch(rec_flag, handlers, body'.i); next = s.i };
+      { i = { i with desc = Icatch(rec_flag, ts, handlers, body'.i);
+                     next = s.i };
         regs = i.live;
         exits;
       }

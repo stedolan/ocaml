@@ -1,0 +1,26 @@
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*                       Vincent Laviron, OCamlPro                        *)
+(*                                                                        *)
+(*   Copyright 2020 OCamlPro SAS                                          *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
+
+[@@@ocaml.warning "+a-4-30-40-41-42"]
+
+module type S = sig
+  type t
+
+  (** Gather all table identifiers to export them. *)
+  val all_ids_for_export : t -> Ids_for_export.t
+
+  (** Imported identifiers may have been given a different id.
+      This rewrites the element with the new ids. *)
+  val import : Ids_for_export.Import_map.t -> t -> t
+end

@@ -313,6 +313,8 @@ val invariant : Invariant_env.t -> t -> unit
 
 include Contains_names.S with type t := t
 
+include Contains_ids.S with type t := t
+
 (** Simpler version (e.g. for [Inlining_cost]), where only the actual
     primitive matters, not the arguments. *)
 module Without_args : sig

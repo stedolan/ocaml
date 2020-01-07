@@ -37,6 +37,10 @@ module Aliases_of_canonical_element : sig
 
   val union : t -> t -> t
   val inter : t -> t -> t
+
+  val import : (Simple.t -> Simple.t) -> t -> t
+
+  val merge : t -> t -> t
 end = struct
   type t = {
     aliases : Simple.Set.t Name_mode.Map.t;
@@ -125,6 +129,24 @@ end = struct
     in
     invariant t;
     t
+
+  let import import_simple { aliases; all } =
+    let aliases =
+      Name_mode.Map.map (fun elts -> Simple.Set.map import_simple elts)
+        aliases
+    in
+    let all = Simple.Set.map import_simple all in
+    { aliases; all }
+
+  let merge t1 t2 =
+    let aliases =
+      Name_mode.Map.union (fun _mode set1 set2 ->
+          Some (Simple.Set.union set1 set2))
+        t1.aliases
+        t2.aliases
+    in
+    let all = Simple.Set.union t1.all t2.all in
+    { aliases; all; }
 end
 
 type t = {
@@ -147,7 +169,7 @@ let print ppf { canonical_elements; aliases_of_canonical_elements;
   Format.fprintf ppf
     "@[<hov 1>(\
       @[<hov 1>(canonical_elements@ %a)@]@ \
-      @[<hov 1>(aliases_of_canonical_elements@ %a)@]\
+      @[<hov 1>(aliases_of_canonical_elements@ %a)@]@ \
       @[<hov 1>(binding_times_and_modes@ %a)@]\
       )@]"
     (Simple.Map.print Simple.print) canonical_elements
@@ -385,6 +407,9 @@ let add t element1 binding_time_and_mode1
   end;
   add_result
 
+let mem t element =
+  Simple.Map.mem element t.binding_times_and_modes
+
   (* CR mshinwell: This needs documenting.  For the moment we allow
      relations between canonical elements that are actually incomparable
      under the name mode ordering, and check in [get_canonical_element_exn]
@@ -473,6 +498,94 @@ let get_aliases t element =
       assert (Simple.Set.mem element aliases)
     end;
     Simple.Set.add canonical_element aliases
+
+let all_ids_for_export { canonical_elements = _;
+                         aliases_of_canonical_elements = _;
+                         binding_times_and_modes; } =
+  Simple.Map.fold (fun simple _binding_time_and_mode ids ->
+      Ids_for_export.add_simple ids simple)
+    binding_times_and_modes
+    Ids_for_export.empty
+
+let import import_map { canonical_elements;
+                        aliases_of_canonical_elements;
+                        binding_times_and_modes; } =
+  let import_simple = Ids_for_export.Import_map.simple import_map in
+  let canonical_elements =
+    Simple.Map.fold (fun elt canonical acc ->
+        Simple.Map.add (import_simple elt) (import_simple canonical) acc)
+      canonical_elements
+      Simple.Map.empty
+  in
+  let aliases_of_canonical_elements =
+    Simple.Map.fold (fun canonical aliases acc ->
+        Simple.Map.add (import_simple canonical)
+          (Aliases_of_canonical_element.import import_simple aliases)
+          acc)
+      aliases_of_canonical_elements
+      Simple.Map.empty
+  in
+  let binding_times_and_modes =
+    Simple.Map.fold (fun simple binding_time_and_mode acc ->
+        Simple.Map.add (import_simple simple) binding_time_and_mode acc)
+      binding_times_and_modes
+      Simple.Map.empty
+  in
+  { canonical_elements;
+    aliases_of_canonical_elements;
+    binding_times_and_modes;
+  }
+
+let merge t1 t2 =
+  let canonical_elements =
+    Simple.Map.disjoint_union
+      t1.canonical_elements
+      t2.canonical_elements
+  in
+  let aliases_of_canonical_elements =
+    (* Warning: here the keys of the map can come from other
+       compilation units, so we cannot assume the keys are disjoint *)
+    Simple.Map.union (fun _simple aliases1 aliases2 ->
+        Some (Aliases_of_canonical_element.merge aliases1 aliases2))
+      t1.aliases_of_canonical_elements
+      t2.aliases_of_canonical_elements
+  in
+  let symbol_data =
+    Binding_time.With_name_mode.create
+      Binding_time.symbols
+      Name_mode.normal
+  in
+  let binding_times_and_modes =
+    Simple.Map.union (fun simple data1 data2 ->
+        Simple.pattern_match simple
+          ~const:(fun _ ->
+            assert (Binding_time.With_name_mode.equal data1 data2);
+            Some data1)
+          ~name:(fun name ->
+            Name.pattern_match name
+              ~var:(fun var ->
+                (* TODO: filter variables on export and restore fatal_error *)
+                if Binding_time.(equal (With_name_mode.binding_time data1)
+                                   imported_variables)
+                then Some data2
+                else if Binding_time.(equal (With_name_mode.binding_time data1)
+                                   imported_variables)
+                then Some data1
+                else
+                  Misc.fatal_errorf
+                    "Variable %a is present in multiple environments"
+                    Variable.print var)
+              ~symbol:(fun _sym ->
+                assert (Binding_time.With_name_mode.equal data1 symbol_data);
+                assert (Binding_time.With_name_mode.equal data2 symbol_data);
+                Some data1)))
+      t1.binding_times_and_modes
+      t2.binding_times_and_modes
+  in
+  { canonical_elements;
+    aliases_of_canonical_elements;
+    binding_times_and_modes;
+  }
 
 let get_canonical_ignoring_name_mode t name =
   let simple = Simple.name name in

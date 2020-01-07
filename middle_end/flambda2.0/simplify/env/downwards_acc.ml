@@ -116,3 +116,6 @@ let add_variable t var ty =
 
 let extend_typing_environment t env_extension =
   with_denv t (DE.extend_typing_environment (denv t) env_extension)
+
+let get_typing_env_no_more_than_one_use t k =
+  CUE.get_typing_env_no_more_than_one_use t.continuation_uses_env k

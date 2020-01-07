@@ -79,6 +79,24 @@ module Field_of_block = struct
       Name_occurrences.singleton_symbol sym Name_mode.normal
     | Tagged_immediate _ -> Name_occurrences.empty
 
+  let all_ids_for_export t =
+    match t with
+    | Dynamically_computed var ->
+      Ids_for_export.add_variable Ids_for_export.empty var
+    | Symbol sym ->
+      Ids_for_export.add_symbol Ids_for_export.empty sym
+    | Tagged_immediate _ -> Ids_for_export.empty
+
+  let import import_map t =
+    match t with
+    | Dynamically_computed var ->
+      let var = Ids_for_export.Import_map.variable import_map var in
+      Dynamically_computed var
+    | Symbol sym ->
+      let sym = Ids_for_export.Import_map.symbol import_map sym in
+      Symbol sym
+    | Tagged_immediate _ -> t
+
 (*
   let invariant env t =
     let module E = Invariant_env in
@@ -157,6 +175,40 @@ module Code = struct
         newer_version_of;
       }
 
+  let all_ids_for_export { params_and_body; newer_version_of; } =
+    let newer_version_of_ids =
+      match newer_version_of with
+      | None -> Ids_for_export.empty
+      | Some older ->
+        Ids_for_export.add_code_id Ids_for_export.empty older
+    in
+    let params_and_body_ids =
+      match params_and_body with
+      | Deleted -> Ids_for_export.empty
+      | Present params_and_body ->
+        Function_params_and_body.all_ids_for_export params_and_body
+    in
+    Ids_for_export.union newer_version_of_ids params_and_body_ids
+
+  let import import_map { params_and_body; newer_version_of; } =
+    let params_and_body =
+      match params_and_body with
+      | Deleted -> Deleted
+      | Present params_and_body ->
+        let params_and_body =
+          Function_params_and_body.import import_map params_and_body
+        in
+        Present params_and_body
+    in
+    let newer_version_of =
+      match newer_version_of with
+      | None -> None
+      | Some older ->
+        let older = Ids_for_export.Import_map.code_id import_map older in
+        Some older
+    in
+    { params_and_body; newer_version_of; }
+
   let make_deleted t =
     { params_and_body = Deleted;
       newer_version_of = t.newer_version_of;
@@ -233,6 +285,30 @@ module Code_and_set_of_closures = struct
       { code = code';
         set_of_closures = set_of_closures';
       }
+
+  let all_ids_for_export { code; set_of_closures; } =
+    let set_of_closures_ids =
+      Set_of_closures.all_ids_for_export set_of_closures
+    in
+    Code_id.Map.fold (fun code_id code ids ->
+        Ids_for_export.union ids
+          (Ids_for_export.add_code_id (Code.all_ids_for_export code) code_id))
+      code
+      set_of_closures_ids
+
+  let import import_map { code; set_of_closures; } =
+    let code =
+      Code_id.Map.fold (fun code_id code all_code ->
+          let code_id = Ids_for_export.Import_map.code_id import_map code_id in
+          let code = Code.import import_map code in
+          Code_id.Map.add code_id code all_code)
+        code
+        Code_id.Map.empty
+    in
+    let set_of_closures =
+      Set_of_closures.import import_map set_of_closures
+    in
+    { code; set_of_closures; }
 
   let map_code t ~f =
     { code = Code_id.Map.mapi f t.code;
@@ -393,6 +469,13 @@ let get_pieces_of_code t =
   | Mutable_string _
   | Immutable_string _ -> Code_id.Map.empty
 
+let get_pieces_of_code' t =
+  Code_id.Map.filter_map (get_pieces_of_code t)
+    ~f:(fun _ code ->
+      match code.Code.params_and_body with
+      | Deleted -> None
+      | Present params_and_body -> Some params_and_body)
+
 let free_names t =
   match t with
   | Block (_tag, _mut, fields) ->
@@ -495,6 +578,91 @@ let apply_name_permutation t perm =
       in
       if not !changed then t
       else Immutable_float_array fields
+
+let all_ids_for_export t =
+  match t with
+  | Block (_tag, _mut, fields) ->
+    List.fold_left (fun ids field ->
+        Ids_for_export.union ids (Field_of_block.all_ids_for_export field))
+      Ids_for_export.empty
+      fields
+  | Sets_of_closures sets ->
+    List.fold_left (fun ids set ->
+        Ids_for_export.union ids
+          (Code_and_set_of_closures.all_ids_for_export set))
+      Ids_for_export.empty
+      sets
+  | Boxed_float (Var var)
+  | Boxed_int32 (Var var)
+  | Boxed_int64 (Var var)
+  | Boxed_nativeint (Var var) ->
+    Ids_for_export.add_variable Ids_for_export.empty var
+  | Boxed_float (Const _)
+  | Boxed_int32 (Const _)
+  | Boxed_int64 (Const _)
+  | Boxed_nativeint (Const _)
+  | Mutable_string { initial_value = _; }
+  | Immutable_string _ -> Ids_for_export.empty
+  | Immutable_float_block fields ->
+    List.fold_left (fun ids (field : _ Or_variable.t) ->
+        match field with
+        | Var v ->
+          Ids_for_export.add_variable ids v
+        | Const _ -> ids)
+      Ids_for_export.empty
+      fields
+  | Immutable_float_array fields ->
+    List.fold_left (fun ids (field : _ Or_variable.t) ->
+        match field with
+        | Var v ->
+          Ids_for_export.add_variable ids v
+        | Const _ -> ids)
+      Ids_for_export.empty
+      fields
+
+let import import_map t = match t with
+  | Block (tag, mut, fields) ->
+    let fields = List.map (Field_of_block.import import_map) fields in
+    Block (tag, mut, fields)
+  | Sets_of_closures sets ->
+    let sets = List.map (Code_and_set_of_closures.import import_map) sets in
+    Sets_of_closures sets
+  | Boxed_float (Var var) ->
+    let var = Ids_for_export.Import_map.variable import_map var in
+    Boxed_float (Var var)
+  | Boxed_int32 (Var var) ->
+    let var = Ids_for_export.Import_map.variable import_map var in
+    Boxed_int32 (Var var)
+  | Boxed_int64 (Var var) ->
+    let var = Ids_for_export.Import_map.variable import_map var in
+    Boxed_int64 (Var var)
+  | Boxed_nativeint (Var var) ->
+    let var = Ids_for_export.Import_map.variable import_map var in
+    Boxed_nativeint (Var var)
+  | Boxed_float (Const _)
+  | Boxed_int32 (Const _)
+  | Boxed_int64 (Const _)
+  | Boxed_nativeint (Const _)
+  | Mutable_string { initial_value = _; }
+  | Immutable_string _ -> t
+  | Immutable_float_block fields ->
+    let fields =
+      List.map (fun (field : _ Or_variable.t) : _ Or_variable.t ->
+          match field with
+          | Const _ -> field
+          | Var v -> Var (Ids_for_export.Import_map.variable import_map v))
+        fields
+    in
+    Immutable_float_block fields
+  | Immutable_float_array fields ->
+    let fields =
+      List.map (fun (field : _ Or_variable.t) : _ Or_variable.t ->
+          match field with
+          | Const _ -> field
+          | Var v -> Var (Ids_for_export.Import_map.variable import_map v))
+        fields
+    in
+    Immutable_float_array fields
 
 let is_fully_static t =
   free_names t

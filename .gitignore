@@ -94,7 +94,7 @@ _build
 
 middle_end/flambda2.0/simplify/simplify.ml
 middle_end/flambda2.0/terms/flambda.ml
-middle_end/flambda2.0/types/flambda_type0.ml
+middle_end/flambda2.0/types/flambda_type.ml
 
 /ocamldoc/ocamldoc
 /ocamldoc/ocamldoc.opt

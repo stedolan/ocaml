@@ -44,7 +44,7 @@ type middle_end2 =
   -> module_ident:Ident.t
   -> module_block_size_in_words:int
   -> module_initializer:Lambda.lambda
-  -> Flambda_unit.t
+  -> Flambda2_middle_end.middle_end_result
 
 (** Compile an implementation from Lambda using the given middle end. *)
 val compile_implementation2
@@ -69,7 +69,7 @@ val compile_implementation_flambda
   -> prefixname:string
   -> ppf_dump:Format.formatter
   -> required_globals:Ident.Set.t
-  -> Flambda_unit.t
+  -> Flambda2_middle_end.middle_end_result
   -> unit
 
 val compile_phrase :

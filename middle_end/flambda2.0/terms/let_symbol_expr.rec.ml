@@ -73,6 +73,25 @@ module Bound_symbols = struct
           Name_occurrences.add_symbol bound_names closure_sym Name_mode.normal)
         closure_symbols
         from_code_ids
+
+    let all_ids_for_export { code_ids; closure_symbols; } =
+      let symbols =
+        Closure_id.Map.fold (fun _closure_id sym symbols ->
+            Symbol.Set.add sym symbols)
+          closure_symbols
+          Symbol.Set.empty
+      in
+      Ids_for_export.create ~code_ids ~symbols ()
+
+    let import import_map { code_ids; closure_symbols; } =
+      let code_ids =
+        Code_id.Set.map (Ids_for_export.Import_map.code_id import_map) code_ids
+      in
+      let closure_symbols =
+        Closure_id.Map.map (Ids_for_export.Import_map.symbol import_map)
+          closure_symbols
+      in
+      { code_ids; closure_symbols; }
   end
 
   type t =
@@ -147,6 +166,24 @@ module Bound_symbols = struct
     | Sets_of_closures sets ->
       Name_occurrences.union_list
         (List.map Code_and_set_of_closures.free_names sets)
+
+  let all_ids_for_export t =
+    match t with
+    | Singleton sym -> Ids_for_export.add_symbol (Ids_for_export.empty) sym
+    | Sets_of_closures sets ->
+      List.fold_left (fun ids set ->
+          Ids_for_export.union ids
+            (Code_and_set_of_closures.all_ids_for_export set))
+        Ids_for_export.empty
+        sets
+
+  let import import_map t =
+    match t with
+    | Singleton sym ->
+      Singleton (Ids_for_export.Import_map.symbol import_map sym)
+    | Sets_of_closures sets ->
+      let sets = List.map (Code_and_set_of_closures.import import_map) sets in
+      Sets_of_closures sets
 end
 
 module Scoping_rule = struct
@@ -376,6 +413,20 @@ let apply_name_permutation
       defining_expr = defining_expr';
       body = body';
     }
+
+let all_ids_for_export
+      { scoping_rule = _; bound_symbols; defining_expr; body; } =
+  let bound_symbols_ids = Bound_symbols.all_ids_for_export bound_symbols in
+  let defining_expr_ids = Static_const.all_ids_for_export defining_expr in
+  let body_ids = Expr.all_ids_for_export body in
+  Ids_for_export.union bound_symbols_ids
+    (Ids_for_export.union defining_expr_ids body_ids)
+
+let import import_map { scoping_rule; bound_symbols; defining_expr; body; } =
+  let bound_symbols = Bound_symbols.import import_map bound_symbols in
+  let defining_expr = Static_const.import import_map defining_expr in
+  let body = Expr.import import_map body in
+  { scoping_rule; bound_symbols; defining_expr; body; }
 
 (* CR mshinwell: Add a type to just encapsulate bound_symbols and
    defining_expr. *)

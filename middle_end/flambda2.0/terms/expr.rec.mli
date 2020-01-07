@@ -22,6 +22,8 @@ type t
 (** Printing, invariant checks, name manipulation, etc. *)
 include Expr_std.S with type t := t
 
+include Contains_ids.S with type t := t
+
 type descr = private
   | Let of Let_expr.t
   (** Bind variable(s).  There can be no effect on control flow (save for

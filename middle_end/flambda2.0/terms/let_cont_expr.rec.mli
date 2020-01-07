@@ -49,6 +49,8 @@ type t = private
 (** Printing, invariant checks, name manipulation, etc. *)
 include Expr_std.S with type t := t
 
+include Contains_ids.S with type t := t
+
 (** Create a definition of a non-recursive continuation.  If the continuation
     does not occur free in the [body], then just the [body] is returned,
     without any enclosing [Let_cont]. *)

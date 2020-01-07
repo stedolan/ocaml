@@ -110,12 +110,12 @@ method private reload i =
       insert_moves i.arg newarg
         (instr_cons (Iswitch(index, Array.map (self#reload) cases)) newarg [||]
           (self#reload i.next))
-  | Icatch(rec_flag, handlers, body) ->
+  | Icatch(rec_flag, ts, handlers, body) ->
       let new_handlers = List.map
           (fun (nfail, ts, handler) -> nfail, ts, self#reload handler)
           handlers in
       instr_cons
-        (Icatch(rec_flag, new_handlers, self#reload body)) [||] [||]
+        (Icatch(rec_flag, ts, new_handlers, self#reload body)) [||] [||]
         (self#reload i.next)
   | Iexit (i, traps) ->
       instr_cons (Iexit (i, traps)) [||] [||] dummy_instr

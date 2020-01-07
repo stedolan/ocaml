@@ -26,6 +26,8 @@ type t
 
 include Expr_std.S with type t := t
 
+include Contains_ids.S with type t := t
+
 val create
    : scrutinee:Simple.t
   -> arms:Apply_cont_expr.t Target_imm.Map.t

@@ -105,7 +105,7 @@ let build_graph fundecl =
           interf cases.(i)
         done;
         interf i.next
-    | Icatch(_rec_flag, handlers, body) ->
+    | Icatch(_rec_flag, _ts, handlers, body) ->
         interf body;
         List.iter (fun (_, _, handler) -> interf handler) handlers;
         interf i.next
@@ -175,7 +175,7 @@ let build_graph fundecl =
           prefer weight cases.(i)
         done;
         prefer weight i.next
-    | Icatch(rec_flag, handlers, body) ->
+    | Icatch(rec_flag, _ts, handlers, body) ->
         prefer weight body;
         let weight_h =
           match rec_flag with

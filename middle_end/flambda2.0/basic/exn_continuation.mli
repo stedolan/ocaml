@@ -25,6 +25,7 @@ type t
 (** Printing, invariant checks, name manipulation, etc. *)
 include Identifiable.S with type t := t
 include Expr_std.S with type t := t
+include Contains_ids.S with type t := t
 
 (** Create an exception continuation. *)
 val create

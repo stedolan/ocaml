@@ -75,6 +75,8 @@ val body : t -> Expr.t
 
 include Expr_std.S with type t := t
 
+include Contains_ids.S with type t := t
+
 (** If [newer_versions_of] maps [id1] to [id2] then [id1] is a newer
     version of [id2]. *)
 val pieces_of_code

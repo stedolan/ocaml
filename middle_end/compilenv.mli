@@ -84,6 +84,8 @@ val set_global_approx: Clambda.value_approximation -> unit
 val record_global_approx_toplevel: unit -> unit
         (* Record the current approximation for the current toplevel phrase
            clambda-only *)
+val get_global_info' : Ident.t -> Cmx_format.export_info option
+val set_global_info : Cmx_format.export_info -> unit
 
 (* val set_export_info: Export_info.t -> unit *)
         (* Record the information of the unit being compiled

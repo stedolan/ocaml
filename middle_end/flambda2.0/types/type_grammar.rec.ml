@@ -16,6 +16,7 @@
 
 [@@@ocaml.warning "+a-30-40-41-42"]
 
+module K = Flambda_kind
 module TE = Typing_env
 module TEE = Typing_env_extension
 module TEL = Typing_env_level
@@ -147,6 +148,24 @@ let free_names t =
   | Naked_int32 ty -> T_N32.free_names ty
   | Naked_int64 ty -> T_N64.free_names ty
   | Naked_nativeint ty -> T_NN.free_names ty
+
+let all_ids_for_export t =
+  match t with
+  | Value ty -> T_V.all_ids_for_export ty
+  | Naked_immediate ty -> T_NI.all_ids_for_export ty
+  | Naked_float ty -> T_Nf.all_ids_for_export ty
+  | Naked_int32 ty -> T_N32.all_ids_for_export ty
+  | Naked_int64 ty -> T_N64.all_ids_for_export ty
+  | Naked_nativeint ty -> T_NN.all_ids_for_export ty
+
+let import import_map t =
+  match t with
+  | Value ty -> Value (T_V.import import_map ty)
+  | Naked_immediate ty -> Naked_immediate (T_NI.import import_map ty)
+  | Naked_float ty -> Naked_float (T_Nf.import import_map ty)
+  | Naked_int32 ty -> Naked_int32 (T_N32.import import_map ty)
+  | Naked_int64 ty -> Naked_int64 (T_N64.import import_map ty)
+  | Naked_nativeint ty -> Naked_nativeint (T_NN.import import_map ty)
 
 let apply_rec_info t rec_info : _ Or_bottom.t =
   match t with
@@ -657,54 +676,71 @@ let expand_head t env : Resolved_type.t =
   match t with
   | Value ty ->
     let head =
-      T_V.expand_head ~force_to_kind:force_to_kind_value ty env
+      T_V.expand_head ~force_to_kind:force_to_kind_value ty env K.value
     in
     Value head
   | Naked_immediate ty ->
     let head =
       T_NI.expand_head ~force_to_kind:force_to_kind_naked_immediate ty env
+        K.naked_immediate
     in
     Naked_immediate head
   | Naked_float ty ->
     let head =
       T_Nf.expand_head ~force_to_kind:force_to_kind_naked_float ty env
+        K.naked_float
     in
     Naked_float head
   | Naked_int32 ty ->
     let head =
       T_N32.expand_head ~force_to_kind:force_to_kind_naked_int32 ty env
+        K.naked_int32
     in
     Naked_int32 head
   | Naked_int64 ty ->
     let head =
       T_N64.expand_head ~force_to_kind:force_to_kind_naked_int64 ty env
+        K.naked_int64
     in
     Naked_int64 head
   | Naked_nativeint ty ->
     let head =
       T_NN.expand_head ~force_to_kind:force_to_kind_naked_nativeint ty env
+        K.naked_nativeint
     in
     Naked_nativeint head
 
 let expand_head' t env : t =
   match t with
   | Value ty ->
-    Value (T_V.expand_head' ~force_to_kind:force_to_kind_value ty env)
+    Value (T_V.expand_head' ~force_to_kind:force_to_kind_value ty env
+      K.value)
   | Naked_immediate ty ->
     Naked_immediate (
-      T_NI.expand_head' ~force_to_kind:force_to_kind_naked_immediate ty env)
+      T_NI.expand_head' ~force_to_kind:force_to_kind_naked_immediate ty env
+        K.naked_immediate)
   | Naked_float ty ->
     Naked_float (
-      T_Nf.expand_head' ~force_to_kind:force_to_kind_naked_float ty env)
+      T_Nf.expand_head' ~force_to_kind:force_to_kind_naked_float ty env
+        K.naked_float)
   | Naked_int32 ty ->
     Naked_int32 (
-      T_N32.expand_head' ~force_to_kind:force_to_kind_naked_int32 ty env)
+      T_N32.expand_head' ~force_to_kind:force_to_kind_naked_int32 ty env
+        K.naked_int32)
   | Naked_int64 ty ->
     Naked_int64 (
-      T_N64.expand_head' ~force_to_kind:force_to_kind_naked_int64 ty env)
+      T_N64.expand_head' ~force_to_kind:force_to_kind_naked_int64 ty env
+        K.naked_int64)
   | Naked_nativeint ty ->
     Naked_nativeint (
-      T_NN.expand_head' ~force_to_kind:force_to_kind_naked_nativeint ty env)
+      T_NN.expand_head' ~force_to_kind:force_to_kind_naked_nativeint ty env
+        K.naked_nativeint)
+
+let missing_kind env free_names =
+  Name_occurrences.fold_variables free_names ~init:false
+    ~f:(fun missing_kind var ->
+      missing_kind
+        || TE.variable_is_from_missing_cmx_file env (Name.var var))
 
 (* CR mshinwell: There is a subtlety here: the presence of a name in
    [suitable_for] doesn't mean that we should blindly return "=name".  The
@@ -715,6 +751,7 @@ let expand_head' t env : t =
 let rec make_suitable_for_environment0_core t env ~depth ~suitable_for level =
   let free_names = free_names t in
   if Name_occurrences.no_variables free_names then level, t
+  else if missing_kind env free_names then level, unknown (kind t)
   else
     let to_erase =
       Name_occurrences.filter_names free_names
@@ -736,7 +773,7 @@ let rec make_suitable_for_environment0_core t env ~depth ~suitable_for level =
             Name.pattern_match to_erase_name
               ~symbol:(fun _ -> acc)
               ~var:(fun to_erase ->
-                let original_type = TE.find env to_erase_name in
+                let original_type = TE.find env to_erase_name None in
                 let kind = kind original_type in
                 let fresh_var = Variable.rename to_erase in
                 let fresh_var_name = Name.var fresh_var in
@@ -759,7 +796,7 @@ let rec make_suitable_for_environment0_core t env ~depth ~suitable_for level =
                       if TE.mem_simple suitable_for canonical_simple then
                         None, alias_type_of kind canonical_simple
                       else
-                        let t = TE.find env (Name.var to_erase) in
+                        let t = TE.find env (Name.var to_erase) (Some kind) in
                         let t = expand_head' t env in
                         let level, t =
                           make_suitable_for_environment0_core t env
@@ -823,27 +860,33 @@ struct
   let meet_or_join ?bound_name (env : Meet_or_join_env.t) t1 t2 =
     match t1, t2 with
     | Value ty1, Value ty2 ->
-      T_V_meet_or_join.meet_or_join ?bound_name env t1 t2 ty1 ty2
+      T_V_meet_or_join.meet_or_join ?bound_name env
+        K.value t1 t2 ty1 ty2
         ~force_to_kind:force_to_kind_value
         ~to_type:(fun ty -> Value ty)
     | Naked_immediate ty1, Naked_immediate ty2 ->
-      T_NI_meet_or_join.meet_or_join ?bound_name env t1 t2 ty1 ty2
+      T_NI_meet_or_join.meet_or_join ?bound_name env
+        K.naked_immediate t1 t2 ty1 ty2
         ~force_to_kind:force_to_kind_naked_immediate
         ~to_type:(fun ty -> Naked_immediate ty)
     | Naked_float ty1, Naked_float ty2 ->
-      T_Nf_meet_or_join.meet_or_join ?bound_name env t1 t2 ty1 ty2
+      T_Nf_meet_or_join.meet_or_join ?bound_name env
+        K.naked_float t1 t2 ty1 ty2
         ~force_to_kind:force_to_kind_naked_float
         ~to_type:(fun ty -> Naked_float ty)
     | Naked_int32 ty1, Naked_int32 ty2 ->
-      T_N32_meet_or_join.meet_or_join ?bound_name env t1 t2 ty1 ty2
+      T_N32_meet_or_join.meet_or_join ?bound_name env
+        K.naked_int32 t1 t2 ty1 ty2
         ~force_to_kind:force_to_kind_naked_int32
         ~to_type:(fun ty -> Naked_int32 ty)
     | Naked_int64 ty1, Naked_int64 ty2 ->
-      T_N64_meet_or_join.meet_or_join ?bound_name env t1 t2 ty1 ty2
+      T_N64_meet_or_join.meet_or_join ?bound_name env
+        K.naked_int64 t1 t2 ty1 ty2
         ~force_to_kind:force_to_kind_naked_int64
         ~to_type:(fun ty -> Naked_int64 ty)
     | Naked_nativeint ty1, Naked_nativeint ty2 ->
-      T_NN_meet_or_join.meet_or_join ?bound_name env t1 t2 ty1 ty2
+      T_NN_meet_or_join.meet_or_join ?bound_name env
+        K.naked_nativeint t1 t2 ty1 ty2
         ~force_to_kind:force_to_kind_naked_nativeint
         ~to_type:(fun ty -> Naked_nativeint ty)
     | (Value _ | Naked_immediate _ | Naked_float _ | Naked_int32 _

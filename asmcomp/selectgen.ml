@@ -962,7 +962,22 @@ method emit_expr (env:environment) exp =
       let a = Array.of_list ((r_body, s_body) :: List.map snd l) in
       let r = join_array env a in
       let aux ((nfail, ts), (_r, s)) = (nfail, ts, s#extract) in
-      self#insert env (Icatch (rec_flag, List.map aux l, s_body#extract))
+      let final_trap_stack =
+        match r_body with
+        | Some _ -> env.trap_stack
+        | None ->
+          (* The body never returns, so the trap stack at the end of the catch
+             is the one from the handlers *)
+          begin match l with
+          | [] -> (* This whole catch never returns *)
+            env.trap_stack
+          | ((_, ts), (_, _)) :: tl ->
+            assert (List.for_all (fun ((_, ts'), (_, _)) -> ts = ts') tl);
+            ts
+          end
+      in
+      self#insert env
+        (Icatch (rec_flag, final_trap_stack, List.map aux l, s_body#extract))
         [||] [||];
       r
   | Cexit (lbl,args,traps) ->
@@ -1349,7 +1364,8 @@ method emit_tail (env:environment) exp =
         build_all_reachable_handlers ~already_built:[] ~not_built:handlers_map
         (* Note: we're dropping unreachable handlers here *)
       in
-      self#insert env (Icatch(rec_flag, new_handlers, s_body))
+      (* The final trap stack doesn't matter, as it's not reachable. *)
+      self#insert env (Icatch(rec_flag, env.trap_stack, new_handlers, s_body))
         [||] [||]
   | Ctrywith(e1, kind, v, e2, _dbg) ->
       let env_body = env_enter_trywith env kind in

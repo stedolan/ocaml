@@ -142,6 +142,28 @@ let free_names (t : t) =
     Name_occurrences.add_code_id Name_occurrences.empty code_id
       Name_mode.in_types
 
+let all_ids_for_export (t : t) =
+  match t with
+  | Bottom | Unknown -> Ids_for_export.empty
+  | Ok (Inlinable { code_id; param_arity = _; result_arity = _; stub = _;
+                    dbg = _; inline = _; is_a_functor = _; recursive = _;
+                    rec_info = _; })
+  | Ok (Non_inlinable { code_id; param_arity = _; result_arity = _;
+                        recursive = _; }) ->
+    Ids_for_export.add_code_id Ids_for_export.empty code_id
+
+let import import_map (t : t) : t =
+  match t with
+  | Bottom | Unknown -> t
+  | Ok (Inlinable { code_id; param_arity; result_arity; stub;
+                    dbg; inline; is_a_functor; recursive; rec_info; }) ->
+    let code_id = Ids_for_export.Import_map.code_id import_map code_id in
+    Ok (Inlinable { code_id; param_arity; result_arity; stub;
+                    dbg; inline; is_a_functor; recursive; rec_info; })
+  | Ok (Non_inlinable { code_id; param_arity; result_arity; recursive; }) ->
+    let code_id = Ids_for_export.Import_map.code_id import_map code_id in
+    Ok (Non_inlinable { code_id; param_arity; result_arity; recursive; })
+
 let apply_name_permutation t _perm = t
 
 module Make_meet_or_join
@@ -189,6 +211,7 @@ struct
       }) ->
       let typing_env = Meet_or_join_env.target_join_env env in
       let target_code_age_rel = TE.code_age_relation typing_env in
+      let resolver = TE.code_age_relation_resolver typing_env in
       let check_other_things_and_return code_id : (t * TEE.t) Or_bottom.t =
         assert (Flambda_arity.equal param_arity1 param_arity2);
         assert (Flambda_arity.equal result_arity1 result_arity2);
@@ -204,7 +227,7 @@ struct
       begin match E.op () with
       | Meet ->
         begin match
-          Code_age_relation.meet target_code_age_rel code_id1 code_id2
+          Code_age_relation.meet target_code_age_rel ~resolver code_id1 code_id2
         with
         | Ok code_id -> check_other_things_and_return code_id
         | Bottom -> Bottom
@@ -217,7 +240,7 @@ struct
           TE.code_age_relation (Meet_or_join_env.right_join_env env)
         in
         begin match
-          Code_age_relation.join ~target_t:target_code_age_rel
+          Code_age_relation.join ~target_t:target_code_age_rel ~resolver
             code_age_rel1 code_age_rel2 code_id1 code_id2
         with
         | Known code_id -> check_other_things_and_return code_id
@@ -253,6 +276,7 @@ struct
       }) ->
       let typing_env = Meet_or_join_env.target_join_env env in
       let target_code_age_rel = TE.code_age_relation typing_env in
+      let resolver = TE.code_age_relation_resolver typing_env in
       let check_other_things_and_return code_id : (t * TEE.t) Or_bottom.t =
         assert (Flambda_arity.equal param_arity1 param_arity2);
         assert (Flambda_arity.equal result_arity1 result_arity2);
@@ -278,7 +302,7 @@ struct
       match E.op () with
       | Meet ->
         begin match
-          Code_age_relation.meet target_code_age_rel code_id1 code_id2
+          Code_age_relation.meet target_code_age_rel ~resolver code_id1 code_id2
         with
         | Ok code_id -> check_other_things_and_return code_id
         | Bottom -> Bottom
@@ -291,7 +315,7 @@ struct
           TE.code_age_relation (Meet_or_join_env.right_join_env env)
         in
         begin match
-          Code_age_relation.join ~target_t:target_code_age_rel
+          Code_age_relation.join ~target_t:target_code_age_rel ~resolver
             code_age_rel1 code_age_rel2 code_id1 code_id2
         with
         | Known code_id -> check_other_things_and_return code_id

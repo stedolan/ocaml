@@ -58,4 +58,7 @@ module type S = sig
       tail call optimization to be inhibited (in particular, if it would
       entail passing arguments on the stack; see [Selectgen]). *)
   val max_sensible_number_of_arguments : int
+
+  val set_global_info : Flambda_cmx_format.t -> unit
+  val get_global_info : Compilation_unit.t -> Flambda_cmx_format.t option
 end

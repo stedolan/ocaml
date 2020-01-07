@@ -25,6 +25,8 @@ type t = private
 
 include Bindable.S with type t := t
 
+include Contains_ids.S with type t := t
+
 val singleton : Var_in_binding_pos.t -> t
 
 val set_of_closures : closure_vars:Var_in_binding_pos.t Closure_id.Map.t -> t

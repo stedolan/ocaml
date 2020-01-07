@@ -25,6 +25,8 @@ module type S = sig
 
   include Contains_names.S
 
+  include Contains_ids.S with type t := t
+
   val print : Format.formatter -> t -> unit
 
   val print_with_cache : cache:Printing_cache.t -> Format.formatter -> t -> unit

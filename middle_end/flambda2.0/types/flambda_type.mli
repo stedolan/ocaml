@@ -67,11 +67,20 @@ module Typing_env : sig
 
   val print : Format.formatter -> t -> unit
 
-  val create : resolver:(Export_id.t -> flambda_type option) -> t
+  val create
+     : resolver:(Compilation_unit.t -> t option)
+    -> get_imported_names:(unit -> Name.Set.t)
+    -> t
 
   val closure_env : t -> t
 
-  val resolver : t -> (Export_id.t -> flambda_type option)
+  val resolver : t -> (Compilation_unit.t -> t option)
+
+  val code_age_relation_resolver
+     : t
+    -> (Compilation_unit.t -> Code_age_relation.t option)
+
+  val name_domain : t -> Name.Set.t
 
   val current_scope : t -> Scope.t
 
@@ -99,7 +108,7 @@ module Typing_env : sig
 
   val mem : t -> Name.t -> bool
 
-  val find : t -> Name.t -> flambda_type
+  val find : t -> Name.t -> Flambda_kind.t option -> flambda_type
 
   val find_params : t -> Kinded_parameter.t list -> flambda_type list
 
@@ -138,6 +147,29 @@ module Typing_env : sig
      : t
     -> flambda_type
     -> Name_occurrences.t
+
+  val clean_for_export : t -> t
+
+  module Serializable : sig
+    type typing_env = t
+    type t
+
+    val create : typing_env -> t
+
+    val print : Format.formatter -> t -> unit
+
+    val to_typing_env
+       : t
+      -> resolver:(Compilation_unit.t -> typing_env option)
+      -> get_imported_names:(unit -> Name.Set.t)
+      -> typing_env
+
+    val all_ids_for_export : t -> Ids_for_export.t
+
+    val import : Ids_for_export.Import_map.t -> t -> t
+
+    val merge : t -> t -> t
+  end
 end
 
 val meet : Typing_env.t -> t -> t -> (t * Typing_env_extension.t) Or_bottom.t

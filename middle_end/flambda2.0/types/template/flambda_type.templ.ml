@@ -600,7 +600,7 @@ let prove_boxed_floats env t : _ proof =
         result_kind
     in
     let env = Typing_env.add_env_extension env env_extension in
-    let t = Typing_env.find env (Name.var result_var) in
+    let t = Typing_env.find env (Name.var result_var) (Some result_kind) in
     prove_naked_floats env t
 
 let prove_boxed_int32s env t : _ proof =
@@ -621,7 +621,7 @@ let prove_boxed_int32s env t : _ proof =
         result_kind
     in
     let env = Typing_env.add_env_extension env env_extension in
-    let t = Typing_env.find env (Name.var result_var) in
+    let t = Typing_env.find env (Name.var result_var) (Some result_kind) in
     prove_naked_int32s env t
 
 let prove_boxed_int64s env t : _ proof =
@@ -642,7 +642,7 @@ let prove_boxed_int64s env t : _ proof =
         result_kind
     in
     let env = Typing_env.add_env_extension env env_extension in
-    let t = Typing_env.find env (Name.var result_var) in
+    let t = Typing_env.find env (Name.var result_var) (Some result_kind) in
     prove_naked_int64s env t
 
 let prove_boxed_nativeints env t : _ proof =
@@ -663,7 +663,7 @@ let prove_boxed_nativeints env t : _ proof =
         result_kind
     in
     let env = Typing_env.add_env_extension env env_extension in
-    let t = Typing_env.find env (Name.var result_var) in
+    let t = Typing_env.find env (Name.var result_var) (Some result_kind) in
     prove_naked_nativeints env t
 
 let prove_strings env t : String_info.Set.t proof =

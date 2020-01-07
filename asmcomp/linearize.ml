@@ -60,6 +60,12 @@ let rec adjust_trap_depth delta_traps next =
   match next.desc with
   | Ladjust_trap_depth { delta_traps = k } ->
     adjust_trap_depth (delta_traps + k) next.next
+  | Llabel lbl ->
+    let next = adjust_trap_depth delta_traps next.next in
+    cons_instr (Llabel lbl) next
+  | Lbranch lbl ->
+    let next = adjust_trap_depth delta_traps next.next in
+    cons_instr (Lbranch lbl) next
   | _ ->
     if delta_traps = 0 then next
     else cons_instr (Ladjust_trap_depth { delta_traps }) next
@@ -235,8 +241,10 @@ let linear i n contains_calls =
                      i !n2
         end else
           copy_instr (Lswitch(Array.map (fun n -> lbl_cases.(n)) index)) i !n2
-    | Icatch(_rec_flag, handlers, body) ->
-        let (lbl_end, n1) = get_label(linear env i.Mach.next n) in
+    | Icatch(_rec_flag, ts_next, handlers, body) ->
+        let n0 = adjust_trap_depth (delta_traps ts_next env.trap_stack) n in
+        let env_next = { env with trap_stack = ts_next; } in
+        let (lbl_end, n1) = get_label(linear env_next i.Mach.next n0) in
         (* CR mshinwell for pchambart:
            1. rename "io"
            2. Make sure the test cases cover the "Iend" cases too *)
@@ -262,7 +270,7 @@ let linear i n contains_calls =
                     (linear env handler (add_branch lbl_end n))
                 in
                 n, ts)
-            (n1, env.trap_stack) handlers labels_at_entry_to_handlers
+            (n1, ts_next) handlers labels_at_entry_to_handlers
         in
         let n2 = adjust_trap_depth (delta_traps env.trap_stack ts_n2) n2 in
         let n3 = linear env body (add_branch lbl_end n2) in

@@ -22,7 +22,8 @@ let strictly_earlier (t : t) ~than =
 
 let consts_and_discriminants = 0
 let symbols = 1
-let earliest_var = 2
+let imported_variables = 2
+let earliest_var = 3
 
 let succ (t : t) =
   if t < earliest_var then
@@ -57,4 +58,7 @@ module With_name_mode = struct
   let print ppf t =
     Format.fprintf ppf "(bound at time %d %a)" (binding_time t)
       Name_mode.print (name_mode t)
+
+  let equal t1 t2 =
+    t1 = t2
 end

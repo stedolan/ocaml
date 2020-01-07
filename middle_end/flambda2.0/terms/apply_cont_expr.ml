@@ -246,6 +246,15 @@ let apply_name_permutation ({ k; args; trap_action; dbg; } as t) perm =
   if k == k' && args == args' && trap_action == trap_action' then t
   else { k = k'; args = args'; trap_action = trap_action'; dbg; }
 
+let all_ids_for_export { k = _; args; trap_action = _; dbg = _; } =
+  List.fold_left (fun ids arg -> Ids_for_export.add_simple ids arg)
+    Ids_for_export.empty
+    args
+
+let import import_map { k; args; trap_action; dbg; } =
+  let args = List.map (Ids_for_export.Import_map.simple import_map) args in
+  { k; args; trap_action; dbg; }
+
 let update_continuation t continuation =
   { t with k = continuation; }
 

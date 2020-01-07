@@ -80,6 +80,11 @@ let is_predefined_exception t =
     ~var:(fun _ -> false)
     ~symbol:(fun sym -> Symbol.is_predefined_exception sym)
 
+let compilation_unit t =
+  pattern_match t
+  ~var:(fun var -> Variable.compilation_unit var)
+  ~symbol:(fun sym -> Symbol.compilation_unit sym)
+
 let rename t =
   pattern_match t
     ~var:(fun v -> var (Variable.rename v))

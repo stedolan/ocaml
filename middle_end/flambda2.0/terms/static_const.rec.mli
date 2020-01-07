@@ -86,8 +86,11 @@ type t =
 
 include Identifiable.S with type t := t
 include Contains_names.S with type t := t
+include Contains_ids.S with type t := t
 
 val get_pieces_of_code : t -> Code.t Code_id.Map.t
+
+val get_pieces_of_code' : t -> Function_params_and_body.t Code_id.Map.t
 
 val is_fully_static : t -> bool
 

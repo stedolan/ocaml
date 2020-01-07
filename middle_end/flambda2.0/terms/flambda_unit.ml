@@ -19,34 +19,29 @@
 open! Flambda.Import
 
 type t = {
-  imported_symbols : Flambda_kind.t Symbol.Map.t;
   return_continuation : Continuation.t;
   exn_continuation : Continuation.t;
   body : Flambda.Expr.t;
 }
 
-let create ~imported_symbols ~return_continuation ~exn_continuation ~body =
-  { imported_symbols;
-    return_continuation;
+let create ~return_continuation ~exn_continuation ~body =
+  { return_continuation;
     exn_continuation;
     body;
   }
 
-let imported_symbols t = t.imported_symbols
 let return_continuation t = t.return_continuation
 let exn_continuation t = t.exn_continuation
 let body t = t.body
 
 let print ppf
-      { imported_symbols; return_continuation; exn_continuation; body;
+      { return_continuation; exn_continuation; body;
       } =
   Format.fprintf ppf "@[<hov 1>(\
-        @[<hov 1>(imported_symbols@ %a)@]@ \
         @[<hov 1>(return_continuation@ %a)@]@ \
         @[<hov 1>(exn_continuation@ %a)@]@ \
         @[<hov 1>%a@]\
       )@]"
-    (Symbol.Map.print Flambda_kind.print) imported_symbols
     Continuation.print return_continuation
     Continuation.print exn_continuation
     Flambda.Expr.print body

@@ -118,3 +118,18 @@ let with_exn_handler t exn_handler =
 
 let without_extra_args t =
   { t with extra_args = []; }
+
+let all_ids_for_export t =
+  List.fold_left (fun ids (arg, _kind) ->
+      Ids_for_export.add_simple ids arg)
+    Ids_for_export.empty
+    t.extra_args
+
+let import import_map t =
+  let extra_args =
+    List.map (fun (arg, kind) ->
+        let arg = Ids_for_export.Import_map.simple import_map arg in
+        (arg, kind))
+      t.extra_args
+  in
+  { t with extra_args; }

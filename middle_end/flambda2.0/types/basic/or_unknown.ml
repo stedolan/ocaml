@@ -64,6 +64,16 @@ let free_names free_names_contents t =
   | Known contents -> free_names_contents contents
   | Unknown -> Name_occurrences.empty
 
+let all_ids_for_export all_ids_for_export_contents t =
+  match t with
+  | Known contents -> all_ids_for_export_contents contents
+  | Unknown -> Ids_for_export.empty
+
+let import import_contents import_map t =
+  match t with
+  | Known contents -> Known (import_contents import_map contents)
+  | Unknown -> Unknown
+
 module Lift (I : Identifiable.S) = struct
   type nonrec t = I.t t
 

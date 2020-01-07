@@ -132,6 +132,40 @@ let free_names
 
 let apply_name_permutation t _perm = t
 
+let all_ids_for_export
+      { code_id;
+        params_arity = _;
+        result_arity = _;
+        stub = _;
+        dbg = _;
+        inline = _;
+        is_a_functor = _;
+        recursive = _;
+      } =
+  Ids_for_export.add_code_id Ids_for_export.empty code_id
+
+let import import_map
+      { code_id;
+        params_arity;
+        result_arity;
+        stub;
+        dbg;
+        inline;
+        is_a_functor;
+        recursive;
+      } =
+  let code_id = Ids_for_export.Import_map.code_id import_map code_id in
+  { code_id;
+    params_arity;
+    result_arity;
+    stub;
+    dbg;
+    inline;
+    is_a_functor;
+    recursive;
+  }
+
+
 let update_code_id t code_id = { t with code_id; }
 
 (* CR mshinwell: In the "equal" case this should assert that all of the

@@ -140,3 +140,17 @@ let apply_name_permutation ({ scrutinee; arms; } as t) perm =
   in
   if scrutinee == scrutinee' && arms == arms' then t
   else { scrutinee = scrutinee'; arms = arms'; }
+
+let all_ids_for_export { scrutinee; arms; } =
+  let scrutinee_ids = Ids_for_export.from_simple scrutinee in
+  Target_imm.Map.fold (fun _discr action ids ->
+      Ids_for_export.union ids (Apply_cont_expr.all_ids_for_export action))
+    arms
+    scrutinee_ids
+
+let import import_map { scrutinee; arms; } =
+  let scrutinee = Ids_for_export.Import_map.simple import_map scrutinee in
+  let arms =
+    Target_imm.Map.map (Apply_cont_expr.import import_map) arms
+  in
+  { scrutinee; arms; }

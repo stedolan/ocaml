@@ -91,3 +91,10 @@ let apply_name_permutation ({ abst; dbg; params_arity; } as t) perm =
 let free_names { abst; params_arity = _; dbg = _; } = A.free_names abst
 
 let debuginfo { dbg; _ } = dbg
+
+let all_ids_for_export { abst; params_arity = _; dbg = _; } =
+  A.all_ids_for_export abst
+
+let import import_map { abst; params_arity; dbg; } =
+  let abst = A.import import_map abst in
+  { abst; params_arity; dbg; }

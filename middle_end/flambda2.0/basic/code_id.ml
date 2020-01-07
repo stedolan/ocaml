@@ -25,36 +25,38 @@ module Code_id_data = struct
   type t = {
     compilation_unit : Compilation_unit.t;
     name : string;
-    name_stamp : int;
+    linkage_name : Linkage_name.t;
   }
 
   let flags = 0
 
-  let print ppf { compilation_unit; name; name_stamp; } =
+  let print ppf { compilation_unit; name; linkage_name; } =
     Format.fprintf ppf "@[<hov 1>(\
         @[<hov 1>(compilation_unit@ %a)@]@ \
         @[<hov 1>(name@ %s)@]@ \
-        @[<hov 1>(name_stamp@ %d)@]\
+        @[<hov 1>(linkage_name@ %a)@]@ \
         )@]"
       Compilation_unit.print compilation_unit
       name
-      name_stamp
+      Linkage_name.print linkage_name
 
-  let hash { compilation_unit; name = _; name_stamp; } =
-    (* The [name_stamp] uniquely determines [name]. *)
-    Hashtbl.hash (Compilation_unit.hash compilation_unit, name_stamp)
+  let hash { compilation_unit; name = _; linkage_name; } =
+    Hashtbl.hash (Compilation_unit.hash compilation_unit,
+                  Linkage_name.hash linkage_name)
 
   let equal
       { compilation_unit = compilation_unit1; name = _;
-        name_stamp = name_stamp1; }
+        linkage_name = linkage_name1; }
       { compilation_unit = compilation_unit2; name = _;
-        name_stamp = name_stamp2; }
+        linkage_name = linkage_name2; }
       =
-    Int.equal name_stamp1 name_stamp2
+    Linkage_name.equal linkage_name1 linkage_name2
       && Compilation_unit.equal compilation_unit1 compilation_unit2
 end
 
 type t = Id.t
+
+type exported = Code_id_data.t
 
 module Table = Table_by_int_id.Make (Code_id_data)
 let grand_table_of_code_ids = ref (Table.create ())
@@ -65,8 +67,8 @@ let initialise () =
 let find_data t = Table.find !grand_table_of_code_ids t
 
 let get_compilation_unit t = (find_data t).compilation_unit
+let linkage_name t = (find_data t).linkage_name
 let name t = (find_data t).name
-let name_stamp t = (find_data t).name_stamp
 
 let previous_name_stamp = ref (-1)
 
@@ -76,23 +78,30 @@ let create ~name compilation_unit =
     incr previous_name_stamp;
     !previous_name_stamp
   in
+  let linkage_name =
+    let unique_name = Printf.sprintf "%s_%d" name name_stamp in
+    let unit_linkage_name =
+      Linkage_name.to_string
+        (Compilation_unit.get_linkage_name compilation_unit)
+    in
+    Linkage_name.create (unit_linkage_name ^ "__" ^ unique_name ^ "_code")
+  in
   let data : Code_id_data.t =
     { compilation_unit;
       name;
-      name_stamp;
+      linkage_name;
     }
   in
   Table.add !grand_table_of_code_ids data
 
-let rename t = create ~name:(name t) (get_compilation_unit t)
+let rename t = create ~name:(name t) (Compilation_unit.get_current_exn ())
 
 let in_compilation_unit t comp_unit =
   Compilation_unit.equal (get_compilation_unit t) comp_unit
 
 let code_symbol t =
-  let unique_name = Printf.sprintf "%s_%d" (name t) (name_stamp t) in
-  let linkage_name = Linkage_name.create (unique_name ^ "_code") in
-  Symbol.create (get_compilation_unit t) linkage_name
+  let data = find_data t in
+  Symbol.unsafe_create data.compilation_unit data.linkage_name
 
 module T0 = struct
   let compare = Id.compare
@@ -100,9 +109,9 @@ module T0 = struct
   let hash = Id.hash
 
   let print ppf t =
-    Format.fprintf ppf "@<0>%s%s/%d@<0>%s"
+    Format.fprintf ppf "@<0>%s%a@<0>%s"
       (Flambda_colours.code_id ())
-      (name t) (name_stamp t)
+      Linkage_name.print (linkage_name t)
       (Flambda_colours.normal ())
 
   let output chan t = print (Format.formatter_of_out_channel chan) t
@@ -123,3 +132,12 @@ let invert_map map =
       Map.add newer older invert_map)
     map
     Map.empty
+
+let export t = find_data t
+
+let import (data : exported) =
+  Table.add !grand_table_of_code_ids data
+
+let map_compilation_unit f (data : exported) : exported =
+  { data with compilation_unit = f data.compilation_unit;
+  }

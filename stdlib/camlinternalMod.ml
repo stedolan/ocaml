@@ -47,6 +47,7 @@ let rec init_mod loc shape =
       Obj.repr (Array.map (init_mod loc) comps)
   | Value v ->
       v
+[@@inline never]
 
 let rec update_mod shape o n =
   match shape with
@@ -77,3 +78,4 @@ let rec update_mod shape o n =
         update_mod comps.(i) (Obj.field o i) (Obj.field n i)
       done
   | Value _ -> () (* the value is already there *)
+[@@inline never]

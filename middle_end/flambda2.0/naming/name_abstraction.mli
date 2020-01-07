@@ -21,6 +21,7 @@
 
 module type Term = sig
   include Contains_names.S
+  include Contains_ids.S with type t := t
   val print : Format.formatter -> t -> unit
   val print_with_cache : cache:Printing_cache.t -> Format.formatter -> t -> unit
 end
@@ -45,6 +46,7 @@ module Make (Bindable : Bindable.S) (Term : Term) : sig
       "[--]--" in nominal sets. *)
 
   include Contains_names.S
+  include Contains_ids.S with type t := t
   include Common with type t := t
 
   val create : Bindable.t -> Term.t -> t
@@ -73,6 +75,7 @@ module Make_list (Bindable : Bindable.S) (Term : Term) : sig
       separated product, in binding position. *)
 
   include Contains_names.S
+  include Contains_ids.S with type t := t
   include Common with type t := t
 
   val create : Bindable.t list -> Term.t -> t

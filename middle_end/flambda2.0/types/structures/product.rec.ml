@@ -108,6 +108,19 @@ module Make (Index : Identifiable.S) = struct
       components_by_index
       Name_occurrences.empty
 
+  let all_ids_for_export { components_by_index; kind = _; } =
+    Index.Map.fold (fun _index ty ids ->
+        Ids_for_export.union (Type_grammar.all_ids_for_export ty) ids)
+      components_by_index
+      Ids_for_export.empty
+
+  let import import_map { components_by_index; kind; } =
+    let components_by_index =
+      Index.Map.map (fun ty -> Type_grammar.import import_map ty)
+        components_by_index
+    in
+    { components_by_index; kind; }
+
   let map_types ({ components_by_index; kind } as t)
         ~(f : Type_grammar.t -> Type_grammar.t Or_bottom.t)
         : _ Or_bottom.t =
@@ -224,6 +237,18 @@ module Int_indexed = struct
         Name_occurrences.union (Type_grammar.free_names ty) free_names)
       Name_occurrences.empty
       t.fields
+
+  let all_ids_for_export t =
+    Array.fold_left (fun ids ty ->
+        Ids_for_export.union (Type_grammar.all_ids_for_export ty) ids)
+      Ids_for_export.empty
+      t.fields
+
+  let import import_map { kind; fields; } =
+    let fields =
+      Array.map (fun ty -> Type_grammar.import import_map ty) fields
+    in
+    { kind; fields; }
 
   let map_types t ~(f : Type_grammar.t -> Type_grammar.t Or_bottom.t)
         : _ Or_bottom.t =

@@ -160,7 +160,7 @@ let rec rename i sub =
       (instr_cons (Iswitch(index, Array.map (fun (n, _s) -> n) new_sub_cases))
                   (subst_regs i.arg sub) [||] new_next,
        sub_next)
-  | Icatch(rec_flag, handlers, body) ->
+  | Icatch(rec_flag, ts, handlers, body) ->
       let new_subst =
         List.map (fun (nfail, _, _) -> nfail, ref None) handlers
       in
@@ -181,7 +181,7 @@ let rec rename i sub =
       let new_handlers = List.map2 (fun (nfail, ts, _) (handler, _) ->
           (nfail, ts, handler)) handlers res in
       (instr_cons
-         (Icatch(rec_flag, new_handlers, new_body)) [||] [||] new_next,
+         (Icatch(rec_flag, ts, new_handlers, new_body)) [||] [||] new_next,
        sub_next)
   | Iexit (nfail, _traps) ->
       let r = find_exit_subst nfail in

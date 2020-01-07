@@ -16,6 +16,12 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
+type middle_end_result = {
+  (* CR mshinwell: This next field is redundant *)
+  cmx : Flambda_cmx_format.t option;
+  unit : Flambda_unit.t;
+}
+
 let check_invariants unit =
   try Flambda_unit.invariant unit
   with exn -> begin
@@ -112,14 +118,19 @@ let middle_end0 ppf ~prefixname:_ ~backend ~filename ~module_ident
       Profile.record_call ~accumulate:true "simplify"
         (fun () -> Simplify.run ~backend ~round:1 flambda)
     in
-    print_flambda "simplify" ppf flambda;
+    print_flambda "simplify" ppf flambda.unit;
     flambda)
 
 let middle_end ~ppf_dump:ppf ~prefixname ~backend ~filename ~module_ident
-      ~module_block_size_in_words ~module_initializer =
+      ~module_block_size_in_words ~module_initializer : middle_end_result =
   try
-    middle_end0 ppf ~prefixname ~backend ~filename ~module_ident
-      ~module_block_size_in_words ~module_initializer
+    let simplify_result =
+      middle_end0 ppf ~prefixname ~backend ~filename ~module_ident
+        ~module_block_size_in_words ~module_initializer
+    in
+    { cmx = simplify_result.cmx;
+      unit = simplify_result.unit;
+    }
   with Misc.Fatal_error -> begin
     Format.eprintf "\n%sOriginal backtrace is:%s\n%s\n"
       (Flambda_colours.error ())

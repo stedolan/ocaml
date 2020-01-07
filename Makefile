@@ -44,6 +44,7 @@ INCLUDES=-I utils -I parsing -I typing -I bytecomp -I file_formats \
         -I middle_end/flambda2.0/compilenv_deps \
         -I middle_end/flambda2.0 \
         -I middle_end/flambda2.0/basic \
+        -I middle_end/flambda2.0/cmx \
         -I middle_end/flambda2.0/from_lambda \
         -I middle_end/flambda2.0/inlining \
         -I middle_end/flambda2.0/lifting \
@@ -251,6 +252,8 @@ MIDDLE_END_FLAMBDA2_BASIC=\
   middle_end/flambda2.0/basic/or_variable.cmo \
   middle_end/flambda2.0/basic/simple.cmo \
   middle_end/flambda2.0/basic/closure_id.cmo \
+  middle_end/flambda2.0/cmx/ids_for_export.cmo \
+  middle_end/flambda2.0/cmx/contains_ids.cmo \
   middle_end/flambda2.0/basic/kinded_parameter.cmo \
   middle_end/flambda2.0/basic/invariant_env.cmo \
   middle_end/flambda2.0/basic/expr_std.cmo \
@@ -326,6 +329,10 @@ MIDDLE_END_FLAMBDA2_TERMS=\
   middle_end/flambda2.0/types/flambda_type.cmo \
   middle_end/flambda2.0/terms/flambda_unit.cmo
 
+MIDDLE_END_FLAMBDA2_CMX=\
+  middle_end/flambda2.0/cmx/exported_offsets.cmo \
+  middle_end/flambda2.0/cmx/flambda_cmx_format.cmo
+
 MIDDLE_END_FLAMBDA2_SIMPLIFY=\
   middle_end/flambda2.0/simplify/env/continuation_use_kind.cmo \
   middle_end/flambda2.0/simplify/basic/apply_cont_rewrite.cmo \
@@ -337,6 +344,7 @@ MIDDLE_END_FLAMBDA2_SIMPLIFY=\
   middle_end/flambda2.0/simplify/typing_helpers/one_continuation_use.cmo \
   middle_end/flambda2.0/simplify/typing_helpers/continuation_uses.cmo \
   middle_end/flambda2.0/simplify/env/continuation_uses_env.cmo \
+  middle_end/flambda2.0/cmx/flambda_cmx.cmo \
   middle_end/flambda2.0/simplify/env/continuation_uses_env_intf.cmo \
   middle_end/flambda2.0/simplify/env/downwards_acc.cmo \
   middle_end/flambda2.0/simplify/env/upwards_acc.cmo \
@@ -387,6 +395,7 @@ MIDDLE_END_FLAMBDA2=\
   $(MIDDLE_END_FLAMBDA2_NAMING) \
   $(MIDDLE_END_FLAMBDA2_TYPES) \
   $(MIDDLE_END_FLAMBDA2_TERMS) \
+  $(MIDDLE_END_FLAMBDA2_CMX) \
   $(MIDDLE_END_FLAMBDA2_SIMPLIFY) \
   $(MIDDLE_END_FLAMBDA2_FROM_LAMBDA) \
   $(MIDDLE_END_FLAMBDA2_PARSER) \
@@ -1519,6 +1528,7 @@ partialclean::
            middle_end/flambda2.0/compilenv_deps \
            middle_end/flambda2.0 \
            middle_end/flambda2.0/basic \
+           middle_end/flambda2.0/cmx \
            middle_end/flambda2.0/from_lambda \
            middle_end/flambda2.0/inlining \
            middle_end/flambda2.0/naming \
@@ -1550,6 +1560,7 @@ depend: beforedepend
          middle_end/flambda2.0/compilenv_deps \
          middle_end/flambda2.0 \
          middle_end/flambda2.0/basic \
+         middle_end/flambda2.0/cmx \
          middle_end/flambda2.0/from_lambda \
          middle_end/flambda2.0/inlining \
          middle_end/flambda2.0/lifting \

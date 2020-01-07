@@ -205,7 +205,7 @@ let rec instr ppf i =
         fprintf ppf "@]@,%a@]" instr cases.(i)
       done;
       fprintf ppf "@,endswitch"
-  | Icatch(flag, handlers, body) ->
+  | Icatch(flag, _ts, handlers, body) ->
       fprintf ppf "@[<v 2>catch%a@,%a@;<0 -2>with"
         Printcmm.rec_flag flag instr body;
       let h (nfail, _trap_stack, handler) =

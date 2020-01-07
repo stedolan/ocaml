@@ -86,7 +86,7 @@ and instruction_desc =
   | Ireturn of Cmm.trap_action list
   | Iifthenelse of test * instruction * instruction
   | Iswitch of int array * instruction array
-  | Icatch of Cmm.rec_flag * (int * trap_stack * instruction) list * instruction
+  | Icatch of Cmm.rec_flag * trap_stack * (int * trap_stack * instruction) list * instruction
   | Iexit of int * Cmm.trap_action list
   | Itrywith of instruction * Cmm.trywith_kind * (trap_stack * instruction)
   | Iraise of Lambda.raise_kind
@@ -159,7 +159,7 @@ let rec instr_iter f i =
             instr_iter f cases.(i)
           done;
           instr_iter f i.next
-      | Icatch(_, handlers, body) ->
+      | Icatch(_, _ts, handlers, body) ->
           instr_iter f body;
           List.iter (fun (_n, _ts, handler) -> instr_iter f handler) handlers;
           instr_iter f i.next
@@ -229,7 +229,7 @@ let free_conts_for_handlers fundecl =
       | Iswitch (_, cases) ->
         Array.fold_left (fun conts instr -> S.union conts (free_conts instr))
           next_conts cases
-      | Icatch (_rec_flag, handlers, body) ->
+      | Icatch (_rec_flag, _ts, handlers, body) ->
         let conts = S.union next_conts (free_conts body) in
         let conts =
           List.fold_left (fun conts (nfail, ts, i) ->

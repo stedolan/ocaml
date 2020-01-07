@@ -287,7 +287,7 @@ let rec reload env i before =
              i.arg i.res new_next)
       in
       (i, finally, env)
-  | Icatch(rec_flag, handlers, body) ->
+  | Icatch(rec_flag, ts, handlers, body) ->
       let reload_at_exit = List.fold_left
           (fun reload_at_exit (nfail, _, _) ->
             Numbers.Int.Map.add nfail Reg.Set.empty reload_at_exit)
@@ -348,7 +348,7 @@ let rec reload env i before =
       let env = { env with reload_at_exit; } in
       let (new_next, finally, env) = reload env i.next after_union in
       (instr_cons
-         (Icatch(rec_flag, new_handlers, new_body)) i.arg i.res new_next,
+         (Icatch(rec_flag, ts, new_handlers, new_body)) i.arg i.res new_next,
        finally,
        env)
   | Iexit (nfail, _traps) ->
@@ -534,8 +534,9 @@ let rec spill env i finally =
           cases in
       (instr_cons (Iswitch(index, new_cases)) i.arg i.res new_next,
        !before)
-  | Icatch(rec_flag, handlers, body) ->
-      let (new_next, at_join) = spill env i.next finally in
+  | Icatch(rec_flag, ts, handlers, body) ->
+      let next_env = { env with at_raise = at_raise_from_trap_stack env ts } in
+      let (new_next, at_join) = spill next_env i.next finally in
       let spill_at_exit_add at_exits = List.map2
           (fun (nfail,_,_) at_exit -> nfail, at_exit)
           handlers at_exits
@@ -580,7 +581,7 @@ let rec spill env i finally =
       let new_handlers = List.map2
           (fun (nfail, ts, _) (handler, _) -> nfail, ts, handler)
           handlers res in
-      (instr_cons (Icatch(rec_flag, new_handlers, new_body))
+      (instr_cons (Icatch(rec_flag, ts, new_handlers, new_body))
          i.arg i.res new_next,
        before)
   | Iexit (nfail, _traps) ->

@@ -61,7 +61,7 @@ let parse_ilambda ~backend file =
       check_invariants fl2;
       let fl2' = Simplify.run ~backend ~round:1 fl2 in
       Format.printf "simplify:@.%a@."
-        Flambda_unit.print fl2';
+        Flambda_unit.print fl2'.unit;
       fl2'
     | Error e ->
       begin match e with
@@ -90,7 +90,7 @@ let parse_flambda ~backend file =
       check_invariants fl2;
       let fl2' = Simplify.run ~backend ~round:1 fl2 in
       Format.printf "simplify:@.%a@."
-        Flambda_unit.print fl2';
+        Flambda_unit.print fl2'.unit;
       fl2'
     | Error e ->
       begin match e with

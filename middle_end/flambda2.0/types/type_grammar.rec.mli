@@ -33,6 +33,8 @@ val print_with_cache : cache:Printing_cache.t -> Format.formatter -> t -> unit
 
 include Contains_names.S with type t := t
 
+include Contains_ids.S with type t := t
+
 val kind : t -> Flambda_kind.t
 
 val alias_type_of : Flambda_kind.t -> Simple.t -> t

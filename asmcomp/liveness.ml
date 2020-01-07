@@ -148,8 +148,8 @@ let rec live env i finally =
       done;
       i.live <- !at_fork;
       Reg.add_set_array !at_fork arg
-  | Icatch(rec_flag, handlers, body) ->
-      let at_join = live env i.next finally in
+  | Icatch(rec_flag, ts, handlers, body) ->
+      let at_join = live (env_from_trap_stack env ts) i.next finally in
       let aux env (nfail, ts, handler) (nfail', before_handler) =
         assert(nfail = nfail');
         let env = env_from_trap_stack env ts in

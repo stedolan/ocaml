@@ -137,6 +137,17 @@ let apply_name_permutation
       is_exn_handler;
     }
 
+let all_ids_for_export
+      { params_and_handler; stub = _; is_exn_handler = _; } =
+  Continuation_params_and_handler.all_ids_for_export params_and_handler
+
+let import import_map
+      { params_and_handler; stub; is_exn_handler; } =
+  let params_and_handler =
+    Continuation_params_and_handler.import import_map params_and_handler
+  in
+  { params_and_handler; stub; is_exn_handler; }
+
 type behaviour =
   | Unreachable of { arity : Flambda_arity.t; }
   | Alias_for of { arity : Flambda_arity.t; alias_for : Continuation.t; }

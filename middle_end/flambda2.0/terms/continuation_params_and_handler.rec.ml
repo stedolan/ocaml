@@ -38,6 +38,13 @@ module T0 = struct
     in
     if handler == handler' then t
     else { handler = handler'; }
+
+  let all_ids_for_export { handler; } =
+    Expr.all_ids_for_export handler
+
+  let import import_map { handler; } =
+    let handler = Expr.import import_map handler in
+    { handler; }
 end
 
 include Name_abstraction.Make_list (Kinded_parameter) (T0)

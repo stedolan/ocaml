@@ -81,6 +81,24 @@ let apply_name_permutation t perm =
     if set == set' then t
     else Set_of_closures set'
 
+let all_ids_for_export t =
+  match t with
+  | Simple simple -> Ids_for_export.from_simple simple
+  | Prim (prim, _dbg) -> Flambda_primitive.all_ids_for_export prim
+  | Set_of_closures set -> Set_of_closures.all_ids_for_export set
+
+let import import_map t =
+  match t with
+  | Simple simple ->
+    let simple = Ids_for_export.Import_map.simple import_map simple in
+    Simple simple
+  | Prim (prim, dbg) ->
+    let prim = Flambda_primitive.import import_map prim in
+    Prim (prim, dbg)
+  | Set_of_closures set ->
+    let set = Set_of_closures.import import_map set in
+    Set_of_closures set
+
 let box_value name (kind : Flambda_kind.t) dbg : Named.t * Flambda_kind.t =
   let simple = Simple.name name in
   match kind with

@@ -5,8 +5,8 @@
 (*                       Pierre Chambart, OCamlPro                        *)
 (*           Mark Shinwell and Leo White, Jane Street Europe              *)
 (*                                                                        *)
-(*   Copyright 2013--2019 OCamlPro SAS                                    *)
-(*   Copyright 2014--2019 Jane Street Group LLC                           *)
+(*   Copyright 2013--2020 OCamlPro SAS                                    *)
+(*   Copyright 2014--2020 Jane Street Group LLC                           *)
 (*                                                                        *)
 (*   All rights reserved.  This file is distributed under the terms of    *)
 (*   the GNU Lesser General Public License version 2.1, with the          *)
@@ -18,12 +18,18 @@
 
 open! Flambda.Import
 
+module I = Simplify_env_and_result_intf
 module KP = Kinded_parameter
 module T = Flambda_type
 module TE = Flambda_type.Typing_env
 
+type resolver = Compilation_unit.t -> Flambda_type.Typing_env.t option
+type get_imported_names = unit -> Name.Set.t
+type get_imported_code =
+  unit -> Function_params_and_body.t Code_id.Map.t
+
 module rec Downwards_env : sig
-  include Simplify_env_and_result_intf.Downwards_env
+  include I.Downwards_env
     with type result := Result.t
     with type lifted_constant := Lifted_constant.t
 end = struct
@@ -31,6 +37,7 @@ end = struct
     backend : (module Flambda2_backend_intf.S);
     round : int;
     typing_env : TE.t;
+    get_imported_code : (unit -> Function_params_and_body.t Code_id.Map.t);
     inlined_debuginfo : Debuginfo.t;
     can_inline : bool;
     inlining_depth_increment : int;
@@ -41,7 +48,7 @@ end = struct
     symbols_currently_being_defined : Symbol.Set.t;
   }
 
-  let print ppf { backend = _; round; typing_env;
+  let print ppf { backend = _; round; typing_env; get_imported_code = _;
                   inlined_debuginfo; can_inline;
                   inlining_depth_increment; float_const_prop;
                   code; at_unit_toplevel; unit_toplevel_exn_continuation;
@@ -72,12 +79,14 @@ end = struct
 
   let invariant _t = ()
 
-  let create ~round ~backend ~float_const_prop ~unit_toplevel_exn_continuation =
-    (* CR mshinwell: [resolver] should come from [backend] *)
-    let resolver _export_id = None in
+  let create ~round ~backend ~(resolver : resolver)
+        ~(get_imported_names : get_imported_names)
+        ~(get_imported_code : get_imported_code)
+        ~float_const_prop ~unit_toplevel_exn_continuation =
     { backend;
       round;
-      typing_env = TE.create ~resolver;
+      typing_env = TE.create ~resolver ~get_imported_names;
+      get_imported_code;
       inlined_debuginfo = Debuginfo.none;
       can_inline = true;
       inlining_depth_increment = 0;
@@ -150,7 +159,7 @@ end = struct
   let symbols_currently_being_defined t =
     t.symbols_currently_being_defined
 
-  let enter_closure { backend; round; typing_env;
+  let enter_closure { backend; round; typing_env; get_imported_code;
                       inlined_debuginfo = _; can_inline;
                       inlining_depth_increment;
                       float_const_prop; code; at_unit_toplevel = _;
@@ -160,6 +169,7 @@ end = struct
     { backend;
       round;
       typing_env = TE.closure_env typing_env;
+      get_imported_code;
       inlined_debuginfo = Debuginfo.none;
       can_inline;
       inlining_depth_increment;
@@ -201,7 +211,7 @@ end = struct
   let mem_name t name = TE.mem t.typing_env name
 
   let find_name t name =
-    match TE.find t.typing_env name with
+    match TE.find t.typing_env name None with
     | exception Not_found ->
       Misc.fatal_errorf "Unbound name %a in environment:@ %a"
         Name.print name
@@ -352,14 +362,28 @@ end = struct
       ~name:(fun name -> check_name_is_bound t name)
       ~const:(fun _ -> ())
 
+  let mem_code t code_id =
+    Code_id.Map.mem code_id t.code
+      || Code_id.Map.mem code_id (t.get_imported_code ())
+
   let check_code_id_is_bound t code_id =
-    if not (Code_id.Map.mem code_id t.code) then begin
+    if (not (Code_id.Map.mem code_id t.code))
+      && (not (Code_id.Map.mem code_id (t.get_imported_code ())))
+    then begin
       Misc.fatal_errorf "Unbound code ID %a in environment:@ %a"
         Code_id.print code_id
         print t
     end
 
   let define_code t ?newer_version_of ~code_id ~params_and_body:code =
+    if not (Code_id.in_compilation_unit code_id
+      (Compilation_unit.get_current_exn ()))
+    then begin
+      Misc.fatal_errorf "Cannot define code ID %a as it is from another unit:\
+          @ %a"
+        Code_id.print code_id
+        Function_params_and_body.print code
+    end;
     if Code_id.Map.mem code_id t.code then begin
       Misc.fatal_errorf "Code ID %a is already defined, cannot redefine to@ %a"
         Code_id.print code_id
@@ -376,13 +400,14 @@ end = struct
       code = Code_id.Map.add code_id code t.code;
     }
 
-  let mem_code t id =
-    Code_id.Map.mem id t.code
-
   let find_code t id =
     match Code_id.Map.find id t.code with
     | exception Not_found ->
-      Misc.fatal_errorf "Code ID %a not bound" Code_id.print id
+      begin match Code_id.Map.find id (t.get_imported_code ()) with
+      | exception Not_found ->
+        Misc.fatal_errorf "Code ID %a not bound" Code_id.print id
+      | code -> code
+      end
     | code -> code
 
   let with_code ~from t =
@@ -468,7 +493,7 @@ end = struct
     }
 
 end and Upwards_env : sig
-  include Simplify_env_and_result_intf.Upwards_env
+  include I.Upwards_env
     with type downwards_env := Downwards_env.t
 end = struct
   type t = {
@@ -643,42 +668,41 @@ end = struct
     | exception Not_found -> None
     | rewrite -> Some rewrite
 end and Result : sig
-  include Simplify_env_and_result_intf.Result
+  include I.Result
     with type lifted_constant := Lifted_constant.t
 end = struct
   type t =
-    { resolver : (Export_id.t -> Flambda_type.t option);
-      imported_symbols : Flambda_kind.t Symbol.Map.t;
+    { resolver : I.resolver;
+      get_imported_names : I.get_imported_names;
       lifted_constants_innermost_last : Lifted_constant.t list;
       shareable_constants : Symbol.t Static_const.Map.t;
       used_closure_vars : Var_within_closure.Set.t;
+      all_code : Function_params_and_body.t Code_id.Map.t;
     }
 
-  let print ppf { resolver = _; imported_symbols;
+  let print ppf { resolver = _; get_imported_names = _;
                   lifted_constants_innermost_last;
                   shareable_constants; used_closure_vars;
+                  all_code = _;
                 } =
     Format.fprintf ppf "@[<hov 1>(\
-        @[<hov 1>(imported_symbols@ %a)@]@ \
         @[<hov 1>(lifted_constants_innermost_last@ %a)@]@ \
         @[<hov 1>(shareable_constants@ %a)@]@ \
         @[<hov 1>(used_closure_vars@ %a)@]\
         )@]"
-      (Symbol.Map.print Flambda_kind.print) imported_symbols
       (Format.pp_print_list ~pp_sep:Format.pp_print_space Lifted_constant.print)
         lifted_constants_innermost_last
       (Static_const.Map.print Symbol.print) shareable_constants
       Var_within_closure.Set.print used_closure_vars
 
-  let create ~resolver =
+  let create ~resolver ~get_imported_names =
     { resolver;
-      imported_symbols = Symbol.Map.empty;
+      get_imported_names;
       lifted_constants_innermost_last = [];
       shareable_constants = Static_const.Map.empty;
       used_closure_vars = Var_within_closure.Set.empty;
+      all_code = Code_id.Map.empty;
     }
-
-  let imported_symbols t = t.imported_symbols
 
   let new_lifted_constant t lifted_constant =
     { t with
@@ -725,8 +749,14 @@ end = struct
     }
 
   let used_closure_vars t = t.used_closure_vars
+
+  let remember_code_for_cmx t code =
+    let all_code = Code_id.Map.disjoint_union code t.all_code in
+    { t with all_code; }
+
+  let all_code t = t.all_code
 end and Lifted_constant : sig
-  include Simplify_env_and_result_intf.Lifted_constant
+  include I.Lifted_constant
     with type downwards_env := Downwards_env.t
 end = struct
   type t = {

@@ -184,7 +184,7 @@ type middle_end2 =
   -> module_ident:Ident.t
   -> module_block_size_in_words:int
   -> module_initializer:Lambda.lambda
-  -> Flambda_unit.t
+  -> Flambda2_middle_end.middle_end_result
 
 let compile_implementation2 ?toplevel ~backend ~filename ~prefixname
     ~size:module_block_size_in_words ~module_ident ~module_initializer
@@ -238,9 +238,7 @@ module Flambda2_backend = struct
     assert (Ident.global id);
     assert (not (Ident.is_predef id));
     let comp_unit =
-      (* CR mshinwell: Get rid of this "caml" hack *)
-      Compilation_unit.create id
-        (Linkage_name.create ("caml" ^ Ident.name id))
+      Compilenv.unit_for_global id
     in
     Symbol.unsafe_create
       comp_unit
@@ -291,4 +289,26 @@ module Flambda2_backend = struct
 
   let max_sensible_number_of_arguments =
     Proc.max_arguments_for_tailcalls - 1
+
+  let set_global_info info = Compilenv.set_global_info (Flambda2 info)
+
+  let get_global_info comp_unit =
+    (* The Flambda 2.0 simplifier should have returned the typing information
+       for the predefined exception compilation unit before getting here. *)
+    assert (not (Compilation_unit.is_predefined_exception comp_unit));
+    if Compilation_unit.is_external_symbols comp_unit then None
+    else
+      let id =
+        (* CR mshinwell: Unsure how to construct this properly.  Also see CR
+          in Closure_conversion about the linkage names of module blocks *)
+        Compilation_unit.get_persistent_ident comp_unit
+      in
+      match Compilenv.get_global_info' id with
+      | None -> None
+      | Some (Flambda2 info) -> Some info
+      | Some (Clambda _) ->
+        (* CR mshinwell: This should be a user error, not a fatal error. *)
+        Misc.fatal_errorf "The .cmx file for unit %a was compiled with \
+            the Closure middle-end, not Flambda, and cannot be loaded"
+          Compilation_unit.print comp_unit
 end

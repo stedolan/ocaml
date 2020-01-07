@@ -14,6 +14,6 @@
 
 (* Translate Flambda compilation units into Cmm *)
 
-val unit : Flambda_unit.t -> Cmm.phrase list
+val unit : Flambda2_middle_end.middle_end_result -> Cmm.phrase list
 (** Translate a compilation unit. *)
 

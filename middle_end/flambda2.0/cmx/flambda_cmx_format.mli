@@ -1,0 +1,51 @@
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*                       Pierre Chambart, OCamlPro                        *)
+(*           Mark Shinwell and Leo White, Jane Street Europe              *)
+(*                                                                        *)
+(*   Copyright 2013--2020 OCamlPro SAS                                    *)
+(*   Copyright 2014--2020 Jane Street Group LLC                           *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
+
+[@@@ocaml.warning "+a-4-30-40-41-42"]
+
+(** Contents of middle-end-specific portion of .cmx files when using
+    Flambda. *)
+
+type t
+
+val create
+   : final_typing_env:Flambda_type.Typing_env.Serializable.t
+  -> all_code:Flambda.Function_params_and_body.t Code_id.Map.t
+  -> exported_offsets:Exported_offsets.t
+  -> t
+
+val import_typing_env_and_code
+   : t
+  -> Flambda_type.Typing_env.Serializable.t *
+     Flambda.Function_params_and_body.t Code_id.Map.t
+
+val exported_offsets : t -> Exported_offsets.t
+
+val with_exported_offsets : t -> Exported_offsets.t -> t
+
+(** Rename the compilation units for packed modules to the pack unit,
+    so that file lookups search for the right cmx *)
+val update_for_pack
+   : pack_units:Compilation_unit.Set.t
+  -> pack:Compilation_unit.t
+  -> t
+  -> t
+
+(** Aggregate several cmx into one for packs *)
+val merge : t -> t -> t
+
+(** For ocamlobjinfo *)
+val print : Format.formatter -> t -> unit

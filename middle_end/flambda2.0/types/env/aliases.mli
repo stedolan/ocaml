@@ -20,6 +20,8 @@
 
 type t
 
+include Contains_ids.S with type t := t
+
 val print : Format.formatter -> t -> unit
 
 val invariant : t -> unit
@@ -40,6 +42,8 @@ val add
   -> Binding_time.With_name_mode.t
   -> add_result
 
+val mem : t -> Simple.t -> bool
+
 (** [get_canonical_element] returns [None] only when the
     [min_order_within_equiv_class] cannot be satisfied. *)
 val get_canonical_element_exn
@@ -53,3 +57,5 @@ val get_canonical_element_exn
 val get_aliases : t -> Simple.t -> Simple.Set.t
 
 val get_canonical_ignoring_name_mode : t -> Name.t -> Simple.t
+
+val merge : t -> t -> t

@@ -56,6 +56,17 @@ let free_names t =
   | Naked_immediates _ -> Name_occurrences.empty
   | Is_int ty | Get_tag ty -> T.free_names ty
 
+let all_ids_for_export t =
+  match t with
+  | Naked_immediates _ -> Ids_for_export.empty
+  | Is_int ty | Get_tag ty -> T.all_ids_for_export ty
+
+let import import_map t =
+  match t with
+  | Naked_immediates _ -> t
+  | Is_int ty -> Is_int (T.import import_map ty)
+  | Get_tag ty -> Get_tag (T.import import_map ty)
+
 let apply_rec_info t rec_info : _ Or_bottom.t =
   if Rec_info.is_initial rec_info then Ok t
   else Bottom

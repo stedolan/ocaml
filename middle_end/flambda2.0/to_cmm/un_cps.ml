@@ -452,7 +452,7 @@ let unary_primitive env dbg f arg =
       None, C.box_number ~dbg kind arg
   | Select_closure { move_from = c1; move_to = c2} ->
       begin match Env.closure_offset env c1, Env.closure_offset env c2 with
-      | Some c1_offset, Some c2_offset ->
+      | Some { offset = c1_offset; _ }, Some { offset = c2_offset; _ } ->
         let diff = c2_offset - c1_offset in
         None, C.infix_field_address ~dbg arg diff
       | Some _, None | None, Some _ | None, None ->
@@ -460,7 +460,7 @@ let unary_primitive env dbg f arg =
       end
   | Project_var { project_from; var; } ->
       match Env.env_var_offset env var, Env.closure_offset env project_from with
-      | Some offset, Some base ->
+      | Some { offset; }, Some { offset = base; _ } ->
         None, C.get_field_gen Asttypes.Immutable arg (offset - base) dbg
       | Some _, None | None, Some _ | None, None ->
         None, C.unreachable
@@ -734,7 +734,7 @@ and let_set_of_closures env body closure_vars soc =
     Closure_id.Map.fold (fun cid v acc ->
         let v = Var_in_binding_pos.var v in
         match Env.closure_offset env cid with
-        | Some offset ->
+        | Some { offset; _ } ->
             let e =
               C.infix_field_address ~dbg: Debuginfo.none
                 soc_cmm_var offset
@@ -1342,10 +1342,23 @@ and params_and_body env fun_name p =
  *   in
  *   List.map (fun decl -> C.cfunction decl) sorted *)
 
-let unit (unit : Flambda_unit.t) =
+let unit (middle_end_result : Flambda2_middle_end.middle_end_result) =
+  let unit = middle_end_result.unit in
+  let offsets =
+    match middle_end_result.cmx with
+    | None -> Exported_offsets.imported_offsets ()
+    | Some cmx -> Flambda_cmx_format.exported_offsets cmx
+  in
   result := R.empty;
   Profile.record_call "flambda2_to_cmm" (fun () ->
-      let offsets = Un_cps_closure.compute_offsets unit in
+      let offsets = Un_cps_closure.compute_offsets offsets unit in
+      begin match middle_end_result.cmx with
+      | None -> () (* Either opaque was passed, or there is no need to export
+                      offsets *)
+      | Some cmx ->
+        let cmx = Flambda_cmx_format.with_exported_offsets cmx offsets in
+        Compilenv.(set_global_info (Flambda2 cmx))
+      end;
       let used_closure_vars = Flambda_unit.used_closure_vars unit in
       let dummy_k = Continuation.create () in
       (* The dummy continuation is passed here since we're going to manually

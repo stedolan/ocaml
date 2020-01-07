@@ -225,7 +225,7 @@ let rec available_regs (instr : M.instruction)
         Some (ok avail_across), ok avail_after
       | Iifthenelse (_, ifso, ifnot) -> join [ifso; ifnot] ~avail_before
       | Iswitch (_, cases) -> join (Array.to_list cases) ~avail_before
-      | Icatch (recursive, handlers, body) ->
+      | Icatch (recursive, _ts, handlers, body) ->
         List.iter (fun (nfail, _ts, _handler) ->
             (* In case there are nested [Icatch] expressions with the same
                handler numbers, we rely on the [Hashtbl] shadowing

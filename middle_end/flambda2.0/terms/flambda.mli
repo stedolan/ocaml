@@ -496,6 +496,8 @@ end and Function_params_and_body : sig
   (** Printing, invariant checks, name manipulation, etc. *)
   include Expr_std.S with type t := t
 
+  include Contains_ids.S with type t := t
+
   (** Create an abstraction that binds the given parameters, with associated
       relations thereon, over the given body. *)
   val create
@@ -623,6 +625,11 @@ end and Static_const : sig
 
   val get_pieces_of_code : t -> Static_const.Code.t Code_id.Map.t
 
+  val get_pieces_of_code' : t -> Function_params_and_body.t Code_id.Map.t
+
+  (** Returns [true] iff the given term does not contain any variables,
+      which means that the corresponding value can be statically allocated,
+      without any need to patch it afterwards. *)
   val is_fully_static : t -> bool
 
   val can_share : t -> bool

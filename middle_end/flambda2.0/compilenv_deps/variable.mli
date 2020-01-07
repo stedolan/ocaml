@@ -30,6 +30,8 @@ val rename : ?append:string -> t -> t
 
 val unique_name : t -> string
 
+val compilation_unit : t -> Compilation_unit.t
+
 val print_list : Format.formatter -> t list -> unit
 val print_opt : Format.formatter -> t option -> unit
 

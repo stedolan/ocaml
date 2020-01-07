@@ -139,6 +139,41 @@ let free_names t =
   | String _ -> Name_occurrences.empty
   | Array { length; } -> T.free_names length
 
+let all_ids_for_export t =
+  match t with
+  | Variant { blocks; immediates; } ->
+    Ids_for_export.union
+      (Or_unknown.all_ids_for_export Blocks.all_ids_for_export blocks)
+      (Or_unknown.all_ids_for_export T.all_ids_for_export immediates)
+  | Boxed_float ty -> T.all_ids_for_export ty
+  | Boxed_int32 ty -> T.all_ids_for_export ty
+  | Boxed_int64 ty -> T.all_ids_for_export ty
+  | Boxed_nativeint ty -> T.all_ids_for_export ty
+  | Closures { by_closure_id; } ->
+    Row_like.For_closures_entry_by_set_of_closures_contents.all_ids_for_export
+      by_closure_id
+  | String _ -> Ids_for_export.empty
+  | Array { length; } -> T.all_ids_for_export length
+
+let import import_map t =
+  match t with
+  | Variant { blocks; immediates; } ->
+    let blocks = Or_unknown.import Blocks.import import_map blocks in
+    let immediates = Or_unknown.import T.import import_map immediates in
+    Variant (Variant.create ~blocks ~immediates)
+  | Boxed_float ty -> Boxed_float (T.import import_map ty)
+  | Boxed_int32 ty -> Boxed_int32 (T.import import_map ty)
+  | Boxed_int64 ty -> Boxed_int64 (T.import import_map ty)
+  | Boxed_nativeint ty -> Boxed_nativeint (T.import import_map ty)
+  | Closures { by_closure_id; } ->
+    let by_closure_id =
+      Row_like.For_closures_entry_by_set_of_closures_contents.import import_map
+        by_closure_id
+    in
+    Closures { by_closure_id; }
+  | (String _) as t -> t
+  | Array { length; } -> Array { length = T.import import_map length; }
+
 let apply_rec_info t rec_info : _ Or_bottom.t =
   match t with
   | Closures { by_closure_id; } ->

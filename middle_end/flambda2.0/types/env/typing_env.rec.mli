@@ -22,11 +22,19 @@ val invariant : t -> unit
 
 val print : Format.formatter -> t -> unit
 
-val create : resolver:(Export_id.t -> Type_grammar.t option) -> t
+val create
+   : resolver:(Compilation_unit.t -> t option)
+  -> get_imported_names:(unit -> Name.Set.t)
+  -> t
 
 val closure_env : t -> t
 
-val resolver : t -> (Export_id.t -> Type_grammar.t option)
+val resolver : t -> (Compilation_unit.t -> t option)
+
+val code_age_relation_resolver :
+  t -> (Compilation_unit.t -> Code_age_relation.t option)
+
+val name_domain : t -> Name.Set.t
 
 val current_scope : t -> Scope.t
 
@@ -50,9 +58,14 @@ val add_equations_on_params
   -> param_types:Type_grammar.t list
   -> t
 
-val find : t -> Name.t -> Type_grammar.t
+(** If the kind of the name is known, it should be specified, otherwise it
+    can be omitted.  Such omission will cause an error if the name satisfies
+    [variable_is_from_missing_cmx_file]. *)
+val find : t -> Name.t -> Flambda_kind.t option -> Type_grammar.t
 
 val find_params : t -> Kinded_parameter.t list -> Type_grammar.t list
+
+val variable_is_from_missing_cmx_file : t -> Name.t -> bool
 
 val mem : t -> Name.t -> bool
 
@@ -127,3 +140,26 @@ val cut_and_n_way_join
 val free_names_transitive : t -> Type_grammar.t -> Name_occurrences.t
 
 val defined_symbols : t -> Symbol.Set.t
+
+val clean_for_export : t -> t
+
+module Serializable : sig
+  type typing_env = t
+  type t
+
+  val create : typing_env -> t
+
+  val print : Format.formatter -> t -> unit
+
+  val to_typing_env
+     : t
+    -> resolver:(Compilation_unit.t -> typing_env option)
+    -> get_imported_names:(unit -> Name.Set.t)
+    -> typing_env
+
+  val all_ids_for_export : t -> Ids_for_export.t
+
+  val import : Ids_for_export.Import_map.t -> t -> t
+
+  val merge : t -> t -> t
+end

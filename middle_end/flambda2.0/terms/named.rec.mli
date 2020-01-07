@@ -30,6 +30,8 @@ type t = private
 (** Printing, invariant checks, name manipulation, etc. *)
 include Expr_std.S with type t := t
 
+include Contains_ids.S with type t := t
+
 (** Convert a register-width value into the defining expression of a [Let]. *)
 val create_simple : Simple.t -> t
 

@@ -158,14 +158,14 @@ Format.eprintf "All bindings:@ %a\n%!"
        an error if it tries to use it. *)
     Sort_lifted_constants.sort dacc all_lifted_constants
   in
-  let expr =
-    List.fold_left (fun body (bound_symbols, defining_expr) ->
-        Simplify_common.create_let_symbol (UA.r uacc) scoping_rule
+  let expr, r =
+    List.fold_left (fun (body, r) (bound_symbols, defining_expr) ->
+        Simplify_common.create_let_symbol r scoping_rule
           (UA.code_age_relation uacc) bound_symbols defining_expr body)
-      body
+      (body, UA.r uacc)
       sorted_lifted_constants.bindings_outermost_last
   in
-  expr, user_data, uacc
+  expr, user_data, UA.with_r uacc r
 
 and simplify_one_continuation_handler :
  'a. DA.t
@@ -920,8 +920,9 @@ and simplify_direct_function_call
     | None -> Ok callee's_code_id_from_type
     | Some callee's_code_id_from_call_kind ->
       let code_age_rel = TE.code_age_relation (DA.typing_env dacc) in
-      Code_age_relation.meet code_age_rel callee's_code_id_from_call_kind
-        callee's_code_id_from_type
+      let resolver = TE.code_age_relation_resolver (DA.typing_env dacc) in
+      Code_age_relation.meet code_age_rel ~resolver
+        callee's_code_id_from_call_kind callee's_code_id_from_type
   in
   match callee's_code_id with
   | Bottom ->

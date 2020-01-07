@@ -92,6 +92,36 @@ let apply_name_permutation t perm =
     if closure_vars == closure_vars' then t
     else Set_of_closures { name_mode; closure_vars = closure_vars'; }
 
+let all_ids_for_export t =
+  match t with
+  | Singleton var ->
+    Ids_for_export.add_variable Ids_for_export.empty
+      (Var_in_binding_pos.var var)
+  | Set_of_closures { name_mode = _; closure_vars; } ->
+    Closure_id.Map.fold (fun _closure_id var ids ->
+        Ids_for_export.add_variable ids (Var_in_binding_pos.var var))
+      closure_vars
+      Ids_for_export.empty
+
+let import import_map t =
+  match t with
+  | Singleton var ->
+    let raw_var =
+      Ids_for_export.Import_map.variable import_map (Var_in_binding_pos.var var)
+    in
+    Singleton
+      (Var_in_binding_pos.create raw_var (Var_in_binding_pos.name_mode var))
+  | Set_of_closures { name_mode; closure_vars; } ->
+    let closure_vars =
+      Closure_id.Map.map (fun var ->
+          Var_in_binding_pos.create
+            (Ids_for_export.Import_map.variable import_map
+               (Var_in_binding_pos.var var))
+            (Var_in_binding_pos.name_mode var))
+        closure_vars
+    in
+    Set_of_closures { name_mode; closure_vars; }
+
 let rename t =
   match t with
   | Singleton var -> Singleton (Var_in_binding_pos.rename var)

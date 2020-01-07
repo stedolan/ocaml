@@ -21,6 +21,8 @@ type t
 (** Printing, invariant checks, name manipulation, etc. *)
 include Expr_std.S with type t := t
 
+include Contains_ids.S with type t := t
+
 val empty : t
 
 val is_empty : t -> bool

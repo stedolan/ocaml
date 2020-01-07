@@ -32,7 +32,6 @@ module Make (Head : Type_head_intf.S
     type t =
       | No_alias of Head.t Or_unknown_or_bottom.t
       | Equals of Simple.t
-      | Type of Export_id.t
 
     let print_with_cache ~cache ppf t =
       let colour = Flambda_colours.top_or_bottom_type () in
@@ -55,11 +54,6 @@ module Make (Head : Type_head_intf.S
           (Flambda_colours.error ())
           (Flambda_colours.normal ())
           Simple.print simple
-      | Type export_id ->
-        Format.fprintf ppf "@[(@<0>%s=export_id@<0>%s %a)@]"
-          (Flambda_colours.error ())
-          (Flambda_colours.normal ())
-          Export_id.print export_id
 
     let print ppf t =
       print_with_cache ~cache:(Printing_cache.create ()) ppf t
@@ -77,7 +71,6 @@ module Make (Head : Type_head_intf.S
           let simple' = Simple.apply_name_permutation simple perm in
           if simple == simple' then t
           else Equals simple'
-        | Type _ -> t
 
     let free_names t =
       match t with
@@ -87,10 +80,25 @@ module Make (Head : Type_head_intf.S
         Name_occurrences.downgrade_occurrences_at_strictly_greater_kind
           (Simple.free_names simple)
           Name_mode.in_types
-      | Type _ -> Name_occurrences.empty
   end
 
   include With_delayed_permutation.Make (Descr)
+
+  let all_ids_for_export t =
+    match descr t with
+    | No_alias Bottom | No_alias Unknown -> Ids_for_export.empty
+    | No_alias (Ok head) -> Head.all_ids_for_export head
+    | Equals simple -> Ids_for_export.from_simple simple
+
+  let import import_map t =
+    let descr : Descr.t =
+      match descr t with
+      | (No_alias Unknown | No_alias Bottom) as descr -> descr
+      | No_alias (Ok head) -> No_alias (Ok (Head.import import_map head))
+      | Equals simple ->
+        Equals (Ids_for_export.Import_map.simple import_map simple)
+    in
+    create descr
 
   let print_with_cache ~cache ppf t =
     Descr.print_with_cache ~cache ppf (descr t)
@@ -100,7 +108,6 @@ module Make (Head : Type_head_intf.S
 
   let create_no_alias head = create (No_alias head)
   let create_equals simple = create (Equals simple)
-  let create_type export_id = create (Type export_id)
 
   let bottom = lazy (create (No_alias Bottom))
   let unknown = lazy (create (No_alias Unknown))
@@ -114,21 +121,21 @@ module Make (Head : Type_head_intf.S
     match peek_descr t with
     | No_alias Bottom -> true
     | No_alias (Ok _ | Unknown)
-    | Equals _ | Type _ -> false
+    | Equals _ -> false
 
   let is_obviously_unknown t =
     match peek_descr t with
     | No_alias Unknown -> true
     | No_alias (Ok _ | Bottom)
-    | Equals _ | Type _ -> false
+    | Equals _ -> false
 
   let get_alias_exn t =
     match peek_descr t with
-    | No_alias _ | Type _ -> raise Not_found
+    | No_alias _ -> raise Not_found
     | Equals _ ->
       match descr t with
       | Equals alias -> alias
-      | No_alias _ | Type _ -> assert false
+      | No_alias _ -> assert false
 
   let apply_rec_info t rec_info : _ Or_bottom.t =
     match descr t with
@@ -138,7 +145,6 @@ module Make (Head : Type_head_intf.S
       | None -> Bottom
       | Some simple -> Ok (create_equals simple)
       end
-    | Type _ -> Misc.fatal_error "Not yet implemented"
     | No_alias Unknown -> Ok t
     | No_alias Bottom -> Bottom
     | No_alias (Ok head) ->
@@ -148,13 +154,11 @@ module Make (Head : Type_head_intf.S
   let force_to_head ~force_to_kind t =
     match descr (force_to_kind t) with
     | No_alias head -> head
-    | Type _ | Equals _ ->
-      Misc.fatal_errorf "Expected [No_alias]:@ %a" T.print t
+    | Equals _ -> Misc.fatal_errorf "Expected [No_alias]:@ %a" T.print t
 
-  let expand_head ~force_to_kind t env : _ Or_unknown_or_bottom.t =
+  let expand_head ~force_to_kind t env kind : _ Or_unknown_or_bottom.t =
     match descr t with
     | No_alias head -> head
-    | Type _export_id -> Misc.fatal_error ".cmx loading not yet implemented"
     | Equals simple ->
       let min_name_mode = Name_mode.min_in_types in
       match TE.get_canonical_simple_exn env simple ~min_name_mode with
@@ -177,7 +181,7 @@ module Make (Head : Type_head_intf.S
           force_to_head ~force_to_kind typ
         in
         let [@inline always] name name : _ Or_unknown_or_bottom.t =
-          let t = force_to_kind (TE.find env name) in
+          let t = force_to_kind (TE.find env name (Some kind)) in
           match descr t with
           | No_alias Bottom -> Bottom
           | No_alias Unknown -> Unknown
@@ -196,18 +200,17 @@ module Make (Head : Type_head_intf.S
               | Ok head -> Ok head
             end
             *)
-          | Type _export_id ->
-            Misc.fatal_error ".cmx loading not yet implemented"
           | Equals _ ->
             Misc.fatal_errorf "Canonical alias %a should never have \
-                [Equals] type:@ %a"
+                [Equals] type %a:@ %a"
               Simple.print simple
+              print t
               TE.print env
         in
         Simple.pattern_match simple ~const ~name
 
-  let expand_head' ~force_to_kind t env =
-    match expand_head ~force_to_kind t env with
+  let expand_head' ~force_to_kind t env kind =
+    match expand_head ~force_to_kind t env kind with
     | Unknown -> unknown ()
     | Ok head -> create_no_alias (Ok head)
     | Bottom -> bottom ()
@@ -236,7 +239,7 @@ module Make (Head : Type_head_intf.S
         simples
 
   let [@inline always] get_canonical_simples_and_expand_heads ~force_to_kind
-        ~to_type ~left_env ~left_ty ~right_env ~right_ty =
+        ~to_type kind ~left_env ~left_ty ~right_env ~right_ty =
     let canonical_simple1 =
       match
         TE.get_alias_then_canonical_simple_exn left_env (to_type left_ty)
@@ -245,7 +248,7 @@ module Make (Head : Type_head_intf.S
       | exception Not_found -> None
       | canonical_simple -> Some canonical_simple
     in
-    let head1 = expand_head ~force_to_kind left_ty left_env in
+    let head1 = expand_head ~force_to_kind left_ty left_env kind in
     let canonical_simple2 =
       match
         TE.get_alias_then_canonical_simple_exn right_env (to_type right_ty)
@@ -254,7 +257,7 @@ module Make (Head : Type_head_intf.S
       | exception Not_found -> None
       | canonical_simple -> Some canonical_simple
     in
-    let head2 = expand_head ~force_to_kind right_ty right_env in
+    let head2 = expand_head ~force_to_kind right_ty right_env kind in
     canonical_simple1, head1, canonical_simple2, head2
 
   module Make_meet_or_join
@@ -344,10 +347,10 @@ module Make (Head : Type_head_intf.S
        which is just the same as that already in the environment.  This
        shouldn't have been emitted from [meet]. *)
 
-    let meet ~force_to_kind ~to_type ty1 ty2 env t1 t2 =
+    let meet ~force_to_kind ~to_type ty1 ty2 env kind t1 t2 =
       let typing_env = Meet_env.env env in
-      let head1 = expand_head ~force_to_kind t1 typing_env in
-      let head2 = expand_head ~force_to_kind t2 typing_env in
+      let head1 = expand_head ~force_to_kind t1 typing_env kind in
+      let head2 = expand_head ~force_to_kind t2 typing_env kind in
       match
         TE.get_alias_then_canonical_simple_exn typing_env (to_type t1)
           ~min_name_mode:Name_mode.in_types
@@ -459,7 +462,7 @@ module Make (Head : Type_head_intf.S
                 to_type (create_equals simple1), env_extension
           end
 
-    let join ?bound_name ~force_to_kind ~to_type join_env t1 t2 =
+    let join ?bound_name ~force_to_kind ~to_type join_env kind t1 t2 =
       (*
       Format.eprintf "DESCR: Joining %a and %a\n%!" print t1 print t2;
       Format.eprintf "Left:@ %a@ Right:@ %a\n%!"
@@ -475,7 +478,7 @@ module Make (Head : Type_head_intf.S
       (* CR mshinwell: Rewrite this to avoid the [option] allocations from
          [get_canonical_simples_and_expand_heads] *)
       let canonical_simple1, head1, canonical_simple2, head2 =
-        get_canonical_simples_and_expand_heads ~force_to_kind ~to_type
+        get_canonical_simples_and_expand_heads ~force_to_kind ~to_type kind
           ~left_env:(Meet_or_join_env.left_join_env join_env)
           ~left_ty:t1
           ~right_env:(Meet_or_join_env.right_join_env join_env)
@@ -556,11 +559,15 @@ module Make (Head : Type_head_intf.S
           | Unknown -> to_type (unknown ())
           | Ok head -> to_type (create head)
 
-    let meet_or_join ?bound_name ~force_to_kind ~to_type env ty1 ty2 t1 t2 =
+    let meet_or_join ?bound_name ~force_to_kind ~to_type env kind
+          ty1 ty2 t1 t2 =
       match E.op () with
       | Meet ->
         let env = Meet_or_join_env.meet_env env in
-        meet ~force_to_kind ~to_type ty1 ty2 env t1 t2
-      | Join -> join ?bound_name ~force_to_kind ~to_type env t1 t2, TEE.empty ()
+        let kind = T.kind ty1 in
+        assert (K.equal kind (T.kind ty2));
+        meet ~force_to_kind ~to_type ty1 ty2 env kind t1 t2
+      | Join ->
+        join ?bound_name ~force_to_kind ~to_type env kind t1 t2, TEE.empty ()
   end
 end

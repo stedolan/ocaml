@@ -55,6 +55,12 @@ let record_continuation_use t cont kind ~typing_env_at_use ~arg_types =
   in
   t, id
 
+let get_typing_env_no_more_than_one_use t k =
+  match Continuation.Map.find k t.continuation_uses with
+  | exception Not_found -> None
+  | cont_uses ->
+    Continuation_uses.get_typing_env_no_more_than_one_use cont_uses
+
 let compute_handler_env t ~env_at_fork_plus_params_and_consts
       ~consts_lifted_during_body cont
       ~params : Continuation_env_and_param_types.t =

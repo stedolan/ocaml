@@ -80,6 +80,13 @@ let apply_name_permutation ({ param = _; kind; } as t) perm =
       Misc.fatal_errorf "Illegal name permutation on [Kinded_parameter]: %a"
         Name_permutation.print perm)
 
+let all_ids_for_export { param; kind = _; } =
+  Ids_for_export.add_variable Ids_for_export.empty param
+
+let import import_map { param; kind; } =
+  let param = Ids_for_export.Import_map.variable import_map param in
+  { param; kind; }
+
 let add_to_name_permutation t ~guaranteed_fresh perm =
   Name_permutation.add_fresh_variable perm (var t)
     ~guaranteed_fresh:(var guaranteed_fresh)

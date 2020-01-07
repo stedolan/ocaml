@@ -39,4 +39,6 @@ module type S = sig
   val join : meet_or_join_env -> t -> t -> t
 
   include Contains_names.S with type t := t
+
+  include Contains_ids.S with type t := t
 end

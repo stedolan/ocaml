@@ -24,6 +24,8 @@ type t
 (** Printing, invariant checks, name manipulation, etc. *)
 include Expr_std.S with type t := t
 
+include Contains_ids.S with type t := t
+
 (** Create the representation of a single continuation handler. *)
 val create
    : params_and_handler:Continuation_params_and_handler.t

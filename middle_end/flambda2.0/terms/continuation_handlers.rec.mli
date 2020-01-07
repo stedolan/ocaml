@@ -30,3 +30,4 @@ val domain : t -> Continuation.Set.t
 val contains_exn_handler : t -> bool
 
 include Contains_names.S with type t := t
+include Contains_ids.S with type t := t

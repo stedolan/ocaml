@@ -25,6 +25,12 @@ let free_names t =
 
 let apply_name_permutation t perm = Name_permutation.apply_variable perm t
 
+let all_ids_for_export t =
+  Ids_for_export.add_variable Ids_for_export.empty t
+
+let import import_map t =
+  Ids_for_export.Import_map.variable import_map t
+
 let rename t = rename t
 
 let add_to_name_permutation t ~guaranteed_fresh perm =

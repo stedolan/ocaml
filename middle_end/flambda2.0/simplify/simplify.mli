@@ -22,8 +22,14 @@
     Readers interested in the function inlining strategy should read the
     [Inlining_decision] module first.
 *)
+
+type simplify_result = private {
+  cmx : Flambda_cmx_format.t option;
+  unit : Flambda_unit.t;
+}
+
 val run
    : backend:(module Flambda2_backend_intf.S)
   -> round:int
   -> Flambda_unit.t
-  -> Flambda_unit.t
+  -> simplify_result

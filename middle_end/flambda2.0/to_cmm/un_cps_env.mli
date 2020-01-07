@@ -20,7 +20,7 @@ type t
 (** Environment for flambda2 to cmm translation *)
 
 val mk :
-  Un_cps_closure.env ->
+  Exported_offsets.t ->
   Continuation.t -> Continuation.t ->
   Var_within_closure.Set.t -> t
 (** [mk offsets k k_exn used_closure_vars] creates a local environment for
@@ -32,7 +32,7 @@ val enter_function_def : t -> Continuation.t -> Continuation.t -> t
     translating a flambda2 expression, with return continuation [k], exception
     continuation [k_exn], preserving the global info from [env]. *)
 
-val dummy : Un_cps_closure.env -> Var_within_closure.Set.t -> t
+val dummy : Exported_offsets.t -> Var_within_closure.Set.t -> t
 (** Create an environment with dummy return adn exception continuations. *)
 
 
@@ -145,10 +145,10 @@ val get_jump_id : t -> Continuation.t -> int
 
 (** {2 Sets of closures and offsets} *)
 
-val closure_offset : t -> Closure_id.t -> int option
+val closure_offset : t -> Closure_id.t -> Exported_offsets.closure_info option
 (** Wrapper around {!Un_cps_closure.closure_offset}. *)
 
-val env_var_offset : t -> Var_within_closure.t -> int option
+val env_var_offset : t -> Var_within_closure.t -> Exported_offsets.env_var_info option
 (** Wrapper around {!Un_cps_closure.env_var_offset}. *)
 
 val layout :

@@ -107,7 +107,7 @@ let lift_set_of_closures_discovered_via_reified_continuation_param_types dacc
             closure_id
             |> Closure_id.rename
             |> Closure_id.to_string
-            |> Linkage_name.create 
+            |> Linkage_name.create
           in
           Symbol.create (Compilation_unit.get_current_exn ()) name)
         function_decls
@@ -163,7 +163,7 @@ let lift_set_of_closures_discovered_via_reified_continuation_param_types dacc
           let ty =
             Simple.pattern_match simple
               ~const:(fun const -> T.type_for_const const)
-              ~name:(fun name -> TE.find (DA.typing_env dacc) name)
+              ~name:(fun name -> TE.find (DA.typing_env dacc) name None)
           in
           Name_occurrences.union env_free_names
             (TE.free_names_transitive (DA.typing_env dacc) ty))
@@ -191,10 +191,13 @@ let lift_set_of_closures_discovered_via_reified_continuation_param_types dacc
 
 let reify_types_of_continuation_param_types dacc ~params =
   let orig_typing_env = DA.typing_env dacc in
-  Variable.Set.fold
-    (fun var (dacc, reified_continuation_params_to_symbols, reified_definitions,
-              closure_symbols_by_set) ->
-      let ty = TE.find orig_typing_env (Name.var var) in
+  let disallowed_free_vars = KP.List.var_set params in
+  List.fold_left
+    (fun (dacc, reified_continuation_params_to_symbols, reified_definitions,
+          closure_symbols_by_set) param ->
+      let var = KP.var param in
+      let kind = KP.kind param in
+      let ty = TE.find orig_typing_env (Name.var var) (Some kind) in
       let existing_symbol =
         (* We must avoid attempting to create aliases between symbols or
            (equivalently) defining static parts that already have symbols.
@@ -224,7 +227,7 @@ let reify_types_of_continuation_param_types dacc ~params =
         let typing_env = DA.typing_env dacc in
         match
           T.reify ~allowed_if_free_vars_defined_in:typing_env
-            ~disallowed_free_vars:params typing_env ~min_name_mode:NM.normal ty
+            ~disallowed_free_vars typing_env ~min_name_mode:NM.normal ty
         with
         | Lift to_lift ->
           (* There's no point in lifting constant values, as these should
@@ -265,8 +268,8 @@ let reify_types_of_continuation_param_types dacc ~params =
         | Simple _ | Cannot_reify | Invalid ->
           dacc, reified_continuation_params_to_symbols, reified_definitions,
             closure_symbols_by_set)
-    params
     (dacc, Variable.Map.empty, [], Set_of_closures.Map.empty)
+    params
 
 let lift_via_reification_of_continuation_param_types0 dacc ~params
       ~(extra_params_and_args : Continuation_extra_params_and_args.t)
@@ -275,10 +278,7 @@ let lift_via_reification_of_continuation_param_types0 dacc ~params
     DA.print dacc; *)
   let dacc, _reified_continuation_params_to_symbols, reified_definitions,
       _closure_symbols_by_set =
-    let params =
-      Variable.Set.union (KP.List.var_set params)
-        (KP.List.var_set extra_params_and_args.extra_params)
-    in
+    let params = params @ extra_params_and_args.extra_params in
     reify_types_of_continuation_param_types dacc ~params
   in
   (* CR mshinwell: If recursion extends beyond that which can be handled by the

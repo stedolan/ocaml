@@ -49,6 +49,16 @@ module T0 = struct
     { handlers = handlers';
       body = body';
     }
+
+  let all_ids_for_export { handlers; body; } =
+    let body_ids = Expr.all_ids_for_export body in
+    let handlers_ids = Continuation_handlers.all_ids_for_export handlers in
+    Ids_for_export.union body_ids handlers_ids
+
+  let import import_map { handlers; body; } =
+    let body = Expr.import import_map body in
+    let handlers = Continuation_handlers.import import_map handlers in
+    { handlers; body; }
 end
 
 include Name_abstraction.Make_list (Bindable_continuation) (T0)

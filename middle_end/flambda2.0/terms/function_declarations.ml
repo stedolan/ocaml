@@ -60,6 +60,20 @@ let apply_name_permutation ({ funs; } as t) perm =
   if funs == funs' then t
   else { funs = funs'; }
 
+let all_ids_for_export { funs; } =
+  Closure_id.Map.fold
+    (fun _closure_id (func_decl : Function_declaration.t) ids ->
+      Ids_for_export.union ids
+        (Function_declaration.all_ids_for_export func_decl))
+    funs
+    Ids_for_export.empty
+
+let import import_map { funs; } =
+  let funs =
+    Closure_id.Map.map (Function_declaration.import import_map) funs
+  in
+  { funs; }
+
 let compare { funs = funs1; } { funs = funs2; } =
   Closure_id.Map.compare Function_declaration.compare funs1 funs2
 

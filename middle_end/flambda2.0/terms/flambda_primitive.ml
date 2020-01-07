@@ -1485,6 +1485,38 @@ let apply_name_permutation t perm =
   | Variadic (prim, xs) ->
     Variadic (prim, Simple.List.apply_name_permutation xs perm)
 
+let all_ids_for_export t =
+  match t with
+  | Unary (_prim, x0) -> Ids_for_export.from_simple x0
+  | Binary (_prim, x0, x1) ->
+    Ids_for_export.add_simple (Ids_for_export.from_simple x0) x1
+  | Ternary (_prim, x0, x1, x2) ->
+    Ids_for_export.add_simple
+      (Ids_for_export.add_simple (Ids_for_export.from_simple x0) x1)
+      x2
+  | Variadic (_prim, xs) ->
+    List.fold_left Ids_for_export.add_simple Ids_for_export.empty xs
+
+let import import_map t =
+  match t with
+  | Unary (prim, x0) ->
+    let x0 = Ids_for_export.Import_map.simple import_map x0 in
+    Unary (prim, x0)
+  | Binary (prim, x0, x1) ->
+    let x0 = Ids_for_export.Import_map.simple import_map x0 in
+    let x1 = Ids_for_export.Import_map.simple import_map x1 in
+    Binary (prim, x0, x1)
+  | Ternary (prim, x0, x1, x2) ->
+    let x0 = Ids_for_export.Import_map.simple import_map x0 in
+    let x1 = Ids_for_export.Import_map.simple import_map x1 in
+    let x2 = Ids_for_export.Import_map.simple import_map x2 in
+    Ternary (prim, x0, x1, x2)
+  | Variadic (prim, xs) ->
+    let xs =
+      List.map (Ids_for_export.Import_map.simple import_map) xs
+    in
+    Variadic (prim, xs)
+
 let args t =
   match t with
   | Unary (_, x0) -> [x0]

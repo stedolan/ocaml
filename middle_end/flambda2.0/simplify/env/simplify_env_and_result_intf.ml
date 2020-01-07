@@ -18,6 +18,11 @@
 
 open! Flambda.Import
 
+type resolver = Compilation_unit.t -> Flambda_type.Typing_env.t option
+type get_imported_names = unit -> Name.Set.t
+type get_imported_code =
+  unit -> Function_params_and_body.t Code_id.Map.t
+
 module type Downwards_env = sig
   type t
 
@@ -34,6 +39,9 @@ module type Downwards_env = sig
   val create
      : round:int
     -> backend:(module Flambda2_backend_intf.S)
+    -> resolver:resolver
+    -> get_imported_names:get_imported_names
+    -> get_imported_code:get_imported_code
     -> float_const_prop:bool
     -> unit_toplevel_exn_continuation:Continuation.t
     -> t
@@ -42,7 +50,7 @@ module type Downwards_env = sig
       compiler backend being used for compilation. *)
   val backend : t -> (module Flambda2_backend_intf.S)
 
-  val resolver : t -> (Export_id.t -> Flambda_type.t option)
+  val resolver : t -> (Compilation_unit.t -> Flambda_type.Typing_env.t option)
 
   val float_const_prop : t -> bool
 
@@ -261,7 +269,10 @@ module type Result = sig
 
   val print : Format.formatter -> t -> unit
 
-  val create : resolver:(Export_id.t -> Flambda_type.t option) -> t
+  val create
+     : resolver:resolver
+    -> get_imported_names:get_imported_names
+    -> t
 
   val new_lifted_constant : t -> lifted_constant -> t
 
@@ -286,7 +297,12 @@ module type Result = sig
 
   val consider_constant_for_sharing : t -> Symbol.t -> Static_const.t -> t
 
-  val imported_symbols : t -> Flambda_kind.t Symbol.Map.t
+  val remember_code_for_cmx
+     : t
+    -> Flambda.Function_params_and_body.t Code_id.Map.t
+    -> t
+
+  val all_code : t -> Flambda.Function_params_and_body.t Code_id.Map.t
 
   val clear_lifted_constants : t -> t
 

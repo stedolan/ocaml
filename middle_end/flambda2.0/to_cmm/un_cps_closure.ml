@@ -16,57 +16,6 @@
 
 open! Flambda.Import
 
-(* Mappings from elements of a closure to offsets. *)
-
-type env = {
-  closure_offsets : int Closure_id.Map.t;
-  env_var_offsets : int Var_within_closure.Map.t;
-}
-(** Public state to store the mapping from elements of a closure to offset. *)
-
-let print_env fmt env =
-  Format.fprintf fmt "{@[<v>closures: @[<v>%a@]@,env_vars: @[<v>%a@]@]}"
-    (Closure_id.Map.print Numbers.Int.print) env.closure_offsets
-    (Var_within_closure.Map.print Numbers.Int.print) env.env_var_offsets
-
-let empty_env = {
-  closure_offsets = Closure_id.Map.empty;
-  env_var_offsets = Var_within_closure.Map.empty;
-}
-
-let add_closure_offset env closure offset =
-  match Closure_id.Map.find closure env.closure_offsets with
-  | o -> assert (o = offset); env
-  | exception Not_found ->
-      let closure_offsets =
-        Closure_id.Map.add closure offset env.closure_offsets
-      in
-      { env with closure_offsets; }
-
-let add_env_var_offset env env_var offset =
-  match Var_within_closure.Map.find env_var env.env_var_offsets with
-  | o -> assert (o = offset); env
-  | exception Not_found ->
-      let env_var_offsets =
-        Var_within_closure.Map.add env_var offset env.env_var_offsets
-      in
-      { env with env_var_offsets; }
-
-(* Missing definitions for [Closure_id]s and [Var_within_closure]s are not
-   treated as errors.  Doing so would mean relying on perfect removal of
-   unused [Let_symbol] bindings. *)
-
-let closure_offset env closure =
-  match Closure_id.Map.find closure env.closure_offsets with
-  | exception Not_found -> None
-  | res -> Some res
-
-let env_var_offset env env_var =
-  match Var_within_closure.Map.find env_var env.env_var_offsets with
-  | exception Not_found -> None
-  | res -> Some res
-
-
 (* Compute offsets for elements within a closure block
 
    Closure_ids and environment values within a closure block can occur
@@ -128,18 +77,21 @@ type layout_slot =
 
 type layout = (int * layout_slot) list
 
+module EO = Exported_offsets
+
 let order_closures env l acc =
   List.fold_left (fun acc closure ->
-      match closure_offset env closure with
-      | Some o -> Numbers.Int.Map.add o (Closure closure) acc
+      match EO.closure_offset env closure with
+      | Some { size = _; offset; } ->
+        Numbers.Int.Map.add offset (Closure closure) acc
       | None ->
-          Misc.fatal_errorf "No closure offset for %a" Closure_id.print closure
+        Misc.fatal_errorf "No closure offset for %a" Closure_id.print closure
     ) acc l
 
 let order_env_vars env l acc =
   List.fold_left (fun acc env_var ->
-      match env_var_offset env env_var with
-      | Some o -> Numbers.Int.Map.add o (Env_var env_var) acc
+      match EO.env_var_offset env env_var with
+      | Some { offset; } -> Numbers.Int.Map.add offset (Env_var env_var) acc
       | None ->
           Misc.fatal_errorf "No closure var offset for %a"
             Var_within_closure.print env_var
@@ -228,6 +180,7 @@ module Greedy = struct
     closures : slot Closure_id.Map.t;
     env_vars : slot Var_within_closure.Map.t;
     sets_of_closures : set_of_closures list;
+    imported_offsets : EO.t;
   }
   (** Intermediate state to store slots for closures and environment variables
       before computing the actual offsets of these elements within a block. *)
@@ -253,11 +206,27 @@ module Greedy = struct
        }
     )
 
-  let empty_state = {
-    closures = Closure_id.Map.empty;
-    env_vars = Var_within_closure.Map.empty;
-    sets_of_closures = [];
-  }
+  let create_initial_state imported_offsets =
+    let mk_closure_slot closure_id (info: EO.closure_info) =
+      { desc = Closure closure_id;
+        size = info.size;
+        pos = Assigned (info.offset);
+        sets = [];
+      }
+    in
+    let mk_env_var_slot env_var (info: EO.env_var_info) =
+      { desc = Env_var env_var;
+        size = 1;
+        pos = Assigned (info.offset);
+        sets = [];
+      }
+    in
+    {
+      closures = EO.map_closure_offsets imported_offsets mk_closure_slot;
+      env_vars = EO.map_env_var_offsets imported_offsets mk_env_var_slot;
+      sets_of_closures = [];
+      imported_offsets;
+    }
 
   (* debug printing *)
   let print_set_id fmt s = Format.fprintf fmt "%d" s.id
@@ -330,8 +299,16 @@ module Greedy = struct
     slot.pos <- Assigned offset;
     List.iter (add_slot_offset_to_set offset slot) slot.sets;
     match slot.desc with
-    | Closure c -> add_closure_offset env c offset
-    | Env_var v -> add_env_var_offset env v offset
+    | Closure c ->
+      let (info : EO.closure_info) =
+        { EO.offset; size = slot.size; }
+      in
+      EO.add_closure_offset env c info
+    | Env_var v ->
+      let (info : EO.env_var_info) =
+        { EO.offset; }
+      in
+      EO.add_env_var_offset env v info
 
   (* Sets of Closures *)
 
@@ -562,15 +539,15 @@ module Greedy = struct
   (* Tansform an internal accumulator state for slots into
      an actual mapping that assigns offsets.*)
   let finalize state =
-    let env = empty_env in
+    let env = state.imported_offsets in
     let env = assign_closure_offsets state env in
     let env = assign_env_var_offsets state env in
     env
 
 end
 
-let compute_offsets unit =
-  let state = ref Greedy.empty_state in
+let compute_offsets env unit =
+  let state = ref (Greedy.create_initial_state env) in
   let used_closure_vars = Flambda_unit.used_closure_vars unit in
   let aux ~closure_symbols:_ s =
     state := Greedy.create_slots_for_set !state used_closure_vars s

@@ -98,7 +98,7 @@ let simplify_project_var closure_id closure_element ~min_name_mode dacc
       in
       let typing_env = TE.add_env_extension typing_env env_extension in
       let name = Name.var (Var_in_binding_pos.var result_var) in
-      let ty = TE.find typing_env name in
+      let ty = TE.find typing_env name (Some (K.value)) in
       begin match T.get_alias_exn ty with
       | exception Not_found -> reachable, false
       | alias ->

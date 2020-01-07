@@ -90,7 +90,7 @@ type t = {
 
      Those are computed once and valid for a whole unit.*)
 
-  offsets : Un_cps_closure.env;
+  offsets : Exported_offsets.t;
   (* Offsets for closure_ids and var_within_closures. *)
   used_closure_vars : Var_within_closure.Set.t;
   (* Closure variables that are used by the context begin translated.
@@ -293,10 +293,10 @@ let get_exn_extra_args env k =
 (* Offsets *)
 
 let closure_offset env closure =
-  Un_cps_closure.closure_offset env.offsets closure
+  Exported_offsets.closure_offset env.offsets closure
 
 let env_var_offset env env_var =
-  Un_cps_closure.env_var_offset env.offsets env_var
+  Exported_offsets.env_var_offset env.offsets env_var
 
 let layout env closures env_vars =
   Un_cps_closure.layout env.offsets closures env_vars

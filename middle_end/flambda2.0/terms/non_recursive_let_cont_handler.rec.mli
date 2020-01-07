@@ -23,6 +23,8 @@ type t
 (** Printing, invariant checks, name manipulation, etc. *)
 include Expr_std.S with type t := t
 
+include Contains_ids.S with type t := t
+
 (** Deconstruct a continuation binding to get the name of the bound
     continuation and the expression over which it is scoped. *)
 val pattern_match
