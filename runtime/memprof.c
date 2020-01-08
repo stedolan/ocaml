@@ -600,7 +600,7 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
   CAMLparam0();
   uintnat whsize = Whsize_wosize(wosize);
   unsigned n_samples = 0, alloc_idx = 0, alloc_wosz, i;
-  header_t *alloc_hp;
+  header_t *alloc_hp, *trigger_hp, *young_hp;
   /* number of sampled allocated blocks
      (possibly with more than one sample per allocation) */
   uintnat allocs_sampled = 0;
@@ -609,8 +609,7 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
      sampled_allocs array until we discover we actually need two entries */
   struct sampled_young_alloc first_sampled_alloc;
   struct sampled_young_alloc* sampled_allocs = &first_sampled_alloc;
-  value first_cb_res, *cb_res;
-  CAMLlocal3(callstack, res, sample_info);
+  CAMLlocal4(callstack, res, sample_info, cb_res);
 
   if (caml_memprof_suspended) {
     caml_memprof_renew_minor_sample();
@@ -638,7 +637,7 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
     CAMLreturn0;
   }
 
-  /* We need to call the callback for this sampled block. Since the
+  /* We need to call the callbacks for this sampled block. Since each
      callback can potentially allocate, the sampled block will *not*
      be the one pointed to by [caml_memprof_young_trigger]. Instead,
      we remember that we need to sample the next allocated word,
@@ -648,14 +647,22 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
   CAMLassert(Caml_state->young_ptr < caml_memprof_young_trigger &&
              caml_memprof_young_trigger <= Caml_state->young_ptr + whsize);
 
+  trigger_hp = (header_t*)caml_memprof_young_trigger;
+  young_hp = (header_t*)Caml_state->young_ptr;
   alloc_wosz = encoded_alloc_lens == NULL ? wosize :
     Wosize_encoded_alloc_len(encoded_alloc_lens[nallocs - 1 - alloc_idx]);
-  alloc_hp =
-    (header_t*)Caml_state->young_ptr + whsize - Whsize_wosize(alloc_wosz);
+  alloc_hp = young_hp + whsize - Whsize_wosize(alloc_wosz);
+
+  /* Restore the minor heap in a valid state for calling the callbacks.
+     We should not call the GC before these two instructions. */
+  Caml_state->young_ptr += whsize;
+  caml_memprof_renew_minor_sample();
+  caml_memprof_suspended = 1;
+
   while (1) {
-    if (alloc_hp < (header_t*)caml_memprof_young_trigger) {
+    if (alloc_hp < trigger_hp) {
       n_samples++;
-      caml_memprof_young_trigger -= mt_generate_geom();
+      trigger_hp -= mt_generate_geom();
     } else {
       /* Finished an allocation */
       if (n_samples > 0) {
@@ -663,18 +670,28 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
         if (allocs_sampled == 1) {
           /* Found a second sampled allocation! Allocate a buffer for them */
           sampled_allocs =
-            caml_stat_alloc_noexc(sizeof(struct sampled_young_alloc) * nallocs);
+            caml_stat_alloc_noexc(sizeof(*sampled_allocs) * nallocs);
           sampled_allocs[0] = first_sampled_alloc;
+          res = cb_res;
+          cb_res = caml_alloc(nallocs, 0);
+          Store_field(cb_res, 0, res);
         }
-        s = &sampled_allocs[allocs_sampled++];
-        s->header_ofs = alloc_hp - (header_t*)Caml_state->young_ptr;
+        s = &sampled_allocs[allocs_sampled];
+        s->header_ofs = alloc_hp - young_hp;
         s->wosize = alloc_wosz;
         s->n_samples = n_samples;
+        callstack = capture_callstack();
+        sample_info = allocation_info(n_samples, alloc_wosz, tag, 0, callstack);
+        res = caml_callback_exn(callback_alloc_minor, sample_info);
+        if (Is_exception_result(res)) break;
+        if (allocs_sampled == 0) cb_res = res;
+        else Store_field(cb_res, allocs_sampled, res);
+        allocs_sampled++;
       }
       alloc_idx++;
       CAMLassert(alloc_idx <= nallocs);
       if (alloc_idx == nallocs) {
-        CAMLassert(alloc_hp == (header_t*)Caml_state->young_ptr);
+        CAMLassert(alloc_hp == young_hp); /* no more allocations */
         break;
       }
       /* Otherwise, move onto the next allocation in a Comballoc'd block */
@@ -687,75 +704,51 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
 
   CAMLassert(0 < allocs_sampled && allocs_sampled <= nallocs);
 
-  /* Restore the minor heap in a valid state for calling the callbacks.
-     We should not call the GC before these two instructions. */
-  Caml_state->young_ptr += whsize;
-  caml_memprof_renew_minor_sample();
+  caml_memprof_suspended = 0;
+  caml_memprof_check_action_pending();
+  /* We need to call [caml_memprof_check_action_pending] since we
+     reset [caml_memprof_suspended] to 0 (a GC collection may have
+     triggered some new callback). */
 
-  cb_res = allocs_sampled == 1 ? &first_cb_res :
-    caml_stat_alloc_noexc(sizeof(value) * allocs_sampled);
-  for (i = 0; i < allocs_sampled; i++) cb_res[i] = Val_unit;
-  {
-    CAMLxparamN(cb_res, allocs_sampled);
-
-    caml_memprof_suspended = 1;
-    callstack = capture_callstack();
-    for (i = 0; i < allocs_sampled; i++) {
-      struct sampled_young_alloc* s = &sampled_allocs[i];
-      sample_info = allocation_info(s->n_samples, s->wosize, tag, 0, callstack);
-      res = caml_callback_exn(callback_alloc_minor, sample_info);
-      if (Is_exception_result(res)) break;
-      cb_res[i] = res;
-    }
-    caml_memprof_suspended = 0;
-    caml_memprof_check_action_pending();
-    /* We need to call [caml_memprof_check_action_pending] since we
-       reset [caml_memprof_suspended] to 0 (a GC collection may have
-       triggered some new callback). */
-
-    if (Is_exception_result(res)) {
-      if (sampled_allocs != &first_sampled_alloc)
-        caml_stat_free(sampled_allocs);
-      if (cb_res != &first_cb_res)
-        caml_stat_free(cb_res);
-      caml_raise(Extract_exception(res));
-    }
-
-    /* We can now restore the minor heap in the state needed by
-       [Alloc_small_aux]. */
-    if (Caml_state->young_ptr - whsize < Caml_state->young_trigger) {
-      CAML_INSTR_INT("force_minor/memprof@", 1);
-      caml_gc_dispatch();
-    }
-
-    /* Re-allocate the blocks in the minor heap. We should not call the
-       GC after this. */
-    Caml_state->young_ptr -= whsize;
-
-    /* Make sure this block is not going to be sampled again. */
-    shift_sample(whsize);
-
-    for (i = 0; i < allocs_sampled; i++) {
-      struct sampled_young_alloc* s = &sampled_allocs[i];
-      if (cb_res[i] != Val_unit) {
-        /* If the execution of the callback has succeeded, then we start the
-           tracking of this block..
-
-           Subtlety: we are actually writing [t->block] with an invalid
-           (uninitialized) block. This is correct because the allocation
-           and initialization happens right after returning from
-           [caml_memprof_track_young]. */
-        new_tracked(s->n_samples, Make_header(s->wosize, tag, Caml_white),
-                    0, 1, 1,
-                    Val_hp(Caml_state->young_ptr + s->header_ofs),
-                    Field(cb_res[i], 0));
-      }
-    }
+  if (Is_exception_result(res)) {
     if (sampled_allocs != &first_sampled_alloc)
       caml_stat_free(sampled_allocs);
-    if (cb_res != &first_cb_res)
-      caml_stat_free(cb_res);
+    caml_raise(Extract_exception(res));
   }
+
+  /* We can now restore the minor heap in the state needed by
+     [Alloc_small_aux]. */
+  if (Caml_state->young_ptr - whsize < Caml_state->young_trigger) {
+    CAML_INSTR_INT("force_minor/memprof@", 1);
+    caml_gc_dispatch();
+  }
+
+  /* Re-allocate the blocks in the minor heap. We should not call the
+     GC after this. */
+  Caml_state->young_ptr -= whsize;
+
+  /* Make sure this block is not going to be sampled again. */
+  shift_sample(whsize);
+
+  for (i = 0; i < allocs_sampled; i++) {
+    struct sampled_young_alloc* s = &sampled_allocs[i];
+    res = allocs_sampled == 1 ? cb_res : Field(cb_res, i);
+    if (res != Val_unit) {
+      /* If the execution of the callback has succeeded, then we start the
+         tracking of this block..
+
+         Subtlety: we are actually writing [t->block] with an invalid
+         (uninitialized) block. This is correct because the allocation
+         and initialization happens right after returning from
+         [caml_memprof_track_young]. */
+      new_tracked(s->n_samples, Make_header(s->wosize, tag, Caml_white),
+                  0, 1, 1,
+                  Val_hp(Caml_state->young_ptr + s->header_ofs),
+                  Field(res, 0));
+    }
+  }
+  if (sampled_allocs != &first_sampled_alloc)
+    caml_stat_free(sampled_allocs);
 
   /* /!\ Since the heap is in an invalid state before initialization,
      very little heap operations are allowed until then. */
