@@ -71,6 +71,7 @@ void caml_garbage_collection(void)
 {
   frame_descr* d;
   intnat allocsz = 0;
+  unsigned char* alloc_len;
 
   { /* Find the frame descriptor for the current allocation */
     uintnat h = Hash_retaddr(Caml_state->last_return_address);
@@ -85,7 +86,7 @@ void caml_garbage_collection(void)
 
   /* Compute the total allocation size at this point,
      including allocations combined by Comballoc */
-  unsigned char* alloc_len = (unsigned char*)(&d->live_ofs[d->num_live]);
+  alloc_len = (unsigned char*)(&d->live_ofs[d->num_live]);
   int i, nallocs = *alloc_len++;
   for (i = 0; i < nallocs; i++) {
     allocsz += Whsize_wosize(Wosize_encoded_alloc_len(alloc_len[i]));
