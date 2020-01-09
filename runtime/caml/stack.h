@@ -100,11 +100,8 @@ typedef struct {
     num_debug is num_alloc if frame_size & 2, otherwise 1. */
 } frame_descr;
 
-static inline uintnat Wosize_encoded_alloc_len(unsigned char n)
-{
-  /* Allocation lengths are encoded as 0-255, giving sizes 1-256 */
-  return n + 1;
-}
+/* Allocation lengths are encoded as 0-255, giving sizes 1-256 */
+#define Wosize_encoded_alloc_len(n) ((n) + 1)
 
 /* Used to compute offsets in frame tables.
    ty must have power-of-2 size */

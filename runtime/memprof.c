@@ -296,14 +296,14 @@ static void mark_deleted(uintnat t_idx)
 }
 
 static value allocation_info(uintnat n_samples, uintnat wosize, uintnat tag,
-                             int unmarshalled, value callstack)
+                             int unmarshalled, value* callstack)
 {
   value sample_info = caml_alloc_small(5, 0);
   Field(sample_info, 0) = Val_long(n_samples);
   Field(sample_info, 1) = Val_long(wosize);
   Field(sample_info, 2) = Val_long(tag);
   Field(sample_info, 3) = Val_long(unmarshalled);
-  Field(sample_info, 4) = callstack;
+  Field(sample_info, 4) = *callstack;
   return sample_info;
 }
 
@@ -360,7 +360,7 @@ static value handle_entry_callbacks_exn(uintnat* t_idx)
                || t->deallocated);
     sample_info =
       allocation_info(t->n_samples, Wosize_hd(t->header), Tag_hd(t->header),
-                      t->unmarshalled, t->user_data);
+                      t->unmarshalled, &t->user_data);
     t->user_data = Val_unit;
     res = run_callback_exn(t_idx,
         t->alloc_young ? callback_alloc_minor : callback_alloc_major,
@@ -599,11 +599,8 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
 {
   CAMLparam0();
   uintnat whsize = Whsize_wosize(wosize);
-  unsigned alloc_idx = 0, i;
-  header_t *alloc_hp, *trigger_hp, *young_hp;
-  /* number of sampled allocated blocks
-     (possibly with more than one sample per allocation) */
-  uintnat allocs_sampled = 0;
+  int alloc_idx = 0, i, allocs_sampled = 0;
+  intnat alloc_ofs, trigger_ofs;
   /* usually, only one allocation is sampled, even when the block contains
      multiple combined allocations. So, we delay allocating the full
      sampled_allocs array until we discover we actually need two entries */
@@ -646,9 +643,8 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
 
   CAMLassert(Caml_state->young_ptr < caml_memprof_young_trigger &&
              caml_memprof_young_trigger <= Caml_state->young_ptr + whsize);
-  trigger_hp = (header_t*)caml_memprof_young_trigger;
-  young_hp = (header_t*)Caml_state->young_ptr;
-  alloc_hp = young_hp + whsize;
+  trigger_ofs = caml_memprof_young_trigger - Caml_state->young_ptr;
+  alloc_ofs = whsize;
 
   /* Restore the minor heap in a valid state for calling the callbacks.
      We should not call the GC before these two instructions. */
@@ -656,14 +652,14 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
   caml_memprof_renew_minor_sample();
   caml_memprof_suspended = 1;
 
-  for (alloc_idx = 0; alloc_idx < nallocs; alloc_idx++) {
+  for (alloc_idx = nallocs - 1; alloc_idx >= 0; alloc_idx--) {
     unsigned alloc_wosz = encoded_alloc_lens == NULL ? wosize :
-      Wosize_encoded_alloc_len(encoded_alloc_lens[nallocs - 1 - alloc_idx]);
+      Wosize_encoded_alloc_len(encoded_alloc_lens[alloc_idx]);
     unsigned n_samples = 0;
-    alloc_hp -= Whsize_wosize(alloc_wosz);
-    while (alloc_hp < trigger_hp) {
+    alloc_ofs -= Whsize_wosize(alloc_wosz);
+    while (alloc_ofs < trigger_ofs) {
       n_samples++;
-      trigger_hp -= mt_generate_geom();
+      trigger_ofs -= mt_generate_geom();
     }
     if (n_samples > 0) {
       struct sampled_young_alloc* s;
@@ -677,11 +673,11 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
         Store_field(cb_res, 0, res);
       }
       s = &sampled_allocs[allocs_sampled];
-      s->header_ofs = alloc_hp - young_hp;
+      s->header_ofs = alloc_ofs;
       s->wosize = alloc_wosz;
       s->n_samples = n_samples;
       callstack = capture_callstack();
-      sample_info = allocation_info(n_samples, alloc_wosz, tag, 0, callstack);
+      sample_info = allocation_info(n_samples, alloc_wosz, tag, 0, &callstack);
       res = caml_callback_exn(callback_alloc_minor, sample_info);
       if (Is_exception_result(res)) break;
       if (allocs_sampled == 0) cb_res = res;
@@ -702,7 +698,7 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
     caml_raise(Extract_exception(res));
   }
 
-  CAMLassert(alloc_hp == young_hp);
+  CAMLassert(alloc_ofs == 0);
   CAMLassert(0 < allocs_sampled && allocs_sampled <= nallocs);
 
   /* We can now restore the minor heap in the state needed by

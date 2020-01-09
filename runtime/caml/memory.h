@@ -226,7 +226,7 @@ extern void caml_alloc_small_dispatch (tag_t tag, intnat wosize, int flags,
   if (Caml_state_field(young_ptr) < Caml_state_field(young_limit)) {   \
     Setup_for_gc;                                                      \
     caml_alloc_small_dispatch((tag), (wosize),                         \
-                              (track) | Alloc_small_origin, 1, 0);     \
+                              (track) | Alloc_small_origin, 1, NULL);  \
     Restore_after_gc;                                                  \
   }                                                                    \
   Hd_hp (Caml_state_field(young_ptr)) =                                \

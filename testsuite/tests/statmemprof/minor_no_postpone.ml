@@ -1,6 +1,7 @@
 (* TEST
    modules = "minor_no_postpone_stub.c"
    * bytecode
+   * native
 *)
 
 open Gc.Memprof
