@@ -167,9 +167,6 @@ static value capture_callstack(void)
 
 /**** Data structures for tracked blocks. ****/
 
-/* When an entry is deleted, its index is replaced by that integer. */
-#define Invalid_index (~(uintnat)0)
-
 struct tracked {
   /* Memory block being sampled. This is a weak GC root. */
   value block;
@@ -219,6 +216,19 @@ struct tracked {
   uintnat* idx_ptr;
 };
 
+/* During the alloc callback for a minor allocation, the block being
+   sampled is not yet allocated. Instead, we place in the block field
+   a value computed with the following macro: */
+#define Placeholder_magic 0x42420000
+#define Placeholder_offs(offset) (Val_long(offset + Placeholder_magic))
+#define Offs_placeholder(block) (Long_val(block) & 0xFFFF)
+#define Is_placeholder(block) \
+  (Is_long(block) && (Long_val(block) & ~(uintnat)0xFFFF) == Placeholder_magic)
+
+/* When an entry is deleted, its index is replaced by that integer. */
+#define Invalid_index (~(uintnat)0)
+
+
 static struct tracking_state {
   struct tracked* entries;
   /* The allocated capacity of the entries array */
@@ -259,15 +269,15 @@ static int realloc_trackst(void) {
   return 1;
 }
 
-static inline void new_tracked(uintnat n_samples, header_t header,
-                               int is_unmarshalled, int is_young, int cb_alloc,
-                               value block, value user_data)
+static inline uintnat new_tracked(uintnat n_samples, header_t header,
+                                  int is_unmarshalled, int is_young,
+                                  value block, value user_data)
 {
   struct tracked *t;
   trackst.len++;
   if (!realloc_trackst()) {
     trackst.len--;
-    return;
+    return Invalid_index;
   }
   t = &trackst.entries[trackst.len - 1];
   t->block = block;
@@ -279,10 +289,10 @@ static inline void new_tracked(uintnat n_samples, header_t header,
   t->unmarshalled = is_unmarshalled;
   t->promoted = 0;
   t->deallocated = 0;
-  t->cb_alloc_called = cb_alloc;
-  t->cb_promote_called = t->cb_dealloc_called = 0;
+  t->cb_alloc_called = t->cb_promote_called = t->cb_dealloc_called = 0;
   t->deleted = 0;
   t->callback_running = 0;
+  return trackst.len - 1;
 }
 
 static void mark_deleted(uintnat t_idx)
@@ -293,18 +303,6 @@ static void mark_deleted(uintnat t_idx)
   t->block = Val_unit;
   if (t_idx < trackst.delete) trackst.delete = t_idx;
   CAMLassert(t->idx_ptr == NULL);
-}
-
-static value allocation_info(uintnat n_samples, uintnat wosize, uintnat tag,
-                             int unmarshalled, value* callstack)
-{
-  value sample_info = caml_alloc_small(5, 0);
-  Field(sample_info, 0) = Val_long(n_samples);
-  Field(sample_info, 1) = Val_long(wosize);
-  Field(sample_info, 2) = Val_long(tag);
-  Field(sample_info, 3) = Val_long(unmarshalled);
-  Field(sample_info, 4) = *callstack;
-  return sample_info;
 }
 
 /* The return value is an exception or [Val_unit] iff [*t_idx] is set to
@@ -354,13 +352,22 @@ static value handle_entry_callbacks_exn(uintnat* t_idx)
 
   if (t->deleted || t->callback_running) return Val_unit;
 
+  if (t->idx_ptr != NULL) {
+    CAMLassert(Is_placeholder(t->block));
+    return Val_unit;
+  }
+
   if (!t->cb_alloc_called) {
     t->cb_alloc_called = 1;
     CAMLassert(Is_block(t->block)
+               || Is_placeholder(t->block)
                || t->deallocated);
-    sample_info =
-      allocation_info(t->n_samples, Wosize_hd(t->header), Tag_hd(t->header),
-                      t->unmarshalled, &t->user_data);
+    sample_info = caml_alloc_small(5, 0);
+    Field(sample_info, 0) = Val_long(t->n_samples);
+    Field(sample_info, 1) = Val_long(Wosize_hd(t->header));
+    Field(sample_info, 2) = Val_long(Tag_hd(t->header));
+    Field(sample_info, 3) = Val_long(t->unmarshalled);
+    Field(sample_info, 4) = t->user_data;
     t->user_data = Val_unit;
     res = run_callback_exn(t_idx,
         t->alloc_young ? callback_alloc_minor : callback_alloc_major,
@@ -474,7 +481,8 @@ void caml_memprof_minor_update(void)
      of iterations of this loop. */
   for (i = trackst.young; i < trackst.len; i++) {
     struct tracked *t = &trackst.entries[i];
-    CAMLassert(Is_block(t->block) || t->deleted || t->deallocated);
+    CAMLassert(Is_block(t->block) || t->deleted || t->deallocated ||
+               Is_placeholder(t->block));
     if (Is_block(t->block) && Is_young(t->block)) {
       if (Hd_val(t->block) == 0) {
         /* Block has been promoted */
@@ -544,7 +552,7 @@ void caml_memprof_track_alloc_shr(value block)
   callstack = capture_callstack_postponed();
   if (callstack == 0) return;
 
-  new_tracked(n_samples, Hd_val(block), 0, 0, 0, block, callstack);
+  new_tracked(n_samples, Hd_val(block), 0, 0, block, callstack);
   caml_memprof_check_action_pending();
 }
 
@@ -582,35 +590,24 @@ void caml_memprof_renew_minor_sample(void)
   caml_update_young_limit();
 }
 
-/* Temporary structure used by caml_memprof_track_young to handle
-   combined allocations (see asmcomp/comballoc.ml) */
-struct sampled_young_alloc {
-  /* offset, in words, from block start. 0 unless Comballoc applies */
-  unsigned header_ofs;
-  unsigned wosize;
-  unsigned n_samples;
-};
-
 /* Called when exceeding the threshold for the next sample in the
    minor heap, from the C code (the handling is different when called
    from natively compiled OCaml code). */
 void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
                               int nallocs, unsigned char* encoded_alloc_lens)
 {
-  CAMLparam0();
   uintnat whsize = Whsize_wosize(wosize);
-  int alloc_idx = 0, i, allocs_sampled = 0;
+  value callstack, res = Val_unit;
+  int alloc_idx = 0, i, allocs_sampled = 0, has_delete = 0;
   intnat alloc_ofs, trigger_ofs;
   /* usually, only one allocation is sampled, even when the block contains
      multiple combined allocations. So, we delay allocating the full
      sampled_allocs array until we discover we actually need two entries */
-  struct sampled_young_alloc first_sampled_alloc;
-  struct sampled_young_alloc* sampled_allocs = &first_sampled_alloc;
-  CAMLlocal4(callstack, res, sample_info, cb_res);
+  uintnat first_idx, *idx_tab = &first_idx;
 
   if (caml_memprof_suspended) {
     caml_memprof_renew_minor_sample();
-    CAMLreturn0;
+    return;
   }
 
   /* If [lambda == 0], then [caml_memprof_young_trigger] should be
@@ -626,12 +623,12 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
     caml_memprof_renew_minor_sample();
 
     callstack = capture_callstack_postponed();
-    if (callstack == 0) { CAMLreturn0; }
+    if (callstack == 0) return;
 
     new_tracked(n_samples, Make_header(wosize, tag, Caml_white),
-                0, 1, 0, Val_hp(Caml_state->young_ptr), callstack);
+                0, 1, Val_hp(Caml_state->young_ptr), callstack);
     caml_memprof_check_action_pending();
-    CAMLreturn0;
+    return;
   }
 
   /* We need to call the callbacks for this sampled block. Since each
@@ -652,6 +649,7 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
   caml_memprof_renew_minor_sample();
   caml_memprof_suspended = 1;
 
+  /* Perform the sampling of the block in the set of Comballoc'd blocks. */
   for (alloc_idx = nallocs - 1; alloc_idx >= 0; alloc_idx--) {
     unsigned alloc_wosz = encoded_alloc_lens == NULL ? wosize :
       Wosize_encoded_alloc_len(encoded_alloc_lens[alloc_idx]);
@@ -662,50 +660,83 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
       trigger_ofs -= mt_generate_geom();
     }
     if (n_samples > 0) {
-      struct sampled_young_alloc* s;
       if (allocs_sampled == 1) {
         /* Found a second sampled allocation! Allocate a buffer for them */
-        sampled_allocs =
-          caml_stat_alloc_noexc(sizeof(*sampled_allocs) * nallocs);
-        sampled_allocs[0] = first_sampled_alloc;
-        res = cb_res;
-        cb_res = caml_alloc(nallocs, 0);
-        Store_field(cb_res, 0, res);
+        idx_tab = caml_stat_alloc_noexc(sizeof(uintnat) * nallocs);
+        if (idx_tab == NULL) {
+          alloc_ofs = 0;
+          idx_tab = &first_idx;
+          break;
+        }
+        idx_tab[0] = first_idx;
       }
-      s = &sampled_allocs[allocs_sampled];
-      s->header_ofs = alloc_ofs;
-      s->wosize = alloc_wosz;
-      s->n_samples = n_samples;
       callstack = capture_callstack();
-      sample_info = allocation_info(n_samples, alloc_wosz, tag, 0, &callstack);
-      res = caml_callback_exn(callback_alloc_minor, sample_info);
-      if (Is_exception_result(res)) break;
-      if (allocs_sampled == 0) cb_res = res;
-      else Store_field(cb_res, allocs_sampled, res);
+      idx_tab[allocs_sampled] =
+        new_tracked(n_samples, Make_header(alloc_wosz, tag, Caml_white),
+                    0, 1, Placeholder_offs(alloc_ofs), callstack);
       allocs_sampled++;
     }
+  }
+
+  CAMLassert(alloc_ofs == 0);
+  CAMLassert(0 < allocs_sampled && allocs_sampled <= nallocs);
+
+  for (i = 0; i < allocs_sampled; i++)
+    if (idx_tab[i] != Invalid_index) {
+      trackst.entries[idx_tab[i]].idx_ptr = &idx_tab[i];
+    }
+
+  for (i = 0; i < allocs_sampled; i++) {
+    if (idx_tab[i] != Invalid_index) {
+      trackst.entries[idx_tab[i]].idx_ptr = NULL;
+      res = handle_entry_callbacks_exn(&idx_tab[i]);
+      if (idx_tab[i] != Invalid_index)
+        trackst.entries[idx_tab[i]].idx_ptr = &idx_tab[i];
+      if (Is_exception_result(res)) break;
+    }
+    if (idx_tab[i] == Invalid_index) has_delete = 1;
   }
 
   caml_memprof_suspended = 0;
   caml_memprof_check_action_pending();
   /* We need to call [caml_memprof_check_action_pending] since we
      reset [caml_memprof_suspended] to 0 (a GC collection may have
-     triggered some new callback). */
+     triggered some new callback).
 
-  if (Is_exception_result(res)) {
-    if (sampled_allocs != &first_sampled_alloc)
-      caml_stat_free(sampled_allocs);
-    caml_raise(Extract_exception(res));
-  }
-
-  CAMLassert(alloc_ofs == 0);
-  CAMLassert(0 < allocs_sampled && allocs_sampled <= nallocs);
+     We need to make sure that the action pending flag is not set
+     systematically, which is to be expected, since [new_tracked]
+     created a new block without updating
+     [trackst.callback]. Fortunately, [handle_entry_callback_exn]
+     increments [trackst.callback] if it is equal to [t_idx]. */
 
   /* We can now restore the minor heap in the state needed by
      [Alloc_small_aux]. */
   if (Caml_state->young_ptr - whsize < Caml_state->young_trigger) {
     CAML_INSTR_INT("force_minor/memprof@", 1);
     caml_gc_dispatch();
+  }
+
+  if (has_delete)
+    flush_deleted();
+
+  if (Is_exception_result(res)) {
+    for (i = 0; i < allocs_sampled; i++)
+      if (idx_tab[i] != Invalid_index) {
+        struct tracked* t = &trackst.entries[idx_tab[i]];
+        if (t->cb_alloc_called) {
+          /* The allocations is cancelled because of the exception,
+             but this callback has already been called. We simulate a
+             deallocation. */
+          t->block = Val_unit;
+          t->deallocated = 1;
+          CAMLassert(trackst.callback <= idx_tab[i]);
+        } else {
+          trackst.entries[idx_tab[i]].idx_ptr = NULL;
+          mark_deleted(idx_tab[i]);
+        }
+      }
+    if (idx_tab != &first_idx) caml_stat_free(idx_tab);
+    caml_raise(Extract_exception(res));
   }
 
   /* Re-allocate the blocks in the minor heap. We should not call the
@@ -716,9 +747,7 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
   shift_sample(whsize);
 
   for (i = 0; i < allocs_sampled; i++) {
-    struct sampled_young_alloc* s = &sampled_allocs[i];
-    res = allocs_sampled == 1 ? cb_res : Field(cb_res, i);
-    if (res != Val_unit) {
+    if (idx_tab[i] != Invalid_index) {
       /* If the execution of the callback has succeeded, then we start the
          tracking of this block..
 
@@ -726,19 +755,20 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
          (uninitialized) block. This is correct because the allocation
          and initialization happens right after returning from
          [caml_memprof_track_young]. */
-      new_tracked(s->n_samples, Make_header(s->wosize, tag, Caml_white),
-                  0, 1, 1,
-                  Val_hp(Caml_state->young_ptr + s->header_ofs),
-                  Field(res, 0));
+      struct tracked *t = &trackst.entries[idx_tab[i]];
+      t->block = Val_hp(Caml_state->young_ptr + Offs_placeholder(t->block));
+      t->idx_ptr = NULL;
+      CAMLassert(t->cb_alloc_called);
+      if (idx_tab[i] < trackst.young) trackst.young = idx_tab[i];
     }
   }
-  if (sampled_allocs != &first_sampled_alloc)
-    caml_stat_free(sampled_allocs);
+  if (idx_tab != &first_idx)
+    caml_stat_free(idx_tab);
 
   /* /!\ Since the heap is in an invalid state before initialization,
      very little heap operations are allowed until then. */
 
-  CAMLreturn0;
+  return;
 }
 
 void caml_memprof_track_interned(header_t* block, header_t* blockend) {
@@ -768,7 +798,7 @@ void caml_memprof_track_interned(header_t* block, header_t* blockend) {
     if (callstack == 0) callstack = capture_callstack_postponed();
     if (callstack == 0) break;  /* OOM */
     new_tracked(mt_generate_binom(next_p - next_sample_p) + 1,
-                Hd_hp(p), 1, is_young, 0, Val_hp(p), callstack);
+                Hd_hp(p), 1, is_young, Val_hp(p), callstack);
     p = next_p;
   }
   caml_memprof_check_action_pending();
