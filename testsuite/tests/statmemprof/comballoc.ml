@@ -52,3 +52,27 @@ let test sampling_rate =
 
 let () =
   List.iter test [0.42; 0.01; 0.83]
+
+
+let no_callback_after_stop trigger =
+  let stopped = ref false in
+  let cnt = ref 0 in
+  start ~callstack_size:0
+    ~minor_alloc_callback:(fun info ->
+      assert(not !stopped);
+      incr cnt;
+      if !cnt > trigger then begin
+        start ~callstack_size:0
+          ~minor_alloc_callback:(fun _ -> assert false)
+          ~sampling_rate:0. ();
+        stopped := true
+      end;
+      None
+    )
+    ~sampling_rate:1. ();
+  for i = 0 to 1000 do ignore (Sys.opaque_identity f i) done;
+  assert !stopped
+
+let () =
+  for i = 0 to 1000 do no_callback_after_stop i done;
+  Printf.printf "OK\n"

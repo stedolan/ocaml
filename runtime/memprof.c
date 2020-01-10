@@ -95,16 +95,17 @@ static double mt_generate_uniform(void)
 }
 
 /* Simulate a geometric variable of parameter [lambda].
-   The result is clipped in [1..Max_long]
-   Requires [lambda > 0]. */
+   The result is clipped in [1..Max_long] */
 static uintnat mt_generate_geom(void)
 {
+  double res;
+  CAMLassert(lambda > 0.);
   /* We use the float versions of exp/log, since these functions are
      significantly faster, and we really don't need much precision
      here. The entropy contained in [next_mt_generate_geom] is anyway
      bounded by the entropy provided by [mt_generate_uniform], which
      is 32bits. */
-  double res = 1 + logf(mt_generate_uniform()) * one_log1m_lambda;
+  res = 1 + logf(mt_generate_uniform()) * one_log1m_lambda;
   if (res > Max_long) return Max_long;
   return (uintnat)res;
 }
@@ -120,12 +121,11 @@ static uintnat next_mt_generate_geom;
    If needed, we could use algorithm BTRS from the paper:
      Hormann, Wolfgang. "The generation of binomial random variates."
      Journal of statistical computation and simulation 46.1-2 (1993), pp101-110.
-
-   Requires [lambda > 0] and [len < Max_long].
  */
 static uintnat mt_generate_binom(uintnat len)
 {
   uintnat res;
+  CAMLassert(lambda > 0. && len < Max_long);
   for (res = 0; next_mt_generate_geom < len; res++)
     next_mt_generate_geom += mt_generate_geom();
   next_mt_generate_geom -= len;
@@ -312,6 +312,7 @@ static inline value run_callback_exn(uintnat *t_idx, value cb, value param) {
   struct tracked* t = &trackst.entries[*t_idx];
   value res;
   CAMLassert(!t->callback_running && t->idx_ptr == NULL);
+  CAMLassert(lambda > 0.);
 
   t->callback_running = 1;
   t->idx_ptr = t_idx;
@@ -599,6 +600,7 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
      multiple combined allocations. So, we delay allocating the full
      sampled_allocs array until we discover we actually need two entries */
   uintnat first_idx, *idx_tab = &first_idx;
+  double saved_lambda = lambda;
 
   if (caml_memprof_suspended) {
     caml_memprof_renew_minor_sample();
@@ -653,7 +655,6 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
     unsigned n_samples = 0;
     alloc_ofs -= Whsize_wosize(alloc_wosz);
     while (alloc_ofs < trigger_ofs) {
-      /* FIXME : use mt_generate_binom */
       n_samples++;
       trigger_ofs -= mt_generate_geom();
     }
@@ -665,7 +666,15 @@ void caml_memprof_track_young(tag_t tag, uintnat wosize, int from_caml,
                           0, 1, Placeholder_offs(alloc_ofs), callstack);
       if (t_idx == Invalid_index) continue;
       res = handle_entry_callbacks_exn(&t_idx);
-      if (t_idx == Invalid_index) has_delete = 1;
+      if (t_idx == Invalid_index) {
+        has_delete = 1;
+        if (saved_lambda != lambda) {
+          /* [lambda] changed during the callback. We need to refresh
+             [trigger_ofs]. */
+          saved_lambda = lambda;
+          trigger_ofs = lambda == 0. ? 0 : alloc_ofs - (mt_generate_geom() - 1);
+        }
+      }
       if (Is_exception_result(res)) break;
       if (t_idx == Invalid_index) continue;
 
