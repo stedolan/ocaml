@@ -227,6 +227,7 @@ let arg16 i n = emit_subreg reg_low_16_name WORD i.arg.(n)
 let arg32 i n = emit_subreg reg_low_32_name DWORD i.arg.(n)
 let arg64 i n = reg64 i.arg.(n)
 
+let res8 i n = emit_subreg reg_low_8_name BYTE i.res.(n)
 let res16 i n = emit_subreg reg_low_16_name WORD i.res.(n)
 let res32 i n = emit_subreg reg_low_32_name DWORD i.res.(n)
 
@@ -715,12 +716,12 @@ let emit_instr fallthrough i =
       end
   | Lop(Iintop(Icomp cmp)) ->
       I.cmp (arg i 1) (arg i 0);
-      I.set (cond cmp) al;
-      I.movzx al (res i 0)
+      I.set (cond cmp) (res8 i 0);
+      I.movzx (res8 i 0) (res i 0)
   | Lop(Iintop_imm(Icomp cmp, n)) ->
       I.cmp (int n) (arg i 0);
-      I.set (cond cmp) al;
-      I.movzx al (res i 0)
+      I.set (cond cmp) (res8 i 0);
+      I.movzx (res8 i 0) (res i 0)
   | Lop(Iintop (Icheckbound { label_after_error; spacetime_index; } )) ->
       let spacetime =
         if not Config.spacetime then None
