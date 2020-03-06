@@ -96,6 +96,8 @@ val swap_float_comparison: float_comparison -> float_comparison
 
 type label = int
 val new_label: unit -> label
+val set_label: label -> unit
+val cur_label: unit -> label
 
 type exit_label =
   | Return_lbl

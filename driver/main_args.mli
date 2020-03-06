@@ -81,6 +81,7 @@ module type Compiler_options = sig
   val _for_pack : string -> unit
   val _g : unit -> unit
   val _stop_after : string -> unit
+  val _start_from : string -> unit
   val _i : unit -> unit
   val _impl : string -> unit
   val _intf : string -> unit
@@ -261,6 +262,7 @@ module type Optcomp_options = sig
   val _afl_instrument : unit -> unit
   val _afl_inst_ratio : int -> unit
   val _function_sections : unit -> unit
+  val _save_ir_after : string -> unit
 end;;
 
 module type Opttop_options = sig

@@ -147,6 +147,9 @@
  (libraries stdlib ocamlcommon ocamlmiddleend ocamloptcommon flambdadeps
             flambda flambda_to_cmm)
  (modules
+   ;; file_formats/
+   linear_format
+
    ;; asmcomp/
    afl_instrument asmgen asmlibrarian asmlink asmpackager branch_relaxation
    branch_relaxation_intf cmmgen coloring comballoc
