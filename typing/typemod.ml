@@ -544,9 +544,9 @@ let merge_constraint initial_env remove_aliases loc sg constr =
       when Ident.name id = s ->
         let path, md' = Env.lookup_module ~loc lid'.txt initial_env in
         let aliasable = not (Env.is_functor_arg path env) in
-        let newmd = Mtype.strengthen_decl ~aliasable env md' path in
-        ignore(Includemod.modtypes ~loc ~mark:Mark_both env
-                 newmd.md_type md.md_type);
+        ignore
+          (Includemod.strengthened_module_decl ~loc ~aliasable env
+             ~mark:Mark_both md' path md);
         real_ids := [Pident id];
         (Pident id, lid, Twith_modsubst (path, lid')),
         update_rec_next rs rem
