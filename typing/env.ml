@@ -2049,10 +2049,13 @@ let unit_name_of_filename fn =
   | _ -> None
 
 let persistent_structures_of_dir dir =
-  Load_path.Dir.files dir
-  |> List.to_seq
-  |> Seq.filter_map unit_name_of_filename
-  |> String.Set.of_seq
+  if Load_path.Dir.path dir = "" && !Clflags.transparent_modules then
+    String.Set.empty
+  else
+    Load_path.Dir.files dir
+    |> List.to_seq
+    |> Seq.filter_map unit_name_of_filename
+    |> String.Set.of_seq
 
 (* Save a signature to a file *)
 let save_signature_with_transform cmi_transform ~alerts sg modname filename =
