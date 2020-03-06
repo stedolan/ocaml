@@ -1182,7 +1182,9 @@ and type_pat_aux ~exception_allowed ~no_existentials ~mode
           k' Tpat_any
       | Counter_example ({explosion_fuel; _} as info) ->
          begin match Parmatch.ppat_of_type !env expected_ty with
-         | exception Parmatch.Empty -> raise (Error (loc, !env, Empty_pattern))
+         | exception Parmatch.Empty ->
+           if must_backtrack_on_gadt then raise Need_backtrack else
+           raise (Error (loc, !env, Empty_pattern))
          | (sp, constrs, labels) ->
             if sp.ppat_desc = Parsetree.Ppat_any then k' Tpat_any else
             if must_backtrack_on_gadt then raise Need_backtrack else
