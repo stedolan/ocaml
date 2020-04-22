@@ -119,6 +119,7 @@ let preserve_tailcall_for_prim = function
   | Pasrint | Pintcomp _ | Poffsetint _ | Poffsetref _ | Pintoffloat
   | Pfloatofint | Pnegfloat | Pabsfloat | Paddfloat | Psubfloat | Pmulfloat
   | Pdivfloat | Pfloatcomp _ | Pstringlength | Pstringrefu  | Pstringrefs
+  | Pcompare_ints | Pcompare_floats | Pcompare_bints _
   | Pbyteslength | Pbytesrefu | Pbytessetu | Pbytesrefs | Pbytessets
   | Pmakearray _ | Pduparray _ | Parraylength _ | Parrayrefu _ | Parraysetu _
   | Parrayrefs _ | Parraysets _ | Pisint | Pisout | Pbintofint _ | Pintofbint _
@@ -392,6 +393,9 @@ let comp_primitive p args =
   | Psetglobal id -> Ksetglobal id
   | Pintcomp cmp -> Kintcomp cmp
   | Pmakeblock(tag, _mut, _) -> Kmakeblock(List.length args, tag)
+  | Pcompare_ints -> Kccall("caml_int_compare", 2)
+  | Pcompare_floats -> Kccall("caml_float_compare", 2)
+  | Pcompare_bints bi -> comp_bint_primitive bi "compare" args
   | Pfield ({ index = n; _ }, _sem) -> Kgetfield n
   | Pfield_computed _sem -> Kgetvectitem
   | Psetfield({ index = n; _ }, _ptr, _init) -> Ksetfield n
