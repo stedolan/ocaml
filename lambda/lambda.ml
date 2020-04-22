@@ -458,16 +458,26 @@ let string_of_scope_item = function
   | Ls_method_definition name ->
      name.txt
 
-
 let string_of_scopes scopes =
+  let dot acc =
+    match acc with
+    | [] -> []
+    | acc -> "." :: acc in
   let rec to_strings acc = function
-    (* Collapse nested anonymous function scopes *)
     | [] -> acc
+      (* Collapse nested anonymous function scopes *)
     | Ls_anonymous_function :: ((Ls_anonymous_function :: _) as rest) ->
       to_strings acc rest
+      (* Use class#meth syntax for classes *)
+    | (Ls_method_definition _ as meth) ::
+      (Ls_class_definition _ as cls) :: rest ->
+      to_strings (string_of_scope_item cls :: "#" ::
+                    string_of_scope_item meth :: dot acc) rest
     | s :: rest ->
-      to_strings (string_of_scope_item s :: acc) rest in
-  String.concat "." (to_strings [] scopes)
+      to_strings (string_of_scope_item s :: dot acc) rest in
+  match scopes with
+  | [] -> "<unknown>"
+  | scopes -> String.concat "" (to_strings [] scopes)
 
 type lambda =
     Lvar of Ident.t

@@ -585,7 +585,7 @@ and transl_exp0 ~scopes e =
       end
   | Texp_object (cs, meths) ->
       let cty = cs.cstr_type in
-      let cl = Ident.create_local "class" in
+      let cl = Ident.create_local "object" in
       !transl_object ~scopes cl meths
         { cl_desc = Tcl_structure cs;
           cl_loc = e.exp_loc;
