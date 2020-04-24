@@ -1,0 +1,4 @@
+File "illegal_probe_is_enabled_t5.ml", line 18, characters 24-57:
+18 |   if [%probe_is_enabled "same rules here for probe names"] then
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: Illegal characters in probe name `same rules here for probe names'. Probe names may only contain alphanumeric characters or underscores.

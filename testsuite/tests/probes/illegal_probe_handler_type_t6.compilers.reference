@@ -1,0 +1,5 @@
+File "illegal_probe_handler_type_t6.ml", line 15, characters 29-34:
+15 |   [%probe "handler_not_unit" (x+1)]
+                                  ^^^^^
+Error: This expression has type int but an expression was expected of type
+         unit

@@ -175,6 +175,7 @@ let psubfloat = "Psubfloat"
 let psubint = "Psubint"
 let pxorbint = "Pxorbint"
 let pxorint = "Pxorint"
+let pprobe_is_enabled = "Pprobe_is_enabled"
 let pabsfloat_arg = "Pabsfloat_arg"
 let paddbint_arg = "Paddbint_arg"
 let paddfloat_arg = "Paddfloat_arg"
@@ -283,6 +284,7 @@ let psubfloat_arg = "Psubfloat_arg"
 let psubint_arg = "Psubint_arg"
 let pxorbint_arg = "Pxorbint_arg"
 let pxorint_arg = "Pxorint_arg"
+let pprobe_is_enabled_arg = "Pprobe_is_enabled_arg"
 let raise = "raise"
 let raise_arg = "raise_arg"
 let read_mutable = "read_mutable"
@@ -303,6 +305,7 @@ let toplevel_substitution_named = "toplevel_substitution_named"
 let unbox_free_vars_of_closures = "unbox_free_vars_of_closures"
 let unit = "unit"
 let zero = "zero"
+let probe_handler = "probe_handler"
 
 let anon_fn_with_loc (loc: Location.t) =
   let (file, line, startchar) = Location.get_pos_info loc.loc_start in
@@ -422,6 +425,7 @@ let of_primitive : Lambda.primitive -> string = function
   | Pint_as_pointer -> pint_as_pointer
   | Popaque -> popaque
   | Pgettag -> pgettag
+  | Pprobe_is_enabled _ -> pprobe_is_enabled
 
 let of_primitive_arg : Lambda.primitive -> string = function
   | Pidentity -> pidentity_arg
@@ -531,3 +535,4 @@ let of_primitive_arg : Lambda.primitive -> string = function
   | Pint_as_pointer -> pint_as_pointer_arg
   | Popaque -> popaque_arg
   | Pgettag -> pgettag_arg
+  | Pprobe_is_enabled _ -> pprobe_is_enabled_arg

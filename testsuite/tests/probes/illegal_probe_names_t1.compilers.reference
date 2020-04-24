@@ -1,0 +1,4 @@
+File "illegal_probe_names_t1.ml", line 15, characters 10-88:
+15 |   [%probe "illegal characters: even dots, dashes, commands, and spaces are not allowed." ()]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: Illegal characters in probe name `illegal characters: even dots, dashes, commands, and spaces are not allowed.'. Probe names may only contain alphanumeric characters or underscores.

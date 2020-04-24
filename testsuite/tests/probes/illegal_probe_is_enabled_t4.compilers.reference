@@ -1,0 +1,4 @@
+File "illegal_probe_is_enabled_t4.ml", line 16, characters 29-46:
+16 |   let b = [%probe_is_enabled "undefined_probe"] in
+                                  ^^^^^^^^^^^^^^^^^
+Error: Undefined probe name `undefined_probe' used in %probe_is_enabled. Not found [%probe "undefined_probe" ...] in the same compilation unit.

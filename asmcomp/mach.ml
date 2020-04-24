@@ -69,6 +69,8 @@ type operation =
   | Ispecific of Arch.specific_operation
   | Iname_for_debugger of { ident : Backend_var.t; which_parameter : int option;
       provenance : unit option; is_assignment : bool; }
+  | Iprobe of { name: string; handler_code_sym: string; }
+  | Iprobe_is_enabled of { name: string }
 
 type instruction =
   { desc: instruction_desc;
@@ -201,6 +203,8 @@ let spacetime_node_hole_pointer_is_live_before insn =
     | Inegf | Iabsf | Iaddf | Isubf | Imulf | Idivf
     | Ifloatofint | Iintoffloat
     | Iname_for_debugger _ -> false
+    (* Probe call sites are not instrumented by Spacetime. *)
+    | Iprobe _ | Iprobe_is_enabled _ -> false
     end
   | Iend | Ireturn _ | Iifthenelse _ | Iswitch _ | Icatch _
   | Iexit _ | Itrywith _ | Iraise _ -> false

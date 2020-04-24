@@ -187,6 +187,7 @@ let function_sections = ref false      (* -function-sections *)
 let treat_invalid_code_as_unreachable = ref false
 let dump_let_cont = ref false
 
+let probes = ref Config.probes         (* -probes *)
 let simplify_rounds = ref None        (* -rounds *)
 let default_simplify_rounds = ref 1        (* -rounds *)
 let rounds () =

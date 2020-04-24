@@ -1,0 +1,4 @@
+File "illegal_probe_names_t3.ml", line 16, characters 2-15:
+16 |   [%probe s ()]
+       ^^^^^^^^^^^^^
+Error: Probe points must consist of a name, as a string literal, followed by a single expression of type unit.

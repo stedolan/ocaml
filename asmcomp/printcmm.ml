@@ -159,6 +159,9 @@ let operation d = function
   | Ccmpf c -> Printf.sprintf "%sf" (float_comparison c)
   | Craise k -> Lambda.raise_kind k ^ Debuginfo.to_string d
   | Ccheckbound -> "checkbound" ^ Debuginfo.to_string d
+  | Cprobe { name; handler_code_sym } ->
+    Printf.sprintf "probe[%s %s]" name handler_code_sym
+  | Cprobe_is_enabled {name} -> Printf.sprintf "probe_is_enabled[%s]" name
 
 let rec expr ppf = function
   | Cconst_int (n, _dbg) -> fprintf ppf "%i" n

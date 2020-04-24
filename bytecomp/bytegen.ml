@@ -131,7 +131,7 @@ let preserve_tailcall_for_prim = function
   | Pbytes_set_64 _ | Pbigstring_load_16 _ | Pbigstring_load_32 _
   | Pbigstring_load_64 _ | Pbigstring_set_16 _ | Pbigstring_set_32 _
   | Pbigstring_set_64 _ | Pctconst _ | Pbswap16 | Pbbswap _ | Pint_as_pointer
-  | Pflambda_isint | Pgettag ->
+  | Pflambda_isint | Pgettag | Pprobe_is_enabled _ ->
       false
 
 (* Add a Kpop N instruction in front of a continuation *)
@@ -687,7 +687,8 @@ let rec comp_expr env exp sz cont =
                        ap_func=func;
                        ap_args=[arg];
                        ap_inlined=Default_inline;
-                       ap_specialised=Default_specialise} in
+                       ap_specialised=Default_specialise;
+                       ap_probe=None} in
       comp_expr env exp sz cont
   | Lprim(Pnot, [arg], _) ->
       let newcont =
