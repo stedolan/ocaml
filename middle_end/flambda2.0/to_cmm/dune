@@ -2,7 +2,7 @@
 
 (library
   (name flambda2_to_cmm)
-  (flags (:standard -principal -nostdlib -open Flambda2))
+  (flags (:standard -principal -nostdlib))
   (libraries stdlib ocamlcommon ocamlbytecomp ocamlmiddleend ocamloptcommon
              flambda2deps flambda2)
 )

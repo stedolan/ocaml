@@ -143,7 +143,7 @@
 (library
  (name ocamloptcomp)
  (wrapped false)
- (flags (:standard -principal -nostdlib -open Flambda2 -open Flambda2_to_cmm))
+ (flags (:standard -principal -nostdlib -open Flambda2_to_cmm))
  (libraries stdlib ocamlcommon ocamlmiddleend ocamloptcommon flambda2deps
             flambda2 flambda2_to_cmm)
  (modules
@@ -184,7 +184,7 @@
 (executable
  (name ilambdac)
  (modes byte)
- (flags (:standard -principal -nostdlib -cclib "-I runtime" -open Flambda2))
+ (flags (:standard -principal -nostdlib -cclib "-I runtime"))
  (libraries ocamloptcommon ocamloptcomp ocamlmiddleend flambda2 ocamlcommon runtime stdlib)
  (modules ilambdac))
 

@@ -1,5 +1,3 @@
-open! Flambda2
-
 module K = Flambda_kind
 module T = Flambda_type
 module TE = T.Typing_env
