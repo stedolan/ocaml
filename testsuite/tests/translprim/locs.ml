@@ -42,3 +42,6 @@ let pos, s3 = __POS_OF__ "yet another expression"
 let () = print_pos pos
 
 let () = print_endline s3
+
+let func () = print_endline __FUNCTION__
+let () = func ()
