@@ -53,6 +53,7 @@ module Make (Bindable : Bindable.S) (Term : Term) : sig
 
   (** Concretion of an abstraction at a fresh name. *)
   val pattern_match : t -> f:(Bindable.t -> Term.t -> 'a) -> 'a
+  val pattern_match_for_print : t -> f:(Bindable.t -> Term.t -> 'a) -> 'a
 
   (** Concretion of an abstraction at a fresh name followed by reconstruction of
       the abstraction. *)
@@ -82,6 +83,7 @@ module Make_list (Bindable : Bindable.S) (Term : Term) : sig
 
   (** Concretion of an abstraction at fresh names. *)
   val pattern_match : t -> f:(Bindable.t list -> Term.t -> 'a) -> 'a
+  val pattern_match_for_print : t -> f:(Bindable.t list -> Term.t -> 'a) -> 'a
 
   (** Concretion of an abstraction at fresh names followed by reconstruction of
       the abstraction. *)
@@ -112,4 +114,5 @@ module Make_map (Bindable : Bindable.S) (Term : Term) : sig
 
   (** Concretion of an abstraction at fresh names. *)
   val pattern_match : t -> f:(Term.t -> 'a) -> 'a
+  val pattern_match_for_print : t -> f:(Term.t -> 'a) -> 'a
 end

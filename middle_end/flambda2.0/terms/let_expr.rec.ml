@@ -48,30 +48,32 @@ let print_with_cache ~cache ppf
   let rec let_body (expr : Expr.t) =
     match Expr.descr expr with
     | Let ({ bound_vars_and_body = _; defining_expr; } as t) ->
-      pattern_match t ~f:(fun ~bound_vars ~body ->
-        fprintf ppf
-          "@ @[<hov 1>@<0>%s%a@<0>%s =@<0>%s@ %a@]"
-          (let_bound_var_colour bound_vars)
-          Bindable_let_bound.print bound_vars
-          (Flambda_colours.elide ())
-          (Flambda_colours.normal ())
-          (Named.print_with_cache ~cache) defining_expr;
-        let_body body)
+      Bound_vars_and_body.pattern_match_for_print t.bound_vars_and_body
+        ~f:(fun bound_vars body ->
+          fprintf ppf
+            "@ @[<hov 1>@<0>%s%a@<0>%s =@<0>%s@ %a@]"
+            (let_bound_var_colour bound_vars)
+            Bindable_let_bound.print bound_vars
+            (Flambda_colours.elide ())
+            (Flambda_colours.normal ())
+            (Named.print_with_cache ~cache) defining_expr;
+          let_body body)
     | _ -> expr
   in
-  pattern_match t ~f:(fun ~bound_vars ~body ->
-    fprintf ppf "@[<v 1>(@<0>%slet@<0>%s@ (@[<v 0>\
-        @[<hov 1>@<0>%s%a@<0>%s =@<0>%s@ %a@]"
-      (Flambda_colours.expr_keyword ())
-      (Flambda_colours.normal ())
-      (let_bound_var_colour bound_vars)
-      Bindable_let_bound.print bound_vars
-      (Flambda_colours.elide ())
-      (Flambda_colours.normal ())
-      (Named.print_with_cache ~cache) defining_expr;
-    let expr = let_body body in
-    fprintf ppf "@])@ %a)@]"
-      (Expr.print_with_cache ~cache) expr)
+  Bound_vars_and_body.pattern_match_for_print t.bound_vars_and_body
+    ~f:(fun bound_vars body ->
+      fprintf ppf "@[<v 1>(@<0>%slet@<0>%s@ (@[<v 0>\
+          @[<hov 1>@<0>%s%a@<0>%s =@<0>%s@ %a@]"
+        (Flambda_colours.expr_keyword ())
+        (Flambda_colours.normal ())
+        (let_bound_var_colour bound_vars)
+        Bindable_let_bound.print bound_vars
+        (Flambda_colours.elide ())
+        (Flambda_colours.normal ())
+        (Named.print_with_cache ~cache) defining_expr;
+      let expr = let_body body in
+      fprintf ppf "@])@ %a)@]"
+        (Expr.print_with_cache ~cache) expr)
 
 let print ppf t = print_with_cache ~cache:(Printing_cache.create ()) ppf t
 
