@@ -48,7 +48,7 @@ let rec load_cmx_file_contents backend comp_unit ~imported_units ~imported_names
       Some typing_env
 
 let prepare_cmx_file_contents ~return_cont_env:cont_uses_env
-      ~return_continuation all_code =
+      ~return_continuation ~module_symbol all_code =
   match
     Continuation_uses_env.get_typing_env_no_more_than_one_use
       cont_uses_env return_continuation
@@ -59,7 +59,7 @@ let prepare_cmx_file_contents ~return_cont_env:cont_uses_env
     (* CR mshinwell: We should remove typing information about names that
        do not occur (transitively) in the type of the module block. *)
     let final_typing_env =
-      TE.clean_for_export final_typing_env
+      TE.clean_for_export final_typing_env ~module_symbol
       |> TE.Serializable.create
     in
     let exported_offsets =

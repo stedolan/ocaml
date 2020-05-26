@@ -32,5 +32,6 @@ val load_cmx_file_contents
 val prepare_cmx_file_contents
    : return_cont_env:Continuation_uses_env.t
   -> return_continuation:Continuation.t
+  -> module_symbol:Symbol.t
   -> Function_params_and_body.t Code_id.Map.t
   -> Flambda_cmx_format.t option

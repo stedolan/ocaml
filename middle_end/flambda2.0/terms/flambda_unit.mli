@@ -31,11 +31,14 @@ val create
    : return_continuation:Continuation.t
   -> exn_continuation:Continuation.t
   -> body:Flambda.Expr.t
+  -> module_symbol:Symbol.t
   -> t
 
 val return_continuation : t -> Continuation.t
 
 val exn_continuation : t -> Continuation.t
+
+val module_symbol : t -> Symbol.t
 
 (** All closure variables used in the given unit. *)
 val used_closure_vars : t -> Var_within_closure.Set.t

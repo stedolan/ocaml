@@ -148,7 +148,7 @@ module Typing_env : sig
     -> flambda_type
     -> Name_occurrences.t
 
-  val clean_for_export : t -> t
+  val clean_for_export : t -> module_symbol:Symbol.t -> t
 
   module Serializable : sig
     type typing_env = t

@@ -1194,3 +1194,4 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
   in
   (* CR mshinwell: Delete [t.imported_symbols] if unused *)
   Flambda_unit.create ~return_continuation:return_cont ~exn_continuation ~body
+    ~module_symbol

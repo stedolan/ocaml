@@ -141,7 +141,7 @@ val free_names_transitive : t -> Type_grammar.t -> Name_occurrences.t
 
 val defined_symbols : t -> Symbol.Set.t
 
-val clean_for_export : t -> t
+val clean_for_export : t -> module_symbol:Symbol.t -> t
 
 module Serializable : sig
   type typing_env = t

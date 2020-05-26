@@ -22,26 +22,31 @@ type t = {
   return_continuation : Continuation.t;
   exn_continuation : Continuation.t;
   body : Flambda.Expr.t;
+  module_symbol : Symbol.t;
 }
 
-let create ~return_continuation ~exn_continuation ~body =
+let create ~return_continuation ~exn_continuation ~body ~module_symbol =
   { return_continuation;
     exn_continuation;
     body;
+    module_symbol;
   }
 
 let return_continuation t = t.return_continuation
 let exn_continuation t = t.exn_continuation
 let body t = t.body
+let module_symbol t = t.module_symbol
 
 let print ppf
-      { return_continuation; exn_continuation; body;
+      { return_continuation; exn_continuation; body; module_symbol;
       } =
   Format.fprintf ppf "@[<hov 1>(\
+        @[<hov 1>(module_symbol@ %a)@]@ \
         @[<hov 1>(return_continuation@ %a)@]@ \
         @[<hov 1>(exn_continuation@ %a)@]@ \
         @[<hov 1>%a@]\
       )@]"
+    Symbol.print module_symbol
     Continuation.print return_continuation
     Continuation.print exn_continuation
     Flambda.Expr.print body

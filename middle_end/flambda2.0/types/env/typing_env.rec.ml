@@ -56,7 +56,7 @@ module Cached : sig
 
   val with_cse : t -> cse:Simple.t Flambda_primitive.Eligible_for_cse.Map.t -> t
 
-  val clean_for_export : t -> t
+  val clean_for_export : t -> module_symbol:Symbol.t -> t
 
   val import : Ids_for_export.Import_map.t -> t -> t
 
@@ -169,6 +169,9 @@ end = struct
       names_to_types;
     }
 
+  let clean_for_export t ~module_symbol:_ =
+    clean_for_export t
+
   let import import_map { names_to_types; aliases; cse; } =
     let module Import = Ids_for_export.Import_map in
     let names_to_types =
@@ -280,10 +283,10 @@ module One_level = struct
     Typing_env_level.defines_name_but_no_equations t.level name
 *)
 
-  let clean_for_export t =
+  let clean_for_export t ~module_symbol =
     { t with
       just_after_level =
-        Cached.clean_for_export t.just_after_level;
+        Cached.clean_for_export t.just_after_level ~module_symbol;
     }
 end
 
@@ -1366,9 +1369,9 @@ and free_names_transitive0 t typ ~result =
 let free_names_transitive t typ =
   free_names_transitive0 t typ ~result:Name_occurrences.empty
 
-let clean_for_export t =
+let clean_for_export t ~module_symbol =
   let current_level =
-    One_level.clean_for_export t.current_level
+    One_level.clean_for_export t.current_level ~module_symbol
   in
   { t with
     current_level;

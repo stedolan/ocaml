@@ -46,6 +46,7 @@ let run ~backend ~round unit =
   let module Backend = (val backend : Flambda2_backend_intf.S) in
   let return_continuation = FU.return_continuation unit in
   let exn_continuation = FU.exn_continuation unit in
+  let module_symbol = FU.module_symbol unit in
   let imported_names = ref Name.Set.empty in
   let imported_code = ref Code_id.Map.empty in
   let imported_units = ref Compilation_unit.Map.empty in
@@ -91,9 +92,11 @@ let run ~backend ~round unit =
   let return_cont_env = DA.continuation_uses_env dacc in
   let cmx =
     Flambda_cmx.prepare_cmx_file_contents ~return_cont_env
-      ~return_continuation (R.all_code r)
+      ~return_continuation ~module_symbol (R.all_code r)
   in
-  let unit = FU.create ~return_continuation ~exn_continuation ~body in
+  let unit =
+    FU.create ~return_continuation ~exn_continuation ~module_symbol ~body
+  in
   { cmx;
     unit;
   }
