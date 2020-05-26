@@ -332,6 +332,7 @@ and simplify_non_recursive_let_cont_handler
                    as the handler env. *)
                 DE.add_lifted_constants denv_before_body
                   ~lifted:consts_lifted_during_body
+                |> DE.with_code ~from:(DA.denv dacc_after_body)
                 |> DA.with_denv dacc_after_body
               in
               let uses =

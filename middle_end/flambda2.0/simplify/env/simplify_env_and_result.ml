@@ -385,6 +385,11 @@ end = struct
       Misc.fatal_errorf "Code ID %a not bound" Code_id.print id
     | code -> code
 
+  let with_code ~from t =
+    { t with
+      code = from.code;
+    }
+
   let add_lifted_constants t ~lifted =
     (*
     let num_lifted_constants = List.length lifted in

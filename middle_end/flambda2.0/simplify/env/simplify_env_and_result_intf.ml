@@ -148,6 +148,8 @@ module type Downwards_env = sig
 
   val find_code : t -> Code_id.t -> Function_params_and_body.t
 
+  val with_code : from:t -> t -> t
+
   (** Appends the locations of inlined call-sites to the given debuginfo
       and sets the resulting debuginfo as the current one in the
       environment. *)
