@@ -510,6 +510,23 @@ let add_cse t prim ~bound_to =
   | _bound_to -> t
 
 let rec add_equation0 t aliases name ty =
+  if !Clflags.Flambda_2.Debug.concrete_types_only_on_canonicals then begin
+    let is_concrete =
+      match Type_grammar.get_alias_exn ty with
+      | exception Not_found -> true
+      | _ -> false
+    in
+    if is_concrete then begin
+      let canonical = Aliases.get_canonical_ignoring_name_mode aliases name in
+      if not (Simple.equal canonical (Simple.name name)) then begin
+        Misc.fatal_errorf "Trying to add equation giving concrete type on %a \
+            which is not canonical (its canonical is %a): %a"
+          Name.print name
+          Simple.print canonical
+          Type_grammar.print ty
+      end
+    end
+  end;
   invariant_for_new_equation t name ty;
   let level =
     Typing_env_level.add_or_replace_equation
@@ -519,14 +536,14 @@ let rec add_equation0 t aliases name ty =
     Name.pattern_match name
       ~var:(fun var ->
         let just_after_level =
-          Cached.replace_variable_binding 
+          Cached.replace_variable_binding
             (One_level.just_after_level t.current_level)
             var ty ~new_aliases:aliases
         in
         just_after_level, t.closure_env)
       ~symbol:(fun _ ->
         let just_after_level =
-          Cached.add_or_replace_binding 
+          Cached.add_or_replace_binding
             (One_level.just_after_level t.current_level)
             name ty Binding_time.symbols Name_mode.normal
             ~new_aliases:aliases
@@ -599,7 +616,12 @@ and add_equation t name ty =
   let aliases, simple, rec_info, t, ty =
     let aliases = aliases t in
     match Type_grammar.get_alias_exn ty with
-    | exception Not_found -> aliases, Simple.name name, None, t, ty
+    | exception Not_found ->
+      (* Equations giving concrete types may only be added to the canonical
+         element as known by the alias tracker (the actual canonical, ignoring
+         any name modes). *)
+      let canonical = Aliases.get_canonical_ignoring_name_mode aliases name in
+      aliases, canonical, None, t, ty
     | alias_of ->
       let alias = Simple.name name in
       let binding_time_and_mode_alias =

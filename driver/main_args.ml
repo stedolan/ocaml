@@ -961,6 +961,16 @@ let mk_no_flambda2_expert_fallback_inlining_heuristic f =
     " Allow inlining of functions whose bodies contain closures (default)"
 ;;
 
+let mk_flambda2_debug_concrete_types_only_on_canonicals f =
+  "-flambda2-debug-concrete-types-only-on-canonicals", Arg.Unit f,
+    " Check that concrete types are only assigned to canonical names"
+;;
+
+let mk_no_flambda2_debug_concrete_types_only_on_canonicals f =
+  "-no-flambda2-debug-concrete-types-only-on-canonicals", Arg.Unit f,
+    " Do not check that concrete types are only assigned to canonical names"
+;;
+
 let mk_flambda2_backend_cse_at_toplevel f =
   "-flambda2-backend-cse-at-toplevel", Arg.Unit f,
     " Apply the backend CSE pass to module initializers"
@@ -1190,6 +1200,8 @@ module type Optcommon_options = sig
   val _no_flambda2_expert_code_id_and_symbol_scoping_checks : unit -> unit
   val _flambda2_expert_fallback_inlining_heuristic : unit -> unit
   val _no_flambda2_expert_fallback_inlining_heuristic : unit -> unit
+  val _flambda2_debug_concrete_types_only_on_canonicals : unit -> unit
+  val _no_flambda2_debug_concrete_types_only_on_canonicals : unit -> unit
 
   val _dprepared_lambda : unit -> unit
   val _dilambda : unit -> unit
@@ -1542,6 +1554,10 @@ struct
       F._flambda2_expert_fallback_inlining_heuristic;
     mk_no_flambda2_expert_fallback_inlining_heuristic
       F._no_flambda2_expert_fallback_inlining_heuristic;
+    mk_flambda2_debug_concrete_types_only_on_canonicals
+      F._flambda2_debug_concrete_types_only_on_canonicals;
+    mk_no_flambda2_debug_concrete_types_only_on_canonicals
+      F._no_flambda2_debug_concrete_types_only_on_canonicals;
 
     mk_match_context_rows F._match_context_rows;
     mk_dno_unique_ids F._dno_unique_ids;
@@ -1686,6 +1702,10 @@ module Make_opttop_options (F : Opttop_options) = struct
       F._flambda2_expert_fallback_inlining_heuristic;
     mk_no_flambda2_expert_fallback_inlining_heuristic
       F._no_flambda2_expert_fallback_inlining_heuristic;
+    mk_flambda2_debug_concrete_types_only_on_canonicals
+      F._flambda2_debug_concrete_types_only_on_canonicals;
+    mk_no_flambda2_debug_concrete_types_only_on_canonicals
+      F._no_flambda2_debug_concrete_types_only_on_canonicals;
 
     mk_dsource F._dsource;
     mk_dparsetree F._dparsetree;
@@ -1996,6 +2016,10 @@ module Default = struct
       set Flambda_2.Expert.fallback_inlining_heuristic
     let _no_flambda2_expert_fallback_inlining_heuristic =
       clear Flambda_2.Expert.fallback_inlining_heuristic
+    let _flambda2_debug_concrete_types_only_on_canonicals =
+      set Flambda_2.Debug.concrete_types_only_on_canonicals
+    let _no_flambda2_debug_concrete_types_only_on_canonicals =
+      clear Flambda_2.Debug.concrete_types_only_on_canonicals
 
     let _dprepared_lambda = set dump_prepared_lambda
     let _dilambda = set dump_ilambda

@@ -51,3 +51,5 @@ val get_canonical_element_exn
 
 (** [get_aliases] always returns the supplied element in the result set. *)
 val get_aliases : t -> Simple.t -> Simple.Set.t
+
+val get_canonical_ignoring_name_mode : t -> Name.t -> Simple.t

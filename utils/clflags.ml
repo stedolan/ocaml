@@ -435,6 +435,10 @@ module Flambda_2 = struct
     let code_id_and_symbol_scoping_checks = ref false
     let fallback_inlining_heuristic = ref false
   end
+
+  module Debug = struct
+    let concrete_types_only_on_canonicals = ref false
+  end
 end
 
 (* This is used by the -stop-after option. *)

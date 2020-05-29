@@ -473,3 +473,9 @@ let get_aliases t element =
       assert (Simple.Set.mem element aliases)
     end;
     Simple.Set.add canonical_element aliases
+
+let get_canonical_ignoring_name_mode t name =
+  let simple = Simple.name name in
+  match canonical t simple with
+  | Is_canonical _ -> simple
+  | Alias_of_canonical { canonical_element; _ } -> canonical_element

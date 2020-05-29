@@ -129,7 +129,7 @@ module Make (Head : Type_head_intf.S
       match descr t with
       | Equals alias -> alias
       | No_alias _ | Type _ -> assert false
- 
+
   let apply_rec_info t rec_info : _ Or_bottom.t =
     match descr t with
     | Equals simple ->
@@ -427,6 +427,9 @@ module Make (Head : Type_head_intf.S
                wrong way", for example "y : =x" when [y] is the canonical
                element. This doesn't matter, however, because [Typing_env] sorts
                this out when adding equations into an environment. *)
+            (* CR mshinwell: May be able to improve efficiency by not
+               doing [meet] again (via [TE.add_env_extension]) if we tried
+               here to emit the equations the correct way around *)
             match meet_head_or_unknown_or_bottom env head1 head2 with
             | Left_head_unchanged ->
               let env_extension =

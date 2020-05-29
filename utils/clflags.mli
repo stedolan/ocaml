@@ -255,6 +255,10 @@ module Flambda_2 : sig
     val code_id_and_symbol_scoping_checks : bool ref
     val fallback_inlining_heuristic : bool ref
   end
+
+  module Debug : sig
+    val concrete_types_only_on_canonicals : bool ref
+  end
 end
 
 module Compiler_pass : sig
