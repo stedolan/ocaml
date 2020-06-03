@@ -303,7 +303,20 @@ let prove_tags_must_be_a_block env t : Tag.Set.t proof =
     | Unknown -> Unknown
     | Known imms ->
       if not (is_bottom env imms) then
-        Invalid
+        (* CR vlaviron: This case could be completely ignored if we're
+           only interested in the set of tags this type can have.
+           It is there because this function used to return Invalid
+           when it couldn't definitively prove that this type represents
+           a block, but this caused a number of problems so this was
+           switched to Unknown (which, unlike Invalid, is always sound).
+           There remain a question of whether we actually want two
+           different variants of this function, one for simplification
+           of the get_tag primitive which may reasonably expect to error
+           if its argument cannot be proved to be a block, and one for
+           simplification of CSE parameters containing a get_tag equation,
+           which can occur at places where the type is not known to be a block.
+        *)
+        Unknown
       else
         match blocks_imms.blocks with
         | Unknown -> Unknown
