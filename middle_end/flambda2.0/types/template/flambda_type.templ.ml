@@ -366,6 +366,9 @@ let prove_naked_immediates env t : Target_imm.Set.t proof =
     | Invalid -> Invalid
     end
   | Naked_immediate (Ok (Get_tag block_ty)) ->
+    (* CR vlaviron: see the comment in prove_tags_must_be_a_block.
+       See also prove_equals_tagged_immediates below, which returns Unknown
+       when the blocks part is not bottom. *)
     begin match prove_tags_must_be_a_block env block_ty with
     | Proved tags ->
       let is =
@@ -375,11 +378,8 @@ let prove_naked_immediates env t : Target_imm.Set.t proof =
           Target_imm.Set.empty
       in
       Proved is
-    | Unknown | Invalid ->
-      (* We must not return [Invalid] here even if [block_ty] doesn't
-         correspond to a block -- that might happen if we lose precision
-         for some reason, which should be harmless. *)
-      Unknown
+    | Unknown -> Unknown
+    | Invalid -> Invalid
     end
   | Naked_immediate Unknown -> Unknown
   | Naked_immediate Bottom -> Invalid
