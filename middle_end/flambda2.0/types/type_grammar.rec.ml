@@ -475,14 +475,23 @@ let boxed_nativeint_alias_to ~naked_nativeint =
   box_nativeint (Naked_nativeint (
     T_NN.create_equals (Simple.var naked_nativeint)))
 
-let blocks_with_these_tags tags =
-  let blocks =
-    Row_like.For_blocks.create_blocks_with_these_tags
-      ~field_kind:Flambda_kind.value tags
-  in
-  Value (T_V.create_no_alias (Ok (Variant (Variant.create
-    ~immediates:(Known (bottom K.naked_immediate))
-    ~blocks:(Known blocks)))))
+let blocks_with_these_tags tags : _ Or_unknown.t =
+  if Tag.Set.for_all Tag.is_structured_block tags then
+    let blocks =
+      Row_like.For_blocks.create_blocks_with_these_tags
+        ~field_kind:Flambda_kind.value tags
+    in
+    Known (Value (T_V.create_no_alias (Ok (Variant (Variant.create
+      ~immediates:(Known (bottom K.naked_immediate))
+      ~blocks:(Known blocks))))))
+  else
+    (* CR vlaviron: I think this function is only used to create shapes
+       for meet. For this reason it is wrong to give an under-approximation
+       (like only returning regular blocks when other kind of values would
+       match, for instance closures), but returning an over-approximation
+       should be fine (it is also correct for join, but can lead to avoidable
+       loss of precision). *)
+    Unknown
 
 let immutable_block tag ~field_kind ~fields =
   match Targetint.OCaml.of_int_option (List.length fields) with

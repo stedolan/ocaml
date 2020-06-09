@@ -117,7 +117,7 @@ val any_block : unit -> t
 val is_int_for_scrutinee : scrutinee:Simple.t -> t
 val get_tag_for_block : block:Simple.t -> t
 
-val blocks_with_these_tags : Tag.Set.t -> t
+val blocks_with_these_tags : Tag.Set.t -> t Or_unknown.t
 
 val immutable_block : Tag.t -> field_kind:Flambda_kind.t -> fields:t list -> t
 

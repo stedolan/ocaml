@@ -149,10 +149,20 @@ struct
           tags
           Tag.Set.empty
       in
-      let shape = T.blocks_with_these_tags tags in
-      Or_bottom_or_absorbing.of_or_bottom
-        (E.switch T.meet T.join' env ty shape)
-        ~f:(fun (ty, env_extension) -> Get_tag ty, env_extension)
+      begin match T.blocks_with_these_tags tags with
+      | Known shape ->
+        Or_bottom_or_absorbing.of_or_bottom
+          (E.switch T.meet T.join' env ty shape)
+          ~f:(fun (ty, env_extension) -> Get_tag ty, env_extension)
+      | Unknown ->
+        begin match E.op () with
+        | Meet -> Ok (Get_tag ty, TEE.empty ())
+        | Join ->
+          (* This should be Top, but we only have Absorbing; fortunately,
+             since we're in the join case, Absorbing turns out to be Top *)
+          Absorbing
+        end
+      end
     | (Is_int _ | Get_tag _), (Is_int _ | Get_tag _) -> Absorbing
     | Naked_immediates tags, Get_tag ty ->
       let tags =
@@ -163,8 +173,18 @@ struct
           tags
           Tag.Set.empty
       in
-      let shape = T.blocks_with_these_tags tags in
-      Or_bottom_or_absorbing.of_or_bottom
-        (E.switch T.meet T.join' env shape ty)
-        ~f:(fun (ty, env_extension) -> Get_tag ty, env_extension)
+      begin match T.blocks_with_these_tags tags with
+      | Known shape ->
+        Or_bottom_or_absorbing.of_or_bottom
+          (E.switch T.meet T.join' env ty shape)
+          ~f:(fun (ty, env_extension) -> Get_tag ty, env_extension)
+      | Unknown ->
+        begin match E.op () with
+        | Meet -> Ok (Get_tag ty, TEE.empty ())
+        | Join ->
+          (* This should be Top, but we only have Absorbing; fortunately,
+             since we're in the join case, Absorbing turns out to be Top *)
+          Absorbing
+        end
+      end
 end
