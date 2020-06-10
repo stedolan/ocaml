@@ -1920,7 +1920,9 @@ let inline_lazy_force arg loc =
         ap_inlined = Default_inline;
         ap_specialised = Default_specialise
       }
-  else if !Clflags.native_code then
+  else if !Clflags.native_code && not Config.flambda then
+    (* CR vlaviron: Find a way for Flambda 2 to avoid both the call to
+       caml_obj_tag and the switch on arbitrary tags *)
     (* Lswitch generates compact and efficient native code *)
     inline_lazy_force_switch arg loc
   else
