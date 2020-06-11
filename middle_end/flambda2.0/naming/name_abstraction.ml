@@ -68,12 +68,9 @@ module Make (Bindable : Bindable.S) (Term : Term) = struct
     let fresh_term = Term.apply_name_permutation term perm in
     f fresh_name fresh_term
 
-  let [@inline always] pattern_match_for_print (name, term) ~f =
-    f name term
-
-  let print ppf (name, term) =
+  let print ppf t =
     let style = !printing_style in
-    (* pattern_match t ~f:(fun name term -> *)
+    pattern_match t ~f:(fun name term ->
       Format.fprintf ppf "@[<hov 1>%s@<1>%s%s%a%s@<1>%s%s@ %a@]"
         (Flambda_colours.name_abstraction ())
         (before_binding_position style)
@@ -82,11 +79,11 @@ module Make (Bindable : Bindable.S) (Term : Term) = struct
         (Flambda_colours.name_abstraction ())
         (after_binding_position style)
         (Flambda_colours.normal ())
-        Term.print term
+        Term.print term)
 
-  let print_with_cache ~cache ppf (name, term) =
+  let print_with_cache ~cache ppf t =
     let style = !printing_style in
-    (* pattern_match t ~f:(fun name term -> *)
+    pattern_match t ~f:(fun name term ->
       Format.fprintf ppf "@[<hov 1>%s@<1>%s%s%a%s@<1>%s%s@ %a@]"
         (Flambda_colours.name_abstraction ())
         (before_binding_position style)
@@ -95,7 +92,7 @@ module Make (Bindable : Bindable.S) (Term : Term) = struct
         (Flambda_colours.name_abstraction ())
         (after_binding_position style)
         (Flambda_colours.normal ())
-        (Term.print_with_cache ~cache) term
+        (Term.print_with_cache ~cache) term)
 
   let [@inline always] pattern_match_mapi t ~f =
     pattern_match t ~f:(fun fresh_name fresh_term ->
@@ -165,9 +162,6 @@ module Make_list (Bindable : Bindable.S) (Term : Term) = struct
       let fresh_term = Term.apply_name_permutation term perm in
       f fresh_names fresh_term
 
-  let [@inline always] pattern_match_for_print (names, term) ~f =
-    f names term
-
   let print_bindable_name_list ppf bns =
     let style = !printing_style in
     match bns with
@@ -183,17 +177,17 @@ module Make_list (Bindable : Bindable.S) (Term : Term) = struct
         (after_binding_position style)
         (Flambda_colours.normal ())
 
-  let print ppf (names, term) =
-    (* pattern_match t ~f:(fun names term -> *)
+  let print ppf t =
+    pattern_match t ~f:(fun names term ->
       Format.fprintf ppf "@[<hov 1>%a@ %a@]"
         print_bindable_name_list names
-        Term.print term
+        Term.print term)
 
-  let print_with_cache ~cache ppf (names, term) =
-    (* pattern_match t ~f:(fun names term -> *)
+  let print_with_cache ~cache ppf t =
+    pattern_match t ~f:(fun names term ->
       Format.fprintf ppf "@[<hov 1>%a@ %a@]"
         print_bindable_name_list names
-        (Term.print_with_cache ~cache) term
+        (Term.print_with_cache ~cache) term)
 
   let [@inline always] pattern_match_mapi t ~f =
     pattern_match t ~f:(fun fresh_names fresh_term ->
@@ -283,9 +277,6 @@ module Make_map (Bindable : Bindable.S) (Term : Term) = struct
             Name_permutation.empty
         in
         f (Term.apply_name_permutation term perm)
-
-  let [@inline always] pattern_match_for_print (E (_names, term)) ~f =
-    f term
 
   let pattern_match' t ~f =
     match t with
