@@ -189,7 +189,6 @@ bits  63        (64-P) (63-P)        10 9     8 7   0
 /* The lowest tag for blocks containing no value. */
 #define No_scan_tag 251
 
-
 /* 1- If tag < No_scan_tag : a tuple of fields.  */
 
 /* Pointer to the first field. */
@@ -204,7 +203,8 @@ typedef opcode_t * code_t;
    [No_scan_tag], with [Infix_tag] the lower one.
    See [caml_oldify_one] in minor_gc.c for more details.
 
-   NOTE: Update stdlib/obj.ml whenever you change the tags.
+   NOTE: Update stdlib/obj.ml and lambda/tag.ml{,i} whenever you change the
+   tags.
  */
 
 /* Forward_tag: forwarding pointer that the GC may silently shortcut.

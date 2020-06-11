@@ -41,12 +41,19 @@ val double_tag : t
 val double_array_tag : t
 val custom_tag : t
 val object_tag : t
+val forward_tag : t
+val lazy_tag : t
 
 (** A tag to be used when a [Tag.t] must be provided, but it will never be
     used. *)
 val arbitrary : t
 
+(** Returns [true] iff the supplied tag is that of a GC-scannable block. *)
 val is_structured_block : t -> bool
+
+(** Returns [true] iff the supplied tag is that of a GC-scannable block, but
+    the block is not treated like a variant, for example a lazy value. *)
+val is_structured_block_but_not_a_variant : t -> bool
 
 (* CR mshinwell: This name should be changed---all "value"s are scannable.
    "Structured"? *)

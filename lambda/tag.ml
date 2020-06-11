@@ -66,6 +66,8 @@ let custom_tag = Obj.custom_tag
 let infix_tag = Obj.infix_tag
 let closure_tag = Obj.closure_tag
 let object_tag = Obj.object_tag
+let forward_tag = Obj.forward_tag
+let lazy_tag = Obj.lazy_tag
 
 let arbitrary = max_int
 
@@ -131,3 +133,6 @@ module Non_scannable = struct
     if tag < min_tag || tag >= Obj.no_scan_tag then None
     else Some tag
 end
+
+let is_structured_block_but_not_a_variant t =
+  is_structured_block t && t > Obj.last_non_constant_constructor_tag

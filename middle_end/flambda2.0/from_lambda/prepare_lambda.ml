@@ -376,10 +376,20 @@ let rec prepare env (lam : L.lambda) (k : L.lambda -> L.lambda) =
                         ({ sw_tag; sw_size; } : L.lambda_switch_block_key) ->
                   match Tag.Scannable.create sw_tag with
                   | Some tag ->
+                    let tag' = Tag.Scannable.to_tag tag in
+                    if Tag.is_structured_block_but_not_a_variant tag' then begin
+                      Misc.fatal_errorf "Bad tag %a in [Lswitch] (tag is that \
+                          of a scannable block, but not one treated like a \
+                          variant; [Lswitch] can only be used for variant \
+                          matching)"
+                        Tag.print tag'
+                    end;
                     let size = Targetint.OCaml.of_int sw_size in
                     Tag.Scannable.Map.add tag size tags_to_sizes
                   | None ->
-                    Misc.fatal_errorf "Bad tag %d in [Lswitch]" sw_tag)
+                    Misc.fatal_errorf "Bad tag %d in [Lswitch] (not the tag \
+                        of a GC-scannable block)"
+                      sw_tag)
                 Tag.Scannable.Map.empty
                 block_nums
             in
@@ -388,6 +398,14 @@ let rec prepare env (lam : L.lambda) (k : L.lambda -> L.lambda) =
                   sw_tag)
                 block_nums
             in
+            if switch.sw_numblocks > Obj.last_non_constant_constructor_tag + 1
+            then begin
+              Misc.fatal_errorf "Too many blocks (%d) in [Lswitch], would \
+                  overlap into tag space for blocks that are not treated \
+                  like variants; [Lswitch] can only be used for variant \
+                  matching"
+                switch.sw_numblocks
+            end;
             let blocks_switch : L.lambda_switch =
               { sw_numconsts = switch.sw_numblocks;
                 sw_consts = List.combine block_nums sw_blocks;
