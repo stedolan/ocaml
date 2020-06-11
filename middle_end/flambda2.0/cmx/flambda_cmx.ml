@@ -21,11 +21,15 @@ open! Simplify_import
 let rec load_cmx_file_contents backend comp_unit ~imported_units ~imported_names
       ~imported_code =
   match Compilation_unit.Map.find comp_unit !imported_units with
-  | typing_env -> Some typing_env
+  | typing_env_or_none -> typing_env_or_none
   | exception Not_found ->
     let module Backend = (val backend : Flambda2_backend_intf.S) in
     match Backend.get_global_info comp_unit with
-    | None -> None
+    | None ->
+      (* To make things easier to think about, we never retry after a .cmx
+         load fails. *)
+      imported_units := Compilation_unit.Map.add comp_unit None !imported_units;
+      None
     | Some cmx ->
       let resolver comp_unit =
         load_cmx_file_contents backend comp_unit ~imported_names ~imported_code
@@ -44,7 +48,7 @@ let rec load_cmx_file_contents backend comp_unit ~imported_units ~imported_names
       let offsets = Flambda_cmx_format.exported_offsets cmx in
       Exported_offsets.import_offsets offsets;
       imported_units :=
-        Compilation_unit.Map.add comp_unit typing_env !imported_units;
+        Compilation_unit.Map.add comp_unit (Some typing_env) !imported_units;
       Some typing_env
 
 let prepare_cmx_file_contents ~return_cont_env:cont_uses_env

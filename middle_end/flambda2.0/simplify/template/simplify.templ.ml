@@ -61,7 +61,7 @@ let run ~backend ~round unit =
   in
   imported_units :=
     Compilation_unit.Map.add (Compilation_unit.predefined_exception ())
-      (predefined_exception_typing_env)
+      (Some predefined_exception_typing_env)
       !imported_units;
   imported_names :=
     Name.Set.union !imported_names

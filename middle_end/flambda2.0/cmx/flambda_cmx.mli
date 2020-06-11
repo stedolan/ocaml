@@ -24,7 +24,7 @@ open! Simplify_import
 val load_cmx_file_contents
    : (module Flambda2_backend_intf.S)
   -> Compilation_unit.t
-  -> imported_units:Flambda_type.Typing_env.t Compilation_unit.Map.t ref
+  -> imported_units:Flambda_type.Typing_env.t option Compilation_unit.Map.t ref
   -> imported_names:Name.Set.t ref
   -> imported_code:Function_params_and_body.t Code_id.Map.t ref
   -> Flambda_type.Typing_env.t option
