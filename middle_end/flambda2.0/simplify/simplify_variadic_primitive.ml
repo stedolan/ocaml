@@ -136,6 +136,19 @@ let simplify_variadic_primitive dacc ~original_named ~original_prim
           | Unchanged -> original_named
         in
         let kind = P.result_kind_of_variadic_primitive' prim in
-        let ty = T.unknown kind in
+        let ty =
+          match prim with
+          | Make_block _ ->
+            T.unknown kind
+          | Make_array _ ->
+            let length =
+              match Targetint.OCaml.of_int_option (List.length args) with
+              | Some ti ->
+                T.this_tagged_immediate (Target_imm.int ti)
+              | None ->
+                T.unknown K.value
+            in
+            T.array_of_length ~length
+        in
         let env_extension = TEE.one_equation (Name.var result_var') ty in
         Reachable.reachable named, env_extension, dacc
