@@ -23,9 +23,10 @@ val static_const
   -> Un_cps_result.t
   -> params_and_body:(
         Un_cps_env.t
+     -> Un_cps_result.t
      -> string
      -> Flambda.Function_params_and_body.t
-     -> Cmm.fundecl)
+     -> Cmm.fundecl * Un_cps_result.t)
   -> Let_symbol.Bound_symbols.t
   -> Static_const.t
   -> Un_cps_env.t * Un_cps_result.t * Cmm.expression option

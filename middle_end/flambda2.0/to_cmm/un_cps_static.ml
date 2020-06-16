@@ -278,7 +278,7 @@ let add_function env r ~params_and_body code_id p =
   let fun_name =
     Linkage_name.to_string (Symbol.linkage_name fun_symbol)
   in
-  let fundecl = params_and_body env fun_name p in
+  let fundecl, r = params_and_body env r fun_name p in
   R.add_function r fundecl
 
 let add_functions
