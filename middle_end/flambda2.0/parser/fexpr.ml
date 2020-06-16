@@ -26,10 +26,6 @@ type of_kind_value =
   | Tagged_immediate of immediate
   | Dynamically_computed of variable
 
-type mutable_or_immutable =
-  | Mutable
-  | Immutable
-
 type is_recursive =
   | Nonrecursive
   | Recursive
@@ -37,7 +33,7 @@ type is_recursive =
 type tag_scannable = int
 
 type static_part =
-  | Block of tag_scannable * mutable_or_immutable * of_kind_value list
+  | Block of tag_scannable * Mutability.t * of_kind_value list
 
 module Naked_number_kind = struct
   type t =
@@ -92,7 +88,7 @@ type block_access_kind =
   | Generic_array of generic_array_specialisation
 
 type binop =
-  | Block_load of block_access_kind * mutable_or_immutable
+  | Block_load of block_access_kind * Mutability.t
 
 type infix_binop =
   | Plus | Plusdot
@@ -102,7 +98,7 @@ type prim =
   | Unop of unop * simple
   | Infix_binop of infix_binop * simple * simple
   | Binop of binop * simple * simple
-  | Block of tag_scannable * mutable_or_immutable * simple list
+  | Block of tag_scannable * Mutability.t * simple list
 
 type named =
   | Simple of simple

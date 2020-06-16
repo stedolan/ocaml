@@ -37,14 +37,15 @@ type t =
 
 let print_with_cache ~cache ppf t =
   match t with
-  | Variant { blocks; immediates; } ->
+  | Variant { blocks; immediates; is_unique } ->
     (* CR mshinwell: Improve so that we elide blocks and/or immediates when
        they're empty. *)
     Format.fprintf ppf
-      "@[<hov 1>(Variant@ \
+      "@[<hov 1>(Variant%s@ \
         @[<hov 1>(blocks@ %a)@]@ \
         @[<hov 1>(tagged_imms@ %a)@]\
         )@]"
+      (if is_unique then " unique" else "")
       (Or_unknown.print (Blocks.print_with_cache ~cache)) blocks
       (Or_unknown.print (T.print_with_cache ~cache)) immediates
   | Boxed_float naked_ty ->
@@ -87,13 +88,13 @@ let apply_name_permutation_variant blocks immediates perm =
 
 let apply_name_permutation t perm =
   match t with
-  | Variant { blocks; immediates; } ->
+  | Variant { blocks; immediates; is_unique; } ->
     begin match
       apply_name_permutation_variant blocks immediates perm
     with
     | None -> t
     | Some (blocks, immediates) ->
-      Variant (Variant.create ~blocks ~immediates)
+      Variant (Variant.create ~is_unique ~blocks ~immediates)
     end
   | Boxed_float ty ->
     let ty' = T.apply_name_permutation ty perm in
@@ -126,7 +127,7 @@ let apply_name_permutation t perm =
 
 let free_names t =
   match t with
-  | Variant { blocks; immediates; } ->
+  | Variant { blocks; immediates; is_unique = _; } ->
     Name_occurrences.union
       (Or_unknown.free_names Blocks.free_names blocks)
       (Or_unknown.free_names T.free_names immediates)
@@ -141,7 +142,7 @@ let free_names t =
 
 let all_ids_for_export t =
   match t with
-  | Variant { blocks; immediates; } ->
+  | Variant { blocks; immediates; is_unique = _; } ->
     Ids_for_export.union
       (Or_unknown.all_ids_for_export Blocks.all_ids_for_export blocks)
       (Or_unknown.all_ids_for_export T.all_ids_for_export immediates)
@@ -157,10 +158,10 @@ let all_ids_for_export t =
 
 let import import_map t =
   match t with
-  | Variant { blocks; immediates; } ->
+  | Variant { blocks; immediates; is_unique; } ->
     let blocks = Or_unknown.import Blocks.import import_map blocks in
     let immediates = Or_unknown.import T.import import_map immediates in
-    Variant (Variant.create ~blocks ~immediates)
+    Variant (Variant.create ~is_unique ~blocks ~immediates)
   | Boxed_float ty -> Boxed_float (T.import import_map ty)
   | Boxed_int32 ty -> Boxed_int32 (T.import import_map ty)
   | Boxed_int64 ty -> Boxed_int64 (T.import import_map ty)
@@ -279,12 +280,15 @@ struct
 
   let meet_or_join env t1 t2 : _ Or_bottom_or_absorbing.t =
     match t1, t2 with
-    | Variant { blocks = blocks1; immediates = imms1; },
-      Variant { blocks = blocks2; immediates = imms2; } ->
+    | Variant { blocks = blocks1; immediates = imms1; is_unique = is_unique1; },
+      Variant { blocks = blocks2; immediates = imms2; is_unique = is_unique2; } ->
       Or_bottom_or_absorbing.of_or_bottom
         (meet_or_join_variant env ~blocks1 ~imms1 ~blocks2 ~imms2)
         ~f:(fun (blocks, immediates, env_extension) ->
-          Variant (Variant.create ~blocks ~immediates), env_extension)
+          (* Uniqueness tracks whether duplication/lifting is allowed.
+             It must always be propagated, both for meet and join. *)
+          let is_unique = is_unique1 || is_unique2 in
+          Variant (Variant.create ~is_unique ~blocks ~immediates), env_extension)
     | Boxed_float n1, Boxed_float n2 ->
       Or_bottom_or_absorbing.of_or_bottom
         (E.switch T.meet T.join' env n1 n2)

@@ -19,9 +19,11 @@
 type t = private {
   immediates : Type_grammar.t Or_unknown.t;
   blocks : Row_like.For_blocks.t Or_unknown.t;
+  is_unique : bool;
 }
 
 val create
-   : immediates:Type_grammar.t Or_unknown.t
+   : is_unique:bool
+  -> immediates:Type_grammar.t Or_unknown.t
   -> blocks:Row_like.For_blocks.t Or_unknown.t
   -> t

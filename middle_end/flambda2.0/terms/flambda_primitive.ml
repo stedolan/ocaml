@@ -278,8 +278,8 @@ let effects_of_operation operation =
 let reading_from_a_block mutable_or_immutable =
   let effects = effects_of_operation Reading in
   let coeffects =
-    match (mutable_or_immutable : Mutable_or_immutable.t) with
-    | Immutable -> Coeffects.No_coeffects
+    match (mutable_or_immutable : Mutability.t) with
+    | Immutable | Immutable_unique -> Coeffects.No_coeffects
     | Mutable -> Coeffects.Has_coeffects
   in
   effects, coeffects
@@ -510,13 +510,13 @@ type result_kind =
 type unary_primitive =
   | Duplicate_block of {
       kind : Duplicate_block_kind.t;
-      source_mutability : Mutable_or_immutable.t;
-      destination_mutability : Mutable_or_immutable.t;
+      source_mutability : Mutability.t;
+      destination_mutability : Mutability.t;
     }
   | Duplicate_array of {
       kind : Duplicate_array_kind.t;
-      source_mutability : Mutable_or_immutable.t;
-      destination_mutability : Mutable_or_immutable.t;
+      source_mutability : Mutability.t;
+      destination_mutability : Mutability.t;
     }
   | Is_int
   | Get_tag
@@ -695,13 +695,13 @@ let print_unary_primitive ppf p =
   | Duplicate_block { kind; source_mutability; destination_mutability; } ->
     fprintf ppf "@[<hov 1>(Duplicate_block %a (source %a) (dest %a))@]"
       Duplicate_block_kind.print kind
-      Mutable_or_immutable.print source_mutability
-      Mutable_or_immutable.print destination_mutability
+      Mutability.print source_mutability
+      Mutability.print destination_mutability
   | Duplicate_array { kind; source_mutability; destination_mutability; } ->
     fprintf ppf "@[<hov 1>(Duplicate_array %a (source %a) (dest %a))@]"
       Duplicate_array_kind.print kind
-      Mutable_or_immutable.print source_mutability
-      Mutable_or_immutable.print destination_mutability
+      Mutability.print source_mutability
+      Mutability.print destination_mutability
   | Is_int -> fprintf ppf "Is_int"
   | Get_tag -> fprintf ppf "Get_tag"
   | String_length _ -> fprintf ppf "String_length"
@@ -793,6 +793,14 @@ let effects_and_coeffects_of_unary_primitive p =
       (* [Obj.truncate] has now been removed. *)
       Effects.Only_generative_effects destination_mutability,
         Coeffects.No_coeffects
+    | Immutable_unique ->
+      (* XCR vlaviron: this should never occur, but it's hard to express it
+         without duplicating the mutability type
+         mshinwell: Adding a second mutability type seems like a good thing to
+         avoid confusion in the future.  It could maybe be a submodule of
+         [Mutability]. *)
+      Effects.Only_generative_effects destination_mutability,
+        Coeffects.No_coeffects
     | Mutable ->
       Effects.Only_generative_effects destination_mutability,
         Coeffects.Has_coeffects
@@ -882,8 +890,8 @@ let print_binary_float_arith_op ppf o =
   | Div -> fprintf ppf "/."
 
 type binary_primitive =
-  | Block_load of Block_access_kind.t * Mutable_or_immutable.t
-  | Array_load of Array_kind.t * Mutable_or_immutable.t
+  | Block_load of Block_access_kind.t * Mutability.t
+  | Array_load of Array_kind.t * Mutability.t
   | String_or_bigstring_load of string_like_value * string_accessor_width
   | Bigarray_load of num_dimensions * bigarray_kind * bigarray_layout
   | Phys_equal of Flambda_kind.t * equality_comparison
@@ -934,11 +942,11 @@ let compare_binary_primitive p1 p2 =
   | Block_load (kind1, mut1), Block_load (kind2, mut2) ->
     let c = Block_access_kind.compare kind1 kind2 in
     if c <> 0 then c
-    else Mutable_or_immutable.compare mut1 mut2
+    else Mutability.compare mut1 mut2
   | Array_load (kind1, mut1), Array_load (kind2, mut2) ->
     let c = Array_kind.compare kind1 kind2 in
     if c <> 0 then c
-    else Mutable_or_immutable.compare mut1 mut2
+    else Mutability.compare mut1 mut2
   | String_or_bigstring_load (string_like1, width1),
       String_or_bigstring_load (string_like2, width2) ->
     let c = Stdlib.compare string_like1 string_like2 in
@@ -995,11 +1003,11 @@ let print_binary_primitive ppf p =
   | Block_load (kind, mut) ->
     fprintf ppf "@[(Block_load@ %a@ %a)@]"
       Block_access_kind.print kind
-      Mutable_or_immutable.print mut
+      Mutability.print mut
   | Array_load (kind, mut) ->
     fprintf ppf "@[(Array_load@ %a@ %a)@]"
       Array_kind.print kind
-      Mutable_or_immutable.print mut
+      Mutability.print mut
   | String_or_bigstring_load (string_like, width) ->
     fprintf ppf "@[(String_load %a %a)@]"
       print_string_like_value string_like
@@ -1216,8 +1224,8 @@ let ternary_classify_for_printing p =
   | Bigarray_set _ -> Neither
 
 type variadic_primitive =
-  | Make_block of Block_kind.t * Mutable_or_immutable.t
-  | Make_array of Array_kind.t * Mutable_or_immutable.t
+  | Make_block of Block_kind.t * Mutability.t
+  | Make_array of Array_kind.t * Mutability.t
 
 let variadic_primitive_eligible_for_cse p ~args =
   match p with
@@ -1225,6 +1233,8 @@ let variadic_primitive_eligible_for_cse p ~args =
     (* See comment in [unary_primitive_eligible_for_cse], above, on
        [Box_number] case. *)
     List.exists (fun arg -> Simple.is_var arg) args
+  | Make_block (_, Immutable_unique)
+  | Make_array (_, Immutable_unique) -> false
   | Make_block (_, Mutable) | Make_array (_, Mutable) -> false
 
 let compare_variadic_primitive p1 p2 =
@@ -1246,11 +1256,11 @@ let print_variadic_primitive ppf p =
   | Make_block (kind, mut) ->
     fprintf ppf "@[<hov 1>(Make_block@ %a@ %a)@]"
       Block_kind.print kind
-      Mutable_or_immutable.print mut
+      Mutability.print mut
   | Make_array (kind, mut) ->
     fprintf ppf "@[<hov 1>(Make_array@ %a@ %a)@]"
       Array_kind.print kind
-      Mutable_or_immutable.print mut
+      Mutability.print mut
 
 let args_kind_of_variadic_primitive p : arg_kinds =
   match p with

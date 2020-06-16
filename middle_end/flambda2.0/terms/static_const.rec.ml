@@ -317,7 +317,7 @@ module Code_and_set_of_closures = struct
 end
 
 type t =
-  | Block of Tag.Scannable.t * Mutable_or_immutable.t * (Field_of_block.t list)
+  | Block of Tag.Scannable.t * Mutability.t * (Field_of_block.t list)
   | Sets_of_closures of Code_and_set_of_closures.t list
   | Boxed_float of Numbers.Float_by_bit_pattern.t Or_variable.t
   | Boxed_int32 of Int32.t Or_variable.t
@@ -336,7 +336,10 @@ include Identifiable.Make (struct
     | Block (tag, mut, fields) ->
       fprintf ppf "@[<hov 1>(@<0>%s%sblock@<0>%s@ (tag %a)@ (%a))@]"
         (Flambda_colours.static_part ())
-        (match mut with Immutable -> "Immutable_" | Mutable -> "Mutable_")
+        (match mut with
+         | Immutable -> "Immutable_"
+         | Immutable_unique -> "Unique_"
+         | Mutable -> "Mutable_")
         (Flambda_colours.normal ())
         Tag.Scannable.print tag
         (Format.pp_print_list ~pp_sep:Format.pp_print_space
@@ -400,7 +403,7 @@ include Identifiable.Make (struct
       let c = Tag.Scannable.compare tag1 tag2 in
       if c <> 0 then c
       else
-        let c = Mutable_or_immutable.compare mut1 mut2 in
+        let c = Mutability.compare mut1 mut2 in
         if c <> 0 then c
         else Misc.Stdlib.List.compare Field_of_block.compare fields1 fields2
     | Sets_of_closures sets1, Sets_of_closures sets2 ->
@@ -679,7 +682,7 @@ let can_share0 t =
   | Immutable_float_block _
   | Immutable_float_array _
   | Immutable_string _ -> true
-  | Block (_, Mutable, _)
+  | Block (_, (Mutable | Immutable_unique), _)
   | Mutable_string _ -> false
 
 let can_share t =

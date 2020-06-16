@@ -416,7 +416,8 @@ struct
 
   let make_boxed_value tag ~param_being_unboxed:_ ~new_params:_ ~fields =
     let fields = Index.Map.data fields in
-    T.immutable_block tag ~field_kind:K.value ~fields, TEE.empty ()
+    T.immutable_block ~is_unique:false tag ~field_kind:K.value ~fields,
+    TEE.empty ()
 
   let make_boxed_value_accommodating tag index ~index_var
         ~untagged_index_var:_ =
@@ -725,7 +726,8 @@ struct
 
   let make_boxed_value tag ~param_being_unboxed:_ ~new_params:_ ~fields =
     let fields = Index.Map.data fields in
-    T.immutable_block tag ~field_kind:K.naked_float ~fields, TEE.empty ()
+    T.immutable_block ~is_unique:false tag ~field_kind:K.naked_float ~fields,
+    TEE.empty ()
 
   let make_boxed_value_accommodating tag index ~index_var
         ~untagged_index_var:_ =

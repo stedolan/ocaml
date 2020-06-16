@@ -90,10 +90,11 @@ let defining_expr env (named:Fexpr.named) : Ilambda.named =
         exn_continuation = None;
       }
   | Prim (Block (tag, mut, args)) ->
-      let mut : Asttypes.mutable_flag =
+      let mut : Lambda.mutable_flag =
         match mut with
         | Mutable -> Mutable
         | Immutable -> Immutable
+        | Immutable_unique -> Immutable_unique
       in
       Prim {
         prim = Pmakeblock (tag, mut, None);

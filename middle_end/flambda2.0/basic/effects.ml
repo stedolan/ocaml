@@ -20,7 +20,7 @@
 
 type t =
   | No_effects
-  | Only_generative_effects of Mutable_or_immutable.t
+  | Only_generative_effects of Mutability.t
   | Arbitrary_effects
 
 let print ppf eff =
@@ -29,7 +29,7 @@ let print ppf eff =
       Format.fprintf ppf "no effects"
   | Only_generative_effects mut ->
       Format.fprintf ppf "only generative effects %a"
-        Mutable_or_immutable.print mut
+        Mutability.print mut
   | Arbitrary_effects ->
       Format.fprintf ppf "Arbitrary effects"
 
@@ -39,7 +39,7 @@ let compare eff1 eff2 =
   | No_effects, (Only_generative_effects _ | Arbitrary_effects) -> -1
   | Only_generative_effects mut1,
     Only_generative_effects mut2 ->
-      Mutable_or_immutable.compare mut1 mut2
+      Mutability.compare mut1 mut2
   | Only_generative_effects _, No_effects -> 1
   | Only_generative_effects _, Arbitrary_effects -> -1
   | Arbitrary_effects, Arbitrary_effects -> 0
@@ -53,7 +53,7 @@ let join eff1 eff2 =
   | Only_generative_effects _, No_effects -> eff1
   | Only_generative_effects mut1,
     Only_generative_effects mut2 ->
-      Only_generative_effects (Mutable_or_immutable.join mut1 mut2)
+      Only_generative_effects (Mutability.join mut1 mut2)
   | Only_generative_effects _, Arbitrary_effects -> eff2
   | Arbitrary_effects, No_effects
   | Arbitrary_effects, Only_generative_effects _

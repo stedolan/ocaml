@@ -148,6 +148,10 @@ let prim ppf = function
     Format.fprintf ppf "Block %i (%a)"
       tag
       (pp_space_list simple) elts
+  | Block (tag, Immutable_unique, elts) ->
+    Format.fprintf ppf "Block_unique %i (%a)"
+      tag
+      (pp_space_list simple) elts
   | Block (_, Mutable, _) ->
       failwith "TODO mutable block"
 

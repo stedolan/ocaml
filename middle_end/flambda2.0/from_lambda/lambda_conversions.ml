@@ -87,11 +87,12 @@ let convert_block_shape (shape : L.block_shape) ~num_fields =
     end;
     List.map convert_block_of_values_field shape
 
-let convert_mutable_flag (flag : Asttypes.mutable_flag)
-      : Mutable_or_immutable.t =
+let convert_mutable_flag (flag : Lambda.mutable_flag)
+      : Mutability.t =
   match flag with
   | Mutable -> Mutable
   | Immutable -> Immutable
+  | Immutable_unique -> Immutable_unique
 
 let convert_integer_comparison_prim (comp : L.integer_comparison)
       : P.binary_primitive =
@@ -214,7 +215,7 @@ let convert_bigarray_layout (layout : L.bigarray_layout) : P.bigarray_layout opt
   | Pbigarray_fortran_layout -> Some Fortran
 
 let convert_field_read_semantics (sem : L.field_read_semantics)
-      : Mutable_or_immutable.t =
+      : Mutability.t =
   match sem with
   | Reads_agree -> Immutable
   | Reads_vary -> Mutable

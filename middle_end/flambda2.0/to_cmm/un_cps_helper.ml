@@ -263,8 +263,8 @@ let make_closure_block ?(dbg=Debuginfo.none) l =
 let block_length ?(dbg=Debuginfo.none) block = get_size block dbg
 
 let block_load ?(dbg=Debuginfo.none) (kind : P.Block_access_kind.t)
-      (mutability : Mutable_or_immutable.t) block index =
-  let mutability = Mutable_or_immutable.to_lambda mutability in
+      (mutability : Mutability.t) block index =
+  let mutability = Mutability.to_lambda mutability in
   match kind with
   | Values { field_kind = Any_value; _ } ->
     get_field_computed Pointer mutability ~block ~index dbg

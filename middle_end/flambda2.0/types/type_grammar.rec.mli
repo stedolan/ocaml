@@ -124,7 +124,12 @@ val get_tag_for_block : block:Simple.t -> t
     as it forbids the other special shapes that could apply. *)
 val blocks_with_these_tags : Tag.Set.t -> t Or_unknown.t
 
-val immutable_block : Tag.t -> field_kind:Flambda_kind.t -> fields:t list -> t
+val immutable_block
+   : is_unique:bool
+  -> Tag.t
+  -> field_kind:Flambda_kind.t
+  -> fields:t list
+  -> t
 
 val immutable_block_with_size_at_least
    : tag:Tag.t Or_unknown.t

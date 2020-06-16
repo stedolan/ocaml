@@ -327,7 +327,12 @@ val get_tag_for_block : block:Simple.t -> t
 (* CR mshinwell: decide on exact strategy for mutable blocks *)
 
 (** The type of an immutable block with a known tag, size and field types. *)
-val immutable_block : Tag.t -> field_kind:Flambda_kind.t -> fields:t list -> t
+val immutable_block
+   : is_unique:bool
+  -> Tag.t
+  -> field_kind:Flambda_kind.t
+  -> fields:t list
+  -> t
 
 (** The type of an immutable block with at least [n] fields and an unknown
     tag. The type of the [n - 1]th field is taken to be an [Equals] to the
@@ -553,6 +558,7 @@ type reification_result = private
 val reify
    : ?allowed_if_free_vars_defined_in:Typing_env.t
   -> ?disallowed_free_vars:Variable.Set.t
+  -> ?allow_unique:bool
   -> Typing_env.t
   -> min_name_mode:Name_mode.t
   -> t

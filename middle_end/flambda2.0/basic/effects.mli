@@ -37,7 +37,7 @@ type t =
       "effects out of the ether" and thus ignored for our determination here
       of effectfulness.  The same goes for floating point operations that may
       cause hardware traps on some platforms. *)
-  | Only_generative_effects of Mutable_or_immutable.t
+  | Only_generative_effects of Mutability.t
   (** The primitive does not change the observable state of the world save for
       possibly affecting the state of the garbage collector by performing an
       allocation. Applications of primitives that only have generative effects

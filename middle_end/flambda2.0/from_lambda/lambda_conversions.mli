@@ -35,7 +35,7 @@ val convert_block_shape
   -> num_fields:int
   -> Flambda_primitive.Block_of_values_field.t list
 
-val convert_mutable_flag : Asttypes.mutable_flag -> Mutable_or_immutable.t
+val convert_mutable_flag : Lambda.mutable_flag -> Mutability.t
 
 val convert_integer_comparison_prim
    : Lambda.integer_comparison
@@ -88,7 +88,7 @@ val convert_bigarray_layout
 
 val convert_field_read_semantics
    : Lambda.field_read_semantics
-  -> Mutable_or_immutable.t
+  -> Mutability.t
 
 val convert_lambda_block_size
    : Lambda.block_size

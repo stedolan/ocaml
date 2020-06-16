@@ -202,14 +202,14 @@ type unary_float_arith_op = Abs | Neg
 type unary_primitive =
   | Duplicate_block of {
       kind : Duplicate_block_kind.t;
-      source_mutability : Mutable_or_immutable.t;
-      destination_mutability : Mutable_or_immutable.t;
+      source_mutability : Mutability.t;
+      destination_mutability : Mutability.t;
     }
     (** [Duplicate_block] may not be used to change the tag of a block. *)
   | Duplicate_array of {
       kind : Duplicate_array_kind.t;
-      source_mutability : Mutable_or_immutable.t;
-      destination_mutability : Mutable_or_immutable.t;
+      source_mutability : Mutability.t;
+      destination_mutability : Mutability.t;
     }
   | Is_int
   | Get_tag
@@ -274,8 +274,8 @@ type binary_float_arith_op = Add | Sub | Mul | Div
 
 (** Primitives taking exactly two arguments. *)
 type binary_primitive =
-  | Block_load of Block_access_kind.t * Mutable_or_immutable.t
-  | Array_load of Array_kind.t * Mutable_or_immutable.t
+  | Block_load of Block_access_kind.t * Mutability.t
+  | Array_load of Array_kind.t * Mutability.t
   | String_or_bigstring_load of string_like_value * string_accessor_width
   | Bigarray_load of num_dimensions * bigarray_kind * bigarray_layout
   | Phys_equal of Flambda_kind.t * equality_comparison
@@ -295,8 +295,8 @@ type ternary_primitive =
 
 (** Primitives taking zero or more arguments. *)
 type variadic_primitive =
-  | Make_block of Block_kind.t * Mutable_or_immutable.t
-  | Make_array of Array_kind.t * Mutable_or_immutable.t
+  | Make_block of Block_kind.t * Mutability.t
+  | Make_array of Array_kind.t * Mutability.t
   (* CR mshinwell: Invariant checks -- e.g. that the number of arguments
      matches [num_dimensions] *)
 

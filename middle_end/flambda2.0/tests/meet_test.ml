@@ -15,7 +15,7 @@ let test_meet_chains_two_vars () =
   in
   let env =
     TE.add_equation env (Name.var var1)
-      (T.immutable_block Tag.zero ~field_kind:K.value
+      (T.immutable_block ~is_unique:false Tag.zero ~field_kind:K.value
         ~fields:[T.any_tagged_immediate ()])
   in
   let var2 = Variable.create "var2" in
@@ -54,7 +54,7 @@ let test_meet_chains_three_vars () =
   in
   let env =
     TE.add_equation env (Name.var var1)
-      (T.immutable_block Tag.zero ~field_kind:K.value
+      (T.immutable_block ~is_unique:false Tag.zero ~field_kind:K.value
         ~fields:[T.any_tagged_immediate ()])
   in
   let var2 = Variable.create "var2" in

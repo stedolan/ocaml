@@ -31,13 +31,42 @@ let rec simplify_let
   : 'a. DA.t -> Let.t -> 'a k -> Expr.t * 'a * UA.t
 = fun dacc let_expr k ->
   let module L = Flambda.Let in
+  let original_dacc = dacc in
   (* CR mshinwell: Find out if we need the special fold function for lets. *)
   L.pattern_match let_expr ~f:(fun ~bound_vars ~body ->
-    let { Simplify_named. bindings_outermost_first = bindings; dacc; } =
+    let simplify_named_result =
       Simplify_named.simplify_named dacc ~bound_vars (L.defining_expr let_expr)
     in
-    let body, user_data, uacc = simplify_expr dacc body k in
-    Simplify_common.bind_let_bound ~bindings ~body, user_data, uacc)
+    match simplify_named_result with
+    | Bindings { bindings_outermost_first = bindings; dacc; } ->
+      let body, user_data, uacc = simplify_expr dacc body k in
+      Simplify_common.bind_let_bound ~bindings ~body, user_data, uacc
+    | Reified { definition; bound_symbol; static_const; dacc; } ->
+      let let_expr =
+        Expr.create_pattern_let bound_vars definition body
+      in
+      let let_symbol_expr =
+        Let_symbol.create Dominator bound_symbol static_const let_expr
+        |> Expr.create_let_symbol
+      in
+      (* We need to keep the shareable constants in dacc, but
+         revert to the typing env from original_dacc *)
+      let dacc = DA.with_r original_dacc (DA.r dacc) in
+      simplify_expr dacc let_symbol_expr k
+    | Shared { symbol; kind; } ->
+      let var = Bindable_let_bound.must_be_singleton bound_vars in
+      let ty = T.alias_type_of kind (Simple.symbol symbol) in
+      let dacc =
+        DA.map_denv dacc ~f:(fun denv ->
+          DE.add_variable denv var ty)
+      in
+      let body, user_data, uacc = simplify_expr dacc body k in
+      let defining_expr =
+        Reachable.reachable (Named.create_simple (Simple.symbol symbol))
+      in
+      let bindings = [bound_vars, defining_expr] in
+      Simplify_common.bind_let_bound ~bindings ~body, user_data, uacc
+  )
 
 and simplify_let_symbol
   : 'a. DA.t -> Let_symbol.t -> 'a k -> Expr.t * 'a * UA.t
@@ -415,7 +444,7 @@ and simplify_non_recursive_let_cont_handler
                       (* CR mshinwell: This shouldn't be [assert] in the
                          [Define_root_symbol] case *)
                       assert at_unit_toplevel;
-                      Reify_continuation_param_types.
+                      Lift_inconstants.
                         lift_via_reification_of_continuation_param_types dacc
                           ~params ~extra_params_and_args ~handler
                   in
@@ -1603,11 +1632,23 @@ and simplify_switch
         Named.create_prim (Unary (Box_number Untagged_immediate, scrutinee))
           Debuginfo.none
       in
-      let { Simplify_named. bindings_outermost_first = bindings; dacc = _; } =
-        Simplify_named.simplify_named dacc ~bound_vars named
+      let dacc =
+        (* Disable inconstant lifting *)
+        DA.map_denv dacc ~f:DE.set_not_at_unit_toplevel
       in
-      let body = k ~tagged_scrutinee:(Simple.var bound_to) in
-      Simplify_common.bind_let_bound ~bindings ~body, user_data, uacc
+      match
+        Simplify_named.simplify_named dacc ~bound_vars named
+      with
+      | Simplify_named.Bindings
+          { bindings_outermost_first = bindings; dacc = _; } ->
+        let body = k ~tagged_scrutinee:(Simple.var bound_to) in
+        Simplify_common.bind_let_bound ~bindings ~body, user_data, uacc
+      | Reified _ ->
+        Misc.fatal_errorf "Simplify_switch: Inconstant lifting is disabled, \
+          so Simplify_named.simplify_named should not return Reify"
+      | Shared { symbol; kind = _; } ->
+        let body = k ~tagged_scrutinee:(Simple.symbol symbol) in
+        body, user_data, uacc
     in
     let body, user_data, uacc =
       match switch_is_identity with

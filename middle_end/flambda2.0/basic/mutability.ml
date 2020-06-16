@@ -16,27 +16,37 @@
 
 [@@@ocaml.warning "+a-30-40-41-42"]
 
-type t = Mutable | Immutable
+type t = Mutable | Immutable | Immutable_unique
 
 let print ppf t =
   match t with
   | Mutable -> Format.pp_print_string ppf "Mutable"
   | Immutable -> Format.pp_print_string ppf "Immutable"
+  | Immutable_unique ->
+    Format.pp_print_string ppf "Immutable_unique"
 
 let compare t1 t2 =
   match t1, t2 with
-  | Mutable, Mutable | Immutable, Immutable -> 0
-  | Mutable, Immutable -> -1
+  | Mutable, Mutable | Immutable, Immutable
+  | Immutable_unique, Immutable_unique -> 0
+  | Mutable, (Immutable | Immutable_unique) -> -1
+  | Immutable, Immutable_unique -> -1
   | Immutable, Mutable -> 1
+  | Immutable_unique, (Mutable | Immutable) -> 1
 
 let join t1 t2 =
   match t1, t2 with
   | Immutable, Immutable -> Immutable
-  | Mutable, Mutable
-  | Immutable, Mutable
-  | Mutable, Immutable -> Mutable
+  | Immutable_unique, Immutable_unique
+  | Immutable, Immutable_unique
+  | Immutable_unique, Immutable -> Immutable_unique
+  | Mutable, (Mutable | Immutable | Immutable_unique)
+  | (Immutable | Immutable_unique), Mutable -> Mutable
 
+(* CR mshinwell: This function should be renamed, or else produce
+   Lambda.mutable_flag *)
 let to_lambda t : Asttypes.mutable_flag =
   match t with
   | Mutable -> Mutable
   | Immutable -> Immutable
+  | Immutable_unique -> Immutable

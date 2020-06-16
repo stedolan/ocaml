@@ -310,3 +310,50 @@ let lift_via_reification_of_continuation_param_types dacc ~params
       ~extra_params_and_args ~handler
   else
     dacc, handler
+
+type reify_primitive_at_toplevel_result =
+  | Lift of {
+    dacc : Downwards_acc.t;
+    symbol : Symbol.t;
+    static_const : Flambda.Static_const.t;
+  }
+  | Shared of { symbol : Symbol.t; }
+  | Cannot_reify
+
+let reify_primitive_at_toplevel dacc bound_var ty =
+  let typing_env = DA.typing_env dacc in
+  (* CR mshinwell: We're reifying twice here (the other occurrence being from
+     [Simplify_named].  We should probably combine this code with the code in
+     [Reification] somehow to avoid this.  It should also mean we don't need
+     the [is_fully_static] check below. *)
+  match
+    T.reify ~allowed_if_free_vars_defined_in:typing_env
+      ~allow_unique:true
+      typing_env ~min_name_mode:NM.normal ty
+  with
+  | Lift to_lift ->
+    (* There's no point in lifting constant values, as these should
+       already have been lifted. *)
+    let static_const = Reification.create_static_const to_lift in
+    if Static_const.is_fully_static static_const then
+      Cannot_reify
+    else begin
+      (* CR mshinwell: This should attempt to share the constant (see
+         first function in this file for the code). *)
+      match R.find_shareable_constant (DA.r dacc) static_const with
+      | Some symbol ->
+        Shared { symbol; }
+      | None ->
+        let symbol =
+          Symbol.create (Compilation_unit.get_current_exn ())
+            (Linkage_name.create
+               (Variable.unique_name (Var_in_binding_pos.var bound_var)))
+        in
+        let dacc =
+          DA.map_r dacc ~f:(fun r ->
+            R.consider_constant_for_sharing r symbol static_const)
+        in
+        Lift { dacc; symbol; static_const; }
+    end
+  | Lift_set_of_closures _ | Simple _ | Cannot_reify | Invalid ->
+    Cannot_reify

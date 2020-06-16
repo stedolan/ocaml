@@ -122,7 +122,7 @@ val block_length :
 
 val block_load :
   ?dbg:Debuginfo.t -> Flambda_primitive.Block_access_kind.t ->
-  Mutable_or_immutable.t ->
+  Mutability.t ->
   Cmm.expression -> Cmm.expression -> Cmm.expression
 (** Load a field from a block. Cmm argument order:
     - block

@@ -605,7 +605,7 @@ end and Static_const : sig
   (** The static structure of a symbol, possibly with holes, ready to be filled
       with values computed at runtime. *)
   type t =
-    | Block of Tag.Scannable.t * Mutable_or_immutable.t
+    | Block of Tag.Scannable.t * Mutability.t
         * (Field_of_block.t list)
     | Sets_of_closures of Code_and_set_of_closures.t list
       (** All code and sets of closures within the list are allowed to be

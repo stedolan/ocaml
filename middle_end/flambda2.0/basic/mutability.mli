@@ -5,7 +5,7 @@
 (*                       Pierre Chambart, OCamlPro                        *)
 (*           Mark Shinwell and Leo White, Jane Street Europe              *)
 (*                                                                        *)
-(*   Copyright 2013--2019 OCamlPro SAS                                    *)
+(*   Copyright 2013--2020 OCamlPro SAS                                    *)
 (*   Copyright 2014--2020 Jane Street Group LLC                           *)
 (*                                                                        *)
 (*   All rights reserved.  This file is distributed under the terms of    *)
@@ -14,15 +14,20 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(** Attempt to statically-allocate values whose structure can be deduced
-    by examining the types of the parameters of continuations occurring
-    at toplevel. *)
-
 [@@@ocaml.warning "+a-30-40-41-42"]
 
-val lift_via_reification_of_continuation_param_types
-   : Downwards_acc.t
-  -> params:Kinded_parameter.List.t
-  -> extra_params_and_args:Continuation_extra_params_and_args.t
-  -> handler:Flambda.Expr.t
-  -> Downwards_acc.t * Flambda.Expr.t
+type t = Mutable | Immutable | Immutable_unique
+(** Mutable means that contents may vary at any moment.
+    Immutable means that not only contents will never vary,
+    but we're also allowed to share or duplicate identical values at will.
+    Immutable_unique means that the contents will never vary,
+    but physical equality is meaningful so the value must not be duplicated,
+    nor shared. *)
+
+val print : Format.formatter -> t -> unit
+
+val compare : t -> t -> int
+
+val join : t -> t -> t
+
+val to_lambda : t -> Asttypes.mutable_flag

@@ -21,10 +21,11 @@ module T = Type_grammar
 type t = {
   immediates : Type_grammar.t Or_unknown.t;
   blocks : Row_like.For_blocks.t Or_unknown.t;
+  is_unique : bool;
 }
 
 (* CR mshinwell: This can now return [Or_bottom.t] *)
-let create ~immediates ~blocks =
+let create ~is_unique ~immediates ~blocks =
   begin match immediates with
   | Or_unknown.Unknown -> ()
   | Or_unknown.Known immediates ->
@@ -34,4 +35,4 @@ let create ~immediates ~blocks =
         T.print immediates
     end
   end;
-  { immediates; blocks; }
+  { immediates; blocks; is_unique; }

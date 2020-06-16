@@ -175,9 +175,13 @@ let primitive ppf = function
   | Psetglobal id -> fprintf ppf "setglobal %a" Ident.print id
   | Pmakeblock(tag, Immutable, shape) ->
       fprintf ppf "makeblock %i%a" tag block_shape shape
+  | Pmakeblock(tag, Immutable_unique, shape) ->
+      fprintf ppf "makeblock_unique %i%a" tag block_shape shape
   | Pmakeblock(tag, Mutable, shape) ->
       fprintf ppf "makemutable %i%a" tag block_shape shape
   | Pmakefloatblock Immutable -> fprintf ppf "makefloatblock Immutable"
+  | Pmakefloatblock Immutable_unique ->
+    fprintf ppf "makefloatblock Immutable_unique"
   | Pmakefloatblock Mutable -> fprintf ppf "makefloatblock Mutable"
   | Pfield ({index = n; block_info = _;}, sem) ->
       fprintf ppf "field%a %i" field_read_semantics sem n
@@ -263,8 +267,10 @@ let primitive ppf = function
   | Parraylength k -> fprintf ppf "array.length[%s]" (array_kind k)
   | Pmakearray (k, Mutable) -> fprintf ppf "makearray[%s]" (array_kind k)
   | Pmakearray (k, Immutable) -> fprintf ppf "makearray_imm[%s]" (array_kind k)
+  | Pmakearray (k, Immutable_unique) -> fprintf ppf "makearray_unique[%s]" (array_kind k)
   | Pduparray (k, Mutable) -> fprintf ppf "duparray[%s]" (array_kind k)
   | Pduparray (k, Immutable) -> fprintf ppf "duparray_imm[%s]" (array_kind k)
+  | Pduparray (k, Immutable_unique) -> fprintf ppf "duparray_unique[%s]" (array_kind k)
   | Parrayrefu k -> fprintf ppf "array.unsafe_get[%s]" (array_kind k)
   | Parraysetu k -> fprintf ppf "array.unsafe_set[%s]" (array_kind k)
   | Parrayrefs k -> fprintf ppf "array.get[%s]" (array_kind k)

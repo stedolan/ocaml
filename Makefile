@@ -244,7 +244,7 @@ MIDDLE_END_FLAMBDA2_BASIC=\
   middle_end/flambda2.0/basic/id_types.cmo \
   middle_end/flambda2.0/basic/code_id.cmo \
   middle_end/flambda2.0/basic/code_id_or_symbol.cmo \
-  middle_end/flambda2.0/basic/mutable_or_immutable.cmo \
+  middle_end/flambda2.0/basic/mutability.cmo \
   middle_end/flambda2.0/naming/name_mode.cmo \
   middle_end/flambda2.0/naming/permutation.cmo \
   middle_end/flambda2.0/naming/name_permutation.cmo \
@@ -356,7 +356,7 @@ MIDDLE_END_FLAMBDA2_SIMPLIFY=\
   middle_end/flambda2.0/unboxing/unbox_continuation_params.cmo \
   middle_end/flambda2.0/lifting/sort_lifted_constants.cmo \
   middle_end/flambda2.0/lifting/reification.cmo \
-  middle_end/flambda2.0/lifting/reify_continuation_param_types.cmo \
+  middle_end/flambda2.0/lifting/lift_inconstants.cmo \
   middle_end/flambda2.0/simplify/basic/reachable.cmo \
   middle_end/flambda2.0/simplify/simplify_common.cmo \
   middle_end/flambda2.0/simplify/simplify_variadic_primitive.cmo \
