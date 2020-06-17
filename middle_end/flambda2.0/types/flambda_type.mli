@@ -106,7 +106,7 @@ module Typing_env : sig
     -> bound_to:Simple.t
     -> t
 
-  val mem : t -> Name.t -> bool
+  val mem : ?min_name_mode:Name_mode.t -> t -> Name.t -> bool
 
   val find : t -> Name.t -> Flambda_kind.t option -> flambda_type
 

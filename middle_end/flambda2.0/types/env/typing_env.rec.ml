@@ -686,10 +686,28 @@ let binding_time_and_mode_of_simple t simple =
         Binding_time.consts_and_discriminants Name_mode.normal)
     ~name:(fun name -> binding_time_and_mode t name)
 
-let mem t name =
+let mem ?min_name_mode t name =
   Name.pattern_match name
-    ~var:(fun _var -> Name.Map.mem name (names_to_types t)
-                      || Name.Set.mem name (t.get_imported_names ()))
+    ~var:(fun _var ->
+      let name_mode =
+        match Name.Map.find name (names_to_types t) with
+        | exception Not_found ->
+          if Name.Set.mem name (t.get_imported_names ())
+          then Some Name_mode.in_types
+          else None
+        | _ty, _binding_time, name_mode ->
+          Some name_mode
+      in
+      match name_mode, min_name_mode with
+      | None, _ -> false
+      | Some _, None -> true
+      | Some name_mode, Some min_name_mode ->
+        begin match
+          Name_mode.compare_partial_order min_name_mode name_mode
+        with
+        | None -> false
+        | Some c -> c <= 0
+        end)
     ~symbol:(fun sym -> Symbol.Set.mem sym t.defined_symbols)
 
 let mem_simple t simple =

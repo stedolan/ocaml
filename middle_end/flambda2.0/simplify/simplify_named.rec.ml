@@ -73,7 +73,9 @@ let simplify_named0 dacc ~(bound_vars : Bindable_let_bound.t)
       if T.is_bottom (DA.typing_env dacc) ty then Reachable.invalid ()
       else defining_expr
     in
-    if DE.at_unit_toplevel (DA.denv dacc) then begin
+    if DE.at_unit_toplevel (DA.denv dacc)
+      && Name_mode.is_normal (Var_in_binding_pos.name_mode bound_var)
+    then begin
       match
         Lift_inconstants.reify_primitive_at_toplevel dacc bound_var ty
       with

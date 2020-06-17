@@ -67,7 +67,7 @@ val find_params : t -> Kinded_parameter.t list -> Type_grammar.t list
 
 val variable_is_from_missing_cmx_file : t -> Name.t -> bool
 
-val mem : t -> Name.t -> bool
+val mem : ?min_name_mode:Name_mode.t -> t -> Name.t -> bool
 
 val mem_simple : t -> Simple.t -> bool
 
