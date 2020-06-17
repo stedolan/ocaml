@@ -285,8 +285,9 @@ let create_let_symbol0 r code_age_relation (bound_symbols : Bound_symbols.t)
                 else code))
           (Static_const.must_be_sets_of_closures static_const)
       in
+      let static_const = Static_const.Sets_of_closures sets in
       let expr =
-        Let_symbol.create Syntactic bound_symbols (Sets_of_closures sets) body
+        Let_symbol.create Syntactic bound_symbols static_const body
         |> Expr.create_let_symbol
       in
       let r =
