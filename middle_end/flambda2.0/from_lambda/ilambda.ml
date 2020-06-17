@@ -328,3 +328,12 @@ let recursive_functions func_decls =
       | SCC.No_loop _ -> rec_ids
       | SCC.Has_loop elts -> List.fold_right Ident.Set.add elts rec_ids)
     Ident.Set.empty connected_components
+
+let rec contains_closures t =
+  match t with
+  | Let (_, _, _, _, body)
+  | Let_mutable { body; _ } -> contains_closures body
+  | Let_rec _ -> true
+  | Let_cont { body; handler; _ } ->
+    contains_closures body || contains_closures handler
+  | Apply _ | Apply_cont _ | Switch _ -> false

@@ -417,8 +417,13 @@ let smaller' denv expr ~than:threshold =
         ~const:(fun _ -> incr size)
         ~name:(fun _ -> ())
     | Set_of_closures set_of_closures ->
-      (* Mimic Closure: do not inline functions contains closures *)
-      if Flambda_features.Expert.fallback_inlining_heuristic () then raise Exit;
+      (* Mimic Closure: do not inline functions containing closures.  Note that
+         there is an additional check for closure-containing functions in
+         [Closure_conversion], to try to replicate Closure's behaviour as
+         closely as possible. *)
+      if Flambda_features.Expert.fallback_inlining_heuristic () then begin
+        raise Exit
+      end;
       let func_decls = Set_of_closures.function_decls set_of_closures in
       let funs = Function_declarations.funs func_decls in
       Closure_id.Map.iter (fun _ func_decl ->

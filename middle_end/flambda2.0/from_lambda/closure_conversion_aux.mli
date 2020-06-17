@@ -95,6 +95,7 @@ module Function_decls : sig
     val stub : t -> bool
     val loc : t -> Lambda.scoped_location
     val recursive : t -> Recursive.t
+    val contains_closures : t -> bool
 
     (* Like [all_free_idents], but for just one function. *)
     val free_idents : t -> Ident.Set.t

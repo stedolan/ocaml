@@ -127,6 +127,7 @@ module Function_decls = struct
       loc : Lambda.scoped_location;
       stub : bool;
       recursive : Recursive.t;
+      contains_closures : bool;
     }
 
     let create ~let_rec_ident ~closure_id ~kind ~params ~return
@@ -137,6 +138,7 @@ module Function_decls = struct
         | None -> Ident.create_local "unnamed_function"
         | Some let_rec_ident -> let_rec_ident
       in
+      let contains_closures = Ilambda.contains_closures body in
       { let_rec_ident;
         closure_id;
         kind;
@@ -150,6 +152,7 @@ module Function_decls = struct
         loc;
         stub;
         recursive;
+        contains_closures;
       }
 
     let let_rec_ident t = t.let_rec_ident
@@ -167,6 +170,7 @@ module Function_decls = struct
     let stub t = t.attr.stub
     let loc t = t.loc
     let recursive t = t.recursive
+    let contains_closures t = t.contains_closures
   end
 
   type t = {

@@ -20,6 +20,16 @@ open! Flambda.Import
 
 module DE = Simplify_env_and_result.Downwards_env
 
+(* CR mshinwell: We need to emit [Warnings.Inlining_impossible] as
+   required.
+   When in fallback-inlining mode: if we want to follow Closure we should
+   not complain about function declarations with e.g. [@inline always]
+   if the function contains other functions and therefore cannot be
+   inlined.  We should however contain at call sites if inlining is
+   requested but cannot be done for this reason.  I think this will probably
+   all happen without any specific code once [Inlining_impossible]
+   handling is implemented for the non-fallback-inlining cases. *)
+
 module Function_declaration_decision = struct
   type t =
     | Never_inline_attribute

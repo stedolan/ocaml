@@ -883,6 +883,7 @@ and close_one_function t ~external_env ~by_closure_id decl
   let my_closure = Variable.create "my_closure" in
   let closure_id = Function_decl.closure_id decl in
   let our_let_rec_ident = Function_decl.let_rec_ident decl in
+  let contains_closures = Function_decl.contains_closures decl in
   let compilation_unit = Compilation_unit.get_current_exn () in
   let code_id =
     Code_id.create ~name:(Closure_id.to_string closure_id) compilation_unit
@@ -1019,7 +1020,18 @@ and close_one_function t ~external_env ~by_closure_id decl
   let exn_continuation =
     close_exn_continuation t external_env (Function_decl.exn_continuation decl)
   in
-  let inline = LC.inline_attribute (Function_decl.inline decl) in
+  let inline : Inline_attribute.t =
+    (* We make a decision based on [fallback_inlining_heuristic] here to try
+       to mimic Closure's behaviour as closely as possible, particularly
+       when there are functions involving constant closures, which are not
+       lifted during Closure (but will prevent inlining) but will likely have
+       been lifted by our other check in [Inlining_cost] (thus preventing us
+       seeing they were originally there). *)
+    if contains_closures
+      && !Clflags.Flambda_2.Expert.fallback_inlining_heuristic
+    then Never_inline
+    else LC.inline_attribute (Function_decl.inline decl)
+  in
   let params_and_body =
     Flambda.Function_params_and_body.create
       ~return_continuation:(Function_decl.return_continuation decl)
