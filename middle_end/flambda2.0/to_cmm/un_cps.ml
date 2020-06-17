@@ -40,20 +40,6 @@ module C = struct
   include Un_cps_helper
 end
 
-(* Type for the result of translating a set of closures *)
-type set_of_closure_result = {
-  cmm : Cmm.expression;
-  (* The cmm expression whose return value is the set of closure. *)
-  env : Env.t;
-  (* The env that result from the translation of the closure *)
-  effs : Ece.t;
-  (* The effects produced by evaluating the {cmm} expression. *)
-  res : R.t;
-  (* The static result (i.e. statically allocated constants, etc..) after
-     translating the closure. *)
-}
-
-
 (* Shortcuts for useful cmm machtypes *)
 let typ_int = Cmm.typ_int
 let typ_val = Cmm.typ_val
@@ -75,7 +61,6 @@ let int_of_targetint t =
   if not (Targetint.equal t t') then
     Misc.fatal_errorf "Cannot translate targetint to caml int";
   i
-
 
 (* Name expressions *)
 
@@ -676,13 +661,13 @@ and named env res n =
   | Simple s ->
     let t, env, effs = simple env s in
     t, None, env, effs, res
-  | Set_of_closures s ->
-    let { cmm; env; effs; res; } = set_of_closures env res s in
-    cmm, None, env, effs, res
   | Prim (p, dbg) ->
     let prim_eff = Flambda_primitive.effects_and_coeffects p in
     let t, extra, env, effs = prim env dbg p in
     t, extra, env, Ece.join effs prim_eff, res
+  | Set_of_closures _ ->
+    Misc.fatal_errorf "sets of closures should not be bound to \
+                       a singleton variable"
 
 and let_expr env res t =
   Let.pattern_match t ~f:(fun ~bound_vars ~body ->
@@ -730,34 +715,15 @@ and let_symbol env res let_sym =
     let body, res = expr env res body in
     wrap (C.sequence update body), res
 
-and let_set_of_closures env res body closure_vars soc =
-  (* First translate the set of closures, and bind it in the env *)
-  let { cmm = csoc; env; effs; res; } = set_of_closures env res soc in
-  let soc_var = Variable.create "*set_of_closures*" in
-  (* CR gbury: allow inlining of the variable when possible *)
-  let env = Env.bind_variable env soc_var effs false csoc in
-  (* Then get from the env the cmm variable that was created and bound
-     to the compiled set of closures. *)
-  let soc_cmm_var, env, peff = Env.inline_variable env soc_var in
-  assert (Ece.is_pure peff);
-  (* Add env bindings for all the closure variables. *)
-  let effs = Effects_and_coeffects.read in
-  let env =
-    Closure_id.Map.fold (fun cid v acc ->
-      let v = Var_in_binding_pos.var v in
-      match Env.closure_offset env cid with
-      | Some { offset; _ } ->
-        let e =
-          C.infix_field_address ~dbg: Debuginfo.none
-            soc_cmm_var offset
-        in
-        let_expr_bind body acc v e effs
-      | None ->
-        Misc.fatal_errorf "No closure offset for %a" Closure_id.print cid
-    ) closure_vars env in
-  (* The set of closures, as well as the individual closures variables
-     are correctly set in the env, go on translating the body. *)
-  expr env res body
+and let_set_of_closures env res body closure_vars s =
+  let fun_decls = Set_of_closures.function_decls s in
+  let decls = Function_declarations.funs fun_decls in
+  let elts = filter_closure_vars env (Set_of_closures.closure_elements s) in
+  if Var_within_closure.Map.is_empty elts then
+    let_static_set_of_closures env res body closure_vars s
+  else
+    let_dynamic_set_of_closures env res body closure_vars decls elts
+
 
 and let_expr_bind ?extra body env v cmm_expr effs =
   match decide_inline_let effs v body with
@@ -1244,16 +1210,76 @@ and make_switch ~tag_discriminant env res e arms =
 and invalid _env res _e =
   C.unreachable, res
 
-and set_of_closures env res s =
-  let fun_decls = Set_of_closures.function_decls s in
-  let decls = Function_declarations.funs fun_decls in
-  let elts = filter_closure_vars env (Set_of_closures.closure_elements s) in
+(* Sets of closures with no environment can be turned into statically
+   allocated symbols, rather than have to allocate them each time *)
+and let_static_set_of_closures env res body closure_vars s =
+  (* Generate symbols for the set of closures, and each of the closures *)
+  let comp_unit = Compilation_unit.get_current_exn () in
+  let closure_symbols = Closure_id.Map.map (fun v ->
+    let v = Var_in_binding_pos.var v in
+    (* rename v just to have a different name for the symbol and the variable *)
+    let name = Variable.unique_name (Variable.rename v) in
+    Symbol.create comp_unit (Linkage_name.create name)
+  ) closure_vars in
+  (* Statically allocate the set of closures *)
+  let env, static_data, updates =
+    Un_cps_static.static_set_of_closures env closure_symbols s None
+  in
+  (* As there is no env vars for the set of closures, there must be no updates *)
+  begin match updates with
+  | None -> ()
+  | Some _ -> Misc.fatal_errorf "non-empty updates when lifting set of closures"
+  end;
+  (* update the result with the new static data *)
+  let res = R.archive_data (R.set_data res static_data) in
+  (* Bind the variables to the symbols for closure ids.
+     CR gbury: inline the variables (require to extend un_cps_enc to
+     inline pure variables more than once). *)
+  let env =
+    Closure_id.Map.fold (fun cid v acc ->
+      let v = Var_in_binding_pos.var v in
+      let sym = symbol (Closure_id.Map.find cid closure_symbols) in
+      let sym_cmm = C.symbol sym in
+      Env.bind_variable acc v Ece.pure false sym_cmm
+    ) closure_vars env
+  in
+  (* go on in the body *)
+  expr env res body
+
+(* Sets of closures with a non-empty environment are allocated *)
+and let_dynamic_set_of_closures env res body closure_vars decls elts =
+  (* Create the allocation block for the set of closures *)
   let layout = Env.layout env
                  (List.map fst (Closure_id.Map.bindings decls))
                  (List.map fst (Var_within_closure.Map.bindings elts))
   in
   let l, env, effs = fill_layout decls elts env Ece.pure [] 0 layout in
-  { cmm = C.make_closure_block l; env; effs; res; }
+  let csoc = C.make_closure_block l in
+  (* Create a variable to hold the set of closure *)
+  let soc_var = Variable.create "*set_of_closures*" in
+  let env = Env.bind_variable env soc_var effs false csoc in
+  (* Get from the env the cmm variable that was created and bound
+     to the compiled set of closures. *)
+  let soc_cmm_var, env, peff = Env.inline_variable env soc_var in
+  assert (Ece.is_pure peff);
+  (* Add env bindings for all the closure variables. *)
+  let env =
+    Closure_id.Map.fold (fun cid v acc ->
+      let v = Var_in_binding_pos.var v in
+      let e, effs = get_closure_by_offset env soc_cmm_var cid in
+      let_expr_bind body acc v e effs
+    ) closure_vars env in
+  (* The set of closures, as well as the individual closures variables
+     are correctly set in the env, go on translating the body. *)
+  expr env res body
+
+and get_closure_by_offset env set_cmm cid =
+  match Env.closure_offset env cid with
+  | Some { offset; _ } ->
+    let effs = Effects_and_coeffects.read in
+    C.infix_field_address ~dbg: Debuginfo.none set_cmm offset, effs
+  | None ->
+    Misc.fatal_errorf "No closure offset for %a" Closure_id.print cid
 
 and fill_layout decls elts env effs acc i = function
   | [] -> List.rev acc, env, effs

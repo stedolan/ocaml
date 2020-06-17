@@ -18,6 +18,13 @@
 
 open! Flambda.Import
 
+val static_set_of_closures
+  : Un_cps_env.t
+  -> Symbol.t Closure_id.Map.t
+  -> Set_of_closures.t
+  -> Cmm.expression option
+  -> Un_cps_env.t * Cmm.data_item list * Cmm.expression option
+
 val static_const
   : Un_cps_env.t
   -> Un_cps_result.t
