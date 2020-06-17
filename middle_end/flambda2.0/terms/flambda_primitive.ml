@@ -1588,6 +1588,11 @@ let at_most_generative_effects t =
   | (No_effects | Only_generative_effects _), _ -> true
   | _, _ -> false
 
+let only_generative_effects t =
+  match effects_and_coeffects t with
+  | Only_generative_effects _, _ -> true
+  | _, _ -> false
+
 module Eligible_for_cse = struct
   type t = primitive_application
 

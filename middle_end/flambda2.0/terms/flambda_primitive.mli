@@ -378,6 +378,10 @@ val no_effects_or_coeffects : t -> bool
 
 val at_most_generative_effects : t -> bool
 
+(** Returns [true] iff the given primitive has generative effects,
+    and no other effects. *)
+val only_generative_effects : t -> bool
+
 module Eligible_for_cse : sig
   (** Primitive applications that may be replaced by a variable which is let
       bound to a single instance of such application.  Primitives that are

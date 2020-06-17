@@ -66,33 +66,41 @@ let simplify_named0 dacc ~(bound_vars : Bindable_let_bound.t)
     in
     (* CR mshinwell: Add check along the lines of: types are unknown
        whenever [not (P.With_fixed_value.eligible prim)] holds. *)
-    let defining_expr, dacc, ty =
-      Reification.try_to_reify dacc term ~bound_to:bound_var
-    in
-    let defining_expr =
-      if T.is_bottom (DA.typing_env dacc) ty then Reachable.invalid ()
-      else defining_expr
-    in
-    if DE.at_unit_toplevel (DA.denv dacc)
-      && Name_mode.is_normal (Var_in_binding_pos.name_mode bound_var)
-    then begin
-      match
-        Lift_inconstants.reify_primitive_at_toplevel dacc bound_var ty
-      with
-      | Cannot_reify -> bindings_result [bound_vars, defining_expr] dacc
-      | Shared { symbol; } ->
-        Shared { symbol; kind; }
-      | Lift { dacc; symbol; static_const; } ->
-        let named = Named.create_simple (Simple.symbol symbol) in
-        Reified
-          { definition = named;
-            bound_symbol = Let_symbol.Bound_symbols.Singleton symbol;
-            static_const;
-            dacc;
-          }
+    (* Primitives with generative effects correspond to allocations.
+       Without this check, we could end up lifting definitions that have
+       a type that looks like an allocation but that are instead a projection
+       from a bigger structure. *)
+    if P.only_generative_effects prim then begin
+      let defining_expr, dacc, ty =
+        Reification.try_to_reify dacc term ~bound_to:bound_var
+      in
+      let defining_expr =
+        if T.is_bottom (DA.typing_env dacc) ty then Reachable.invalid ()
+        else defining_expr
+      in
+      if DE.at_unit_toplevel (DA.denv dacc)
+        && Name_mode.is_normal (Var_in_binding_pos.name_mode bound_var)
+      then begin
+        match
+          Lift_inconstants.reify_primitive_at_toplevel dacc bound_var ty
+        with
+        | Cannot_reify -> bindings_result [bound_vars, defining_expr] dacc
+        | Shared { symbol; } ->
+          Shared { symbol; kind; }
+        | Lift { dacc; symbol; static_const; } ->
+          let named = Named.create_simple (Simple.symbol symbol) in
+          Reified
+            { definition = named;
+              bound_symbol = Let_symbol.Bound_symbols.Singleton symbol;
+              static_const;
+              dacc;
+            }
+      end
+      else
+        bindings_result [bound_vars, defining_expr] dacc
     end
     else
-      bindings_result [bound_vars, defining_expr] dacc
+      bindings_result [bound_vars, term] dacc
   | Set_of_closures set_of_closures ->
     let bindings, dacc =
       Simplify_set_of_closures.simplify_non_lifted_set_of_closures dacc
