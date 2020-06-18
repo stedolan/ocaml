@@ -70,12 +70,12 @@ let test_string_conv () =
    - the comparison function for Int32s (which are custom blocks) only checks
      the low 32-bits of the stored value (which is in general correct, but
      in this case we need to check more).
-   In flambda2, boxing decisions are handled by flambda2, and the translation
-   from flambda2 to cmm thus does not systemically introduce boxing operations
-   like what is done in cmmgen. Additionaly, flambda2 can simplify box-unbox
-   trips to the identity on int32, which makes the flambda2 to cmm translation
+   In flambda, boxing decisions are handled by flambda, and the translation
+   from flambda to cmm thus does not systemically introduce boxing operations
+   like what is done in cmmgen. Additionaly, flambda can simplify box-unbox
+   trips to the identity on int32, which makes the flambda to cmm translation
    responsible for introducing sign extensions correctly after the operations
-   on int32s (which operate in flambda2 on raw int32 rather than boxed int32
+   on int32s (which operate in flambda on raw int32 rather than boxed int32
    that clambda and cmmgen uses).
 
    To correctly test the behavior of int32 overflow, we use two "tricks":

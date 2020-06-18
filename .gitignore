@@ -92,9 +92,9 @@ _build
 /manual/manual/cmds/warnings-help.etex
 /manual/manual/warnings-help.etex
 
-middle_end/flambda2.0/simplify/simplify.ml
-middle_end/flambda2.0/terms/flambda.ml
-middle_end/flambda2.0/types/flambda_type.ml
+middle_end/flambda/simplify/simplify.ml
+middle_end/flambda/terms/flambda.ml
+middle_end/flambda/types/flambda_type.ml
 
 /ocamldoc/ocamldoc
 /ocamldoc/ocamldoc.opt

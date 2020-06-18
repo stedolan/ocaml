@@ -208,7 +208,7 @@ let get_clambda_approx ui =
   assert(not Config.flambda);
   match ui.ui_export_info with
   | Clambda approx -> approx
-  | Flambda2 _ -> Misc.fatal_error "Not a Closure approx"
+  | Flambda _ -> Misc.fatal_error "Not a Closure approx"
 
 let toplevel_approx :
   (string, Clambda.value_approximation) Hashtbl.t = Hashtbl.create 16

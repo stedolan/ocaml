@@ -88,7 +88,7 @@ let close_phrase lam =
                    tag = 0;  (* CR mshinwell: Is this right? *)
                    size = Unknown;
                  };
-               }, 
+               },
                Reads_vary),
              [Lprim (Pgetglobal glb, [], Loc_unknown)],
              Loc_unknown)
@@ -242,8 +242,8 @@ module Backend = struct
 end
 let backend = (module Backend : Backend_intf.S)
 
-let flambda2_backend =
-  (module Asmgen.Flambda2_backend : Flambda2_backend_intf.S)
+let flambda_backend =
+  (module Asmgen.Flambda_backend : Flambda_backend_intf.S)
 
 let load_lambda ppf ~module_ident ~required_globals lam size =
   if !Clflags.dump_rawlambda then fprintf ppf "%a@." Printlambda.lambda lam;
@@ -257,16 +257,17 @@ let load_lambda ppf ~module_ident ~required_globals lam size =
   let filename = Filename.chop_extension dll in
   begin
     if Config.flambda then
-      Asmgen.compile_implementation2 ~toplevel:need_symbol
-        ~backend:flambda2_backend
+      Asmgen.compile_implementation_flambda
+        ~toplevel:need_symbol
+        ~backend:flambda_backend
         ~filename
         ~prefixname:filename
         ~size
         ~module_ident
         ~module_initializer:slam
-        ~middle_end:Flambda2_middle_end.middle_end
+        ~middle_end:Flambda_middle_end.middle_end
         ~ppf_dump:ppf
-        required_globals
+        ~required_globals
     else
       let program =
         { Lambda.

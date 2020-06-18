@@ -134,7 +134,7 @@ module Int32 = struct
 
   external swap_byte_endianness : t -> t = "%bswap_int32"
 
-  (* CR GBury: move this module to be inside the flambda2 Immediate
+  (* CR GBury: move this module to be inside the flambda Immediate
                module, and add a Check_conversion module to not
                silently overflow on conversions. *)
   module OCaml = struct
@@ -351,7 +351,7 @@ module Int64 = struct
 
   external swap_byte_endianness : t -> t = "%bswap_int64"
 
-  (* CR GBury: move this module to be inside the flambda2 Immediate
+  (* CR GBury: move this module to be inside the flambda Immediate
                module, and add a Check_conversion module to not
                silently overflow on conversions. *)
   module OCaml = struct

@@ -35,42 +35,43 @@ val compile_implementation
   -> Lambda.program
   -> unit
 
-(** The type of converters from Lambda to Flambda2 programs *)
-type middle_end2 =
+(** The type of converters from Lambda to Flambda programs *)
+type middle_end_flambda =
      ppf_dump:Format.formatter
   -> prefixname:string
-  -> backend:(module Flambda2_backend_intf.S)
+  -> backend:(module Flambda_backend_intf.S)
   -> filename:string
   -> module_ident:Ident.t
   -> module_block_size_in_words:int
   -> module_initializer:Lambda.lambda
-  -> Flambda2_middle_end.middle_end_result
+  -> Flambda_middle_end.middle_end_result
 
-(** Compile an implementation from Lambda using the given middle end. *)
-val compile_implementation2
+(** Compile an implementation from Lambda using Flambda. *)
+val compile_implementation_flambda
    : ?toplevel:(string -> bool)
-  -> backend:(module Flambda2_backend_intf.S)
+  -> backend:(module Flambda_backend_intf.S)
   -> filename:string
   -> prefixname:string
   -> size:int
   -> module_ident:Ident.t
   -> module_initializer:Lambda.lambda
-  -> middle_end:middle_end2
+  -> middle_end:middle_end_flambda
   -> ppf_dump:Format.formatter
-  -> Ident.Set.t (* CR mshinwell: label this *)
+  -> required_globals:Ident.Set.t
+  -> unit
   -> unit
 
-(** Flambda2 backend *)
-module Flambda2_backend : Flambda2_backend_intf.S
-
-(** Compile an implementation from Lambda using the given middle end. *)
-val compile_implementation_flambda
+(** Specialised version of [compile_implementation_flambda] for ilambdac. *)
+val compile_implementation_flambda_for_ilambdac
    : ?toplevel:(string -> bool)
   -> prefixname:string
   -> ppf_dump:Format.formatter
   -> required_globals:Ident.Set.t
-  -> Flambda2_middle_end.middle_end_result
+  -> Flambda_middle_end.middle_end_result
   -> unit
+
+(** Information that Flambda needs to know about the backend. *)
+module Flambda_backend : Flambda_backend_intf.S
 
 val compile_phrase :
     ppf_dump:Format.formatter -> Cmm.phrase -> unit

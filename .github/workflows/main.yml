@@ -4,7 +4,8 @@
 name: main
 
 # Configure when to run the workflows. Currently only when
-# it affects the `flambda2.0` branch (either pushes to the branch, or pull request against it).
+# it affects the `flambda2.0-stable` branch (either pushes to the branch,
+# or pull request against it).
 on:
   push:
     branches:

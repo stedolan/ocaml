@@ -118,11 +118,11 @@ let make_package_object ~ppf_dump members targetobj targetname coercion
     in
     let () =
       if Config.flambda then begin
-        let middle_end = Flambda2_middle_end.middle_end in
         let backend =
-          (module Asmgen.Flambda2_backend : Flambda2_backend_intf.S)
+          (module Asmgen.Flambda_backend : Flambda_backend_intf.S)
         in
-        Asmgen.compile_implementation2 program.required_globals
+        Asmgen.compile_implementation_flambda
+          ~required_globals:program.required_globals
           ~backend
           ~prefixname
           ~size:program.main_module_block_size
@@ -130,13 +130,13 @@ let make_package_object ~ppf_dump members targetobj targetname coercion
           ~module_ident:program.module_ident
           ~module_initializer:program.code
           ~ppf_dump
-          ~middle_end
+          ~middle_end:Flambda_middle_end.middle_end
+          ()
       end else begin
-        let middle_end = Closure_middle_end.lambda_to_clambda in
         Asmgen.compile_implementation ~backend
           ~filename:targetname
           ~prefixname
-          ~middle_end
+          ~middle_end:Closure_middle_end.lambda_to_clambda
           ~ppf_dump
           program
       end
@@ -158,13 +158,13 @@ let get_export_info ui =
   assert(Config.flambda);
   match ui.ui_export_info with
   | Clambda _ -> assert false
-  | Flambda2 info -> info
+  | Flambda info -> info
 
 let get_approx ui =
   assert(not Config.flambda);
   match ui.ui_export_info with
   | Clambda info -> info
-  | Flambda2 _ -> assert false
+  | Flambda _ -> assert false
 
 let build_package_cmx members cmxfile =
   let unit_names =
@@ -193,7 +193,7 @@ let build_package_cmx members cmxfile =
   let ui_export_info =
     if Config.flambda then
       let pack = Compilenv.current_unit () in
-      let flambda2_export_info =
+      let flambda_export_info =
         List.fold_left (fun acc info ->
             Flambda_cmx_format.merge
               (Flambda_cmx_format.update_for_pack ~pack_units ~pack
@@ -203,7 +203,7 @@ let build_package_cmx members cmxfile =
              (get_export_info ui))
           units
       in
-      Flambda2 flambda2_export_info
+      Flambda flambda_export_info
     else
       Clambda (get_approx ui)
   in

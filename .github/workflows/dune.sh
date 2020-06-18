@@ -6,7 +6,7 @@
 # number of errors lines to show from the log file
 N="${N:-15}"
 # tmpfile for logigng command output
-TMPFILE="${TMPFILE:-$(mktemp /tmp/flambda2-build.XXXXXX)}"
+TMPFILE="${TMPFILE:-$(mktemp /tmp/flambda-build.XXXXXX)}"
 # Local install directory
 INSTALL_DIR="$1"
 # Local Flambda repo
@@ -47,7 +47,7 @@ clean_dune () {
 }
 
 clean_tmpfiles () {
-  rm -rf /tmp/flambda2-build.*
+  rm -rf /tmp/flambda-build.*
 }
 
 # #################

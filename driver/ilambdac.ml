@@ -1,4 +1,6 @@
-module Flambda2_backend = struct
+(* CR mshinwell: This probably needs some updating *)
+
+module Flambda_backend = struct
   let symbol_for_global' id =
     Symbol.unsafe_create
       (Compilation_unit.get_current_exn ())
@@ -22,14 +24,14 @@ module Flambda2_backend = struct
   let max_sensible_number_of_arguments =
     Proc.max_arguments_for_tailcalls - 1
 end
-let flambda2_backend =
-  (module Flambda2_backend : Flambda2_backend_intf.S)
+
+let flambda_backend = (module Flambda_backend : Flambda_backend_intf.S)
 
 let () =
   Clflags.dump_cmm := true;
   Clflags.keep_asm_file := true;
-  let fl = Parse_ilambda.go ~backend:flambda2_backend () in
-  Asmgen.compile_implementation_flambda
+  let fl = Parse_ilambda.go ~backend:flambda_backend () in
+  Asmgen.compile_implementation_flambda_for_ilambdac
     ?toplevel:None
     ~prefixname:"test"
     ~ppf_dump:Format.std_formatter

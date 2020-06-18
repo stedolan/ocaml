@@ -43,11 +43,6 @@
             "label": "runtest",
             "type": "shell",
             "command": "/Users/mark/dev/dune/dune.sh build @runtest",
-            "options": {
-                "env": {
-                    "FLAMBDA2": "yes"
-                }
-            },
             "group": {
                 "kind": "build",
                 "isDefault": true

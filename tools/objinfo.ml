@@ -144,8 +144,8 @@ let print_cmx_infos (ui, crc) =
       Format.fprintf Format.std_formatter "  %a@." Printclambda.approx approx
     end else
       Format.printf "Clambda unit@.";
-  | Flambda2 info ->
-    Format.printf "Flambda2 unit:@.";
+  | Flambda info ->
+    Format.printf "Flambda unit:@.";
     Format.fprintf Format.std_formatter "@[<hov 2>%a@]"
       Flambda_cmx_format.print info
   end;

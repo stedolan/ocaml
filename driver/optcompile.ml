@@ -29,11 +29,12 @@ let interface ~source_file ~output_prefix =
 
 let (|>>) (x, y) f = (x, f y)
 
-(** Native compilation backend for .ml files. *)
-let flambda2_backend =
-  (module Asmgen.Flambda2_backend : Flambda2_backend_intf.S)
+(** Native compilation backends for .ml files. *)
 
-let flambda2 i typed =
+let flambda_backend =
+  (module Asmgen.Flambda_backend : Flambda_backend_intf.S)
+
+let flambda i typed =
   if !Clflags.classic_inlining then begin
     Clflags.default_simplify_rounds := 1;
     Clflags.use_inlining_arguments_set Clflags.classic_arguments;
@@ -50,16 +51,18 @@ let flambda2 i typed =
     |>> print_if i.ppf_dump Clflags.dump_rawlambda Printlambda.lambda
     |>> Simplif.simplify_lambda
     |>> print_if i.ppf_dump Clflags.dump_lambda Printlambda.lambda
-    |> (fun ((module_ident, main_module_block_size), code) ->
-        Asmgen.compile_implementation2 required_globals
-          ~backend:flambda2_backend
+    |> (fun ((module_ident, main_module_block_size), module_initializer) ->
+        Asmgen.compile_implementation_flambda
+          ~required_globals
+          ~backend:flambda_backend
           ~prefixname:i.output_prefix
           ~size:main_module_block_size
           ~filename:i.source_file
           ~module_ident
-          ~module_initializer:code
+          ~module_initializer
           ~ppf_dump:i.ppf_dump
-          ~middle_end:Flambda2_middle_end.middle_end);
+          ~middle_end:Flambda_middle_end.middle_end
+          ());
     Compilenv.save_unit_info (cmx i)
     )
 
@@ -86,7 +89,7 @@ let implementation ~backend ~source_file ~output_prefix =
   let backend info typed =
     Compilenv.reset ?packname:!Clflags.for_package info.module_name;
     if Config.flambda then
-      flambda2 info typed
+      flambda info typed
     else clambda info backend typed
   in
   with_info ~source_file ~output_prefix ~dump_ext:"cmx" @@ fun info ->

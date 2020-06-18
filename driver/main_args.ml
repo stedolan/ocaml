@@ -741,11 +741,6 @@ let mk_drawflambda f =
   "-drawflambda", Arg.Unit f, " Print Flambda terms after closure conversion"
 ;;
 
-let mk_drawflambda2 f =
-  "-drawflambda2", Arg.Unit f,
-    " Print Flambda 2.0 terms after closure conversion"
-;;
-
 let mk_dflambda_invariants f =
   "-dflambda-invariants", Arg.Unit f, " Check Flambda invariants \
       around each pass"
@@ -894,90 +889,90 @@ let mk__ f =
   "<file>  Treat <file> as a file name (even if it starts with `-')"
 ;;
 
-let mk_flambda2_join_points f =
-  "-flambda2-join-points", Arg.Unit f, " Propagate information from incoming \
+let mk_flambda_join_points f =
+  "-flambda-join-points", Arg.Unit f, " Propagate information from incoming \
     edges at a join point"
 ;;
 
-let mk_no_flambda2_join_points f =
-  "-no-flambda2-join-points", Arg.Unit f, " Propagate information only from \
+let mk_no_flambda_join_points f =
+  "-no-flambda-join-points", Arg.Unit f, " Propagate information only from \
     the fork point to a join point"
 ;;
 
-let mk_flambda2_unbox_along_intra_function_control_flow f =
-  "-flambda2-unbox-along-intra-function-control-flow", Arg.Unit f,
+let mk_flambda_unbox_along_intra_function_control_flow f =
+  "-flambda-unbox-along-intra-function-control-flow", Arg.Unit f,
     " Pass values within a function as unboxed where possible"
 ;;
 
-let mk_no_flambda2_unbox_along_intra_function_control_flow f =
-  "-no-flambda2-unbox-along-intra-function-control-flow", Arg.Unit f,
+let mk_no_flambda_unbox_along_intra_function_control_flow f =
+  "-no-flambda-unbox-along-intra-function-control-flow", Arg.Unit f,
     " Pass values within a function in their normal representation"
 ;;
 
-let mk_flambda2_lift_inconstants f =
-  "-flambda2-lift-inconstants", Arg.Unit f,
+let mk_flambda_lift_inconstants f =
+  "-flambda-lift-inconstants", Arg.Unit f,
     "Attempt to statically-allocate values that require computations to \
       initialize"
 ;;
 
-let mk_no_flambda2_lift_inconstants f =
-  "-no-flambda2-lift-inconstants", Arg.Unit f,
+let mk_no_flambda_lift_inconstants f =
+  "-no-flambda-lift-inconstants", Arg.Unit f,
     " Never statically-allocate values that require computations to \
       initialize"
 ;;
 
-let mk_flambda2_cse_depth f =
-  "-flambda2-cse-depth", Arg.Int f,
+let mk_flambda_cse_depth f =
+  "-flambda-cse-depth", Arg.Int f,
     " Depth threshold for eager tracking of CSE equations (default 2)"
 ;;
 
-let mk_flambda2_expert_denest_at_toplevel f =
-  "-flambda2-expert-denest-at-toplevel", Arg.Unit f,
+let mk_flambda_expert_denest_at_toplevel f =
+  "-flambda-expert-denest-at-toplevel", Arg.Unit f,
     " Denest continuations during Closure_conversion even at toplevel"
 ;;
 
-let mk_no_flambda2_expert_denest_at_toplevel f =
-  "-no-flambda2-expert-denest-at-toplevel", Arg.Unit f,
+let mk_no_flambda_expert_denest_at_toplevel f =
+  "-no-flambda-expert-denest-at-toplevel", Arg.Unit f,
     " Never denest continuations during Closure_conversion at toplevel"
 ;;
 
-let mk_flambda2_expert_code_id_and_symbol_scoping_checks f =
-  "-flambda2-expert-code-id-and-symbol-scoping-checks", Arg.Unit f,
+let mk_flambda_expert_code_id_and_symbol_scoping_checks f =
+  "-flambda-expert-code-id-and-symbol-scoping-checks", Arg.Unit f,
     " Perform checks on static scopes of code IDs and symbols during Un_cps"
 ;;
 
-let mk_no_flambda2_expert_code_id_and_symbol_scoping_checks f =
-  "-no-flambda2-expert-code-id-and-symbol-scoping-checks", Arg.Unit f,
+let mk_no_flambda_expert_code_id_and_symbol_scoping_checks f =
+  "-no-flambda-expert-code-id-and-symbol-scoping-checks", Arg.Unit f,
     " Perform checks on static scopes of code IDs and symbols during Un_cps"
 ;;
 
-let mk_flambda2_expert_fallback_inlining_heuristic f =
-  "-flambda2-expert-fallback-inlining-heuristic", Arg.Unit f,
+let mk_flambda_expert_fallback_inlining_heuristic f =
+  "-flambda-expert-fallback-inlining-heuristic", Arg.Unit f,
     " Prevent inlining of functions whose bodies contain closures"
 ;;
 
-let mk_no_flambda2_expert_fallback_inlining_heuristic f =
-  "-no-flambda2-expert-fallback-inlining-heuristic", Arg.Unit f,
+let mk_no_flambda_expert_fallback_inlining_heuristic f =
+  "-no-flambda-expert-fallback-inlining-heuristic", Arg.Unit f,
     " Allow inlining of functions whose bodies contain closures (default)"
 ;;
 
-let mk_flambda2_debug_concrete_types_only_on_canonicals f =
-  "-flambda2-debug-concrete-types-only-on-canonicals", Arg.Unit f,
+let mk_flambda_debug_concrete_types_only_on_canonicals f =
+  "-flambda-debug-concrete-types-only-on-canonicals", Arg.Unit f,
     " Check that concrete types are only assigned to canonical names"
 ;;
 
-let mk_no_flambda2_debug_concrete_types_only_on_canonicals f =
-  "-no-flambda2-debug-concrete-types-only-on-canonicals", Arg.Unit f,
+let mk_no_flambda_debug_concrete_types_only_on_canonicals f =
+  "-no-flambda-debug-concrete-types-only-on-canonicals", Arg.Unit f,
     " Do not check that concrete types are only assigned to canonical names"
 ;;
 
-let mk_flambda2_backend_cse_at_toplevel f =
-  "-flambda2-backend-cse-at-toplevel", Arg.Unit f,
+let mk_flambda_backend_cse_at_toplevel f =
+  "-flambda-backend-cse-at-toplevel", Arg.Unit f,
     " Apply the backend CSE pass to module initializers"
 ;;
 
-let mk_no_flambda2_backend_cse_at_toplevel f =
-  "-no-flambda2-backend-cse-at-toplevel", Arg.Unit f,
+let mk_no_flambda_backend_cse_at_toplevel f =
+  "-no-flambda-backend-cse-at-toplevel", Arg.Unit f,
     " Do not apply the backend CSE pass to module initializers"
 ;;
 
@@ -1185,27 +1180,26 @@ module type Optcommon_options = sig
   val _dinterval : unit -> unit
   val _dstartup :  unit -> unit
 
-  val _flambda2_join_points : unit -> unit
-  val _no_flambda2_join_points : unit -> unit
-  val _flambda2_unbox_along_intra_function_control_flow : unit -> unit
-  val _no_flambda2_unbox_along_intra_function_control_flow : unit -> unit
-  val _flambda2_lift_inconstants : unit -> unit
-  val _no_flambda2_lift_inconstants : unit -> unit
-  val _flambda2_backend_cse_at_toplevel : unit -> unit
-  val _no_flambda2_backend_cse_at_toplevel : unit -> unit
-  val _flambda2_cse_depth : int -> unit
-  val _flambda2_expert_denest_at_toplevel : unit -> unit
-  val _no_flambda2_expert_denest_at_toplevel : unit -> unit
-  val _flambda2_expert_code_id_and_symbol_scoping_checks : unit -> unit
-  val _no_flambda2_expert_code_id_and_symbol_scoping_checks : unit -> unit
-  val _flambda2_expert_fallback_inlining_heuristic : unit -> unit
-  val _no_flambda2_expert_fallback_inlining_heuristic : unit -> unit
-  val _flambda2_debug_concrete_types_only_on_canonicals : unit -> unit
-  val _no_flambda2_debug_concrete_types_only_on_canonicals : unit -> unit
+  val _flambda_join_points : unit -> unit
+  val _no_flambda_join_points : unit -> unit
+  val _flambda_unbox_along_intra_function_control_flow : unit -> unit
+  val _no_flambda_unbox_along_intra_function_control_flow : unit -> unit
+  val _flambda_lift_inconstants : unit -> unit
+  val _no_flambda_lift_inconstants : unit -> unit
+  val _flambda_backend_cse_at_toplevel : unit -> unit
+  val _no_flambda_backend_cse_at_toplevel : unit -> unit
+  val _flambda_cse_depth : int -> unit
+  val _flambda_expert_denest_at_toplevel : unit -> unit
+  val _no_flambda_expert_denest_at_toplevel : unit -> unit
+  val _flambda_expert_code_id_and_symbol_scoping_checks : unit -> unit
+  val _no_flambda_expert_code_id_and_symbol_scoping_checks : unit -> unit
+  val _flambda_expert_fallback_inlining_heuristic : unit -> unit
+  val _no_flambda_expert_fallback_inlining_heuristic : unit -> unit
+  val _flambda_debug_concrete_types_only_on_canonicals : unit -> unit
+  val _no_flambda_debug_concrete_types_only_on_canonicals : unit -> unit
 
   val _dprepared_lambda : unit -> unit
   val _dilambda : unit -> unit
-  val _drawflambda2 : unit -> unit
 end;;
 
 module type Optcomp_options = sig
@@ -1530,34 +1524,34 @@ struct
     mk_where F._where;
     mk__ F.anonymous;
 
-    mk_flambda2_join_points F._flambda2_join_points;
-    mk_no_flambda2_join_points F._no_flambda2_join_points;
-    mk_flambda2_unbox_along_intra_function_control_flow
-      F._flambda2_unbox_along_intra_function_control_flow;
-    mk_no_flambda2_unbox_along_intra_function_control_flow
-      F._no_flambda2_unbox_along_intra_function_control_flow;
-    mk_flambda2_lift_inconstants F._flambda2_lift_inconstants;
-    mk_no_flambda2_lift_inconstants F._no_flambda2_lift_inconstants;
-    mk_flambda2_backend_cse_at_toplevel F._flambda2_backend_cse_at_toplevel;
-    mk_no_flambda2_backend_cse_at_toplevel
-      F._no_flambda2_backend_cse_at_toplevel;
-    mk_flambda2_cse_depth F._flambda2_cse_depth;
-    mk_flambda2_expert_denest_at_toplevel
-      F._flambda2_expert_denest_at_toplevel;
-    mk_no_flambda2_expert_denest_at_toplevel
-      F._no_flambda2_expert_denest_at_toplevel;
-    mk_flambda2_expert_code_id_and_symbol_scoping_checks
-      F._flambda2_expert_code_id_and_symbol_scoping_checks;
-    mk_no_flambda2_expert_code_id_and_symbol_scoping_checks
-      F._no_flambda2_expert_code_id_and_symbol_scoping_checks;
-    mk_flambda2_expert_fallback_inlining_heuristic
-      F._flambda2_expert_fallback_inlining_heuristic;
-    mk_no_flambda2_expert_fallback_inlining_heuristic
-      F._no_flambda2_expert_fallback_inlining_heuristic;
-    mk_flambda2_debug_concrete_types_only_on_canonicals
-      F._flambda2_debug_concrete_types_only_on_canonicals;
-    mk_no_flambda2_debug_concrete_types_only_on_canonicals
-      F._no_flambda2_debug_concrete_types_only_on_canonicals;
+    mk_flambda_join_points F._flambda_join_points;
+    mk_no_flambda_join_points F._no_flambda_join_points;
+    mk_flambda_unbox_along_intra_function_control_flow
+      F._flambda_unbox_along_intra_function_control_flow;
+    mk_no_flambda_unbox_along_intra_function_control_flow
+      F._no_flambda_unbox_along_intra_function_control_flow;
+    mk_flambda_lift_inconstants F._flambda_lift_inconstants;
+    mk_no_flambda_lift_inconstants F._no_flambda_lift_inconstants;
+    mk_flambda_backend_cse_at_toplevel F._flambda_backend_cse_at_toplevel;
+    mk_no_flambda_backend_cse_at_toplevel
+      F._no_flambda_backend_cse_at_toplevel;
+    mk_flambda_cse_depth F._flambda_cse_depth;
+    mk_flambda_expert_denest_at_toplevel
+      F._flambda_expert_denest_at_toplevel;
+    mk_no_flambda_expert_denest_at_toplevel
+      F._no_flambda_expert_denest_at_toplevel;
+    mk_flambda_expert_code_id_and_symbol_scoping_checks
+      F._flambda_expert_code_id_and_symbol_scoping_checks;
+    mk_no_flambda_expert_code_id_and_symbol_scoping_checks
+      F._no_flambda_expert_code_id_and_symbol_scoping_checks;
+    mk_flambda_expert_fallback_inlining_heuristic
+      F._flambda_expert_fallback_inlining_heuristic;
+    mk_no_flambda_expert_fallback_inlining_heuristic
+      F._no_flambda_expert_fallback_inlining_heuristic;
+    mk_flambda_debug_concrete_types_only_on_canonicals
+      F._flambda_debug_concrete_types_only_on_canonicals;
+    mk_no_flambda_debug_concrete_types_only_on_canonicals
+      F._no_flambda_debug_concrete_types_only_on_canonicals;
 
     mk_match_context_rows F._match_context_rows;
     mk_dno_unique_ids F._dno_unique_ids;
@@ -1599,7 +1593,6 @@ struct
 
     mk_dprepared_lambda F._dprepared_lambda;
     mk_dilambda F._dilambda;
-    mk_drawflambda2 F._drawflambda2;
 
     mk_args F._args;
     mk_args0 F._args0;
@@ -1678,34 +1671,34 @@ module Make_opttop_options (F : Opttop_options) = struct
     mk_color F._color;
     mk_error_style F._error_style;
 
-    mk_flambda2_join_points F._flambda2_join_points;
-    mk_no_flambda2_join_points F._no_flambda2_join_points;
-    mk_flambda2_unbox_along_intra_function_control_flow
-      F._flambda2_unbox_along_intra_function_control_flow;
-    mk_no_flambda2_unbox_along_intra_function_control_flow
-      F._no_flambda2_unbox_along_intra_function_control_flow;
-    mk_flambda2_lift_inconstants F._flambda2_lift_inconstants;
-    mk_no_flambda2_lift_inconstants F._no_flambda2_lift_inconstants;
-    mk_flambda2_backend_cse_at_toplevel F._flambda2_backend_cse_at_toplevel;
-    mk_no_flambda2_backend_cse_at_toplevel
-      F._no_flambda2_backend_cse_at_toplevel;
-    mk_flambda2_cse_depth F._flambda2_cse_depth;
-    mk_flambda2_expert_denest_at_toplevel
-      F._flambda2_expert_denest_at_toplevel;
-    mk_no_flambda2_expert_denest_at_toplevel
-      F._no_flambda2_expert_denest_at_toplevel;
-    mk_flambda2_expert_code_id_and_symbol_scoping_checks
-      F._flambda2_expert_code_id_and_symbol_scoping_checks;
-    mk_no_flambda2_expert_code_id_and_symbol_scoping_checks
-      F._no_flambda2_expert_code_id_and_symbol_scoping_checks;
-    mk_flambda2_expert_fallback_inlining_heuristic
-      F._flambda2_expert_fallback_inlining_heuristic;
-    mk_no_flambda2_expert_fallback_inlining_heuristic
-      F._no_flambda2_expert_fallback_inlining_heuristic;
-    mk_flambda2_debug_concrete_types_only_on_canonicals
-      F._flambda2_debug_concrete_types_only_on_canonicals;
-    mk_no_flambda2_debug_concrete_types_only_on_canonicals
-      F._no_flambda2_debug_concrete_types_only_on_canonicals;
+    mk_flambda_join_points F._flambda_join_points;
+    mk_no_flambda_join_points F._no_flambda_join_points;
+    mk_flambda_unbox_along_intra_function_control_flow
+      F._flambda_unbox_along_intra_function_control_flow;
+    mk_no_flambda_unbox_along_intra_function_control_flow
+      F._no_flambda_unbox_along_intra_function_control_flow;
+    mk_flambda_lift_inconstants F._flambda_lift_inconstants;
+    mk_no_flambda_lift_inconstants F._no_flambda_lift_inconstants;
+    mk_flambda_backend_cse_at_toplevel F._flambda_backend_cse_at_toplevel;
+    mk_no_flambda_backend_cse_at_toplevel
+      F._no_flambda_backend_cse_at_toplevel;
+    mk_flambda_cse_depth F._flambda_cse_depth;
+    mk_flambda_expert_denest_at_toplevel
+      F._flambda_expert_denest_at_toplevel;
+    mk_no_flambda_expert_denest_at_toplevel
+      F._no_flambda_expert_denest_at_toplevel;
+    mk_flambda_expert_code_id_and_symbol_scoping_checks
+      F._flambda_expert_code_id_and_symbol_scoping_checks;
+    mk_no_flambda_expert_code_id_and_symbol_scoping_checks
+      F._no_flambda_expert_code_id_and_symbol_scoping_checks;
+    mk_flambda_expert_fallback_inlining_heuristic
+      F._flambda_expert_fallback_inlining_heuristic;
+    mk_no_flambda_expert_fallback_inlining_heuristic
+      F._no_flambda_expert_fallback_inlining_heuristic;
+    mk_flambda_debug_concrete_types_only_on_canonicals
+      F._flambda_debug_concrete_types_only_on_canonicals;
+    mk_no_flambda_debug_concrete_types_only_on_canonicals
+      F._no_flambda_debug_concrete_types_only_on_canonicals;
 
     mk_dsource F._dsource;
     mk_dparsetree F._dparsetree;
@@ -1736,7 +1729,6 @@ module Make_opttop_options (F : Opttop_options) = struct
 
     mk_dprepared_lambda F._dprepared_lambda;
     mk_dilambda F._dilambda;
-    mk_drawflambda2 F._drawflambda2;
   ]
 end;;
 
@@ -1991,39 +1983,38 @@ module Default = struct
     let _unbox_closures_factor f = unbox_closures_factor := f
     let _verbose = set verbose
 
-    let _flambda2_join_points = set Flambda_2.join_points
-    let _no_flambda2_join_points = clear Flambda_2.join_points
-    let _flambda2_unbox_along_intra_function_control_flow =
-      set Flambda_2.unbox_along_intra_function_control_flow
-    let _no_flambda2_unbox_along_intra_function_control_flow =
-      clear Flambda_2.unbox_along_intra_function_control_flow
-    let _flambda2_lift_inconstants = set Flambda_2.lift_inconstants
-    let _no_flambda2_lift_inconstants = clear Flambda_2.lift_inconstants
-    let _flambda2_backend_cse_at_toplevel =
-      set Flambda_2.backend_cse_at_toplevel
-    let _no_flambda2_backend_cse_at_toplevel =
-      clear Flambda_2.backend_cse_at_toplevel
-    let _flambda2_cse_depth n = Flambda_2.cse_depth := n
-    let _flambda2_expert_denest_at_toplevel =
-      set Flambda_2.Expert.denest_at_toplevel
-    let _no_flambda2_expert_denest_at_toplevel =
-      clear Flambda_2.Expert.denest_at_toplevel
-    let _flambda2_expert_code_id_and_symbol_scoping_checks =
-      set Flambda_2.Expert.code_id_and_symbol_scoping_checks
-    let _no_flambda2_expert_code_id_and_symbol_scoping_checks =
-      clear Flambda_2.Expert.code_id_and_symbol_scoping_checks
-    let _flambda2_expert_fallback_inlining_heuristic =
-      set Flambda_2.Expert.fallback_inlining_heuristic
-    let _no_flambda2_expert_fallback_inlining_heuristic =
-      clear Flambda_2.Expert.fallback_inlining_heuristic
-    let _flambda2_debug_concrete_types_only_on_canonicals =
-      set Flambda_2.Debug.concrete_types_only_on_canonicals
-    let _no_flambda2_debug_concrete_types_only_on_canonicals =
-      clear Flambda_2.Debug.concrete_types_only_on_canonicals
+    let _flambda_join_points = set Flambda.join_points
+    let _no_flambda_join_points = clear Flambda.join_points
+    let _flambda_unbox_along_intra_function_control_flow =
+      set Flambda.unbox_along_intra_function_control_flow
+    let _no_flambda_unbox_along_intra_function_control_flow =
+      clear Flambda.unbox_along_intra_function_control_flow
+    let _flambda_lift_inconstants = set Flambda.lift_inconstants
+    let _no_flambda_lift_inconstants = clear Flambda.lift_inconstants
+    let _flambda_backend_cse_at_toplevel =
+      set Flambda.backend_cse_at_toplevel
+    let _no_flambda_backend_cse_at_toplevel =
+      clear Flambda.backend_cse_at_toplevel
+    let _flambda_cse_depth n = Flambda.cse_depth := n
+    let _flambda_expert_denest_at_toplevel =
+      set Flambda.Expert.denest_at_toplevel
+    let _no_flambda_expert_denest_at_toplevel =
+      clear Flambda.Expert.denest_at_toplevel
+    let _flambda_expert_code_id_and_symbol_scoping_checks =
+      set Flambda.Expert.code_id_and_symbol_scoping_checks
+    let _no_flambda_expert_code_id_and_symbol_scoping_checks =
+      clear Flambda.Expert.code_id_and_symbol_scoping_checks
+    let _flambda_expert_fallback_inlining_heuristic =
+      set Flambda.Expert.fallback_inlining_heuristic
+    let _no_flambda_expert_fallback_inlining_heuristic =
+      clear Flambda.Expert.fallback_inlining_heuristic
+    let _flambda_debug_concrete_types_only_on_canonicals =
+      set Flambda.Debug.concrete_types_only_on_canonicals
+    let _no_flambda_debug_concrete_types_only_on_canonicals =
+      clear Flambda.Debug.concrete_types_only_on_canonicals
 
     let _dprepared_lambda = set dump_prepared_lambda
     let _dilambda = set dump_ilambda
-    let _drawflambda2 = set dump_rawflambda2
   end
 
   module Compiler = struct

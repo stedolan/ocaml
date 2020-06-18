@@ -108,7 +108,7 @@
  (name ocamlmiddleend)
  (wrapped false)
  (flags (:standard -principal -nostdlib))
- (libraries stdlib ocamlcommon flambda2deps flambda2)
+ (libraries stdlib ocamlcommon flambdadeps flambda)
  (modules_without_implementation
    cmx_format cmxs_format backend_intf)
  (modules
@@ -143,9 +143,9 @@
 (library
  (name ocamloptcomp)
  (wrapped false)
- (flags (:standard -principal -nostdlib -open Flambda2_to_cmm))
- (libraries stdlib ocamlcommon ocamlmiddleend ocamloptcommon flambda2deps
-            flambda2 flambda2_to_cmm)
+ (flags (:standard -principal -nostdlib -open Flambda_to_cmm))
+ (libraries stdlib ocamlcommon ocamlmiddleend ocamloptcommon flambdadeps
+            flambda flambda_to_cmm)
  (modules
    ;; asmcomp/
    afl_instrument asmgen asmlibrarian asmlink asmpackager branch_relaxation
@@ -185,7 +185,7 @@
  (name ilambdac)
  (modes byte)
  (flags (:standard -principal -nostdlib -cclib "-I runtime"))
- (libraries ocamloptcommon ocamloptcomp ocamlmiddleend flambda2 ocamlcommon runtime stdlib)
+ (libraries ocamloptcommon ocamloptcomp ocamlmiddleend flambda ocamlcommon runtime stdlib)
  (modules ilambdac))
 
 ;;;;;;;;;;;;;;;;
@@ -197,7 +197,7 @@
  ;;(link_flags (-cclib -lunwind))
  (modes native)
  (flags (:standard -principal -nostdlib -cclib "-I runtime"))
- (libraries ocamloptcomp ocamloptcommon ocamlmiddleend flambda2 ocamlcommon runtimeopt stdlib)
+ (libraries ocamloptcomp ocamloptcommon ocamlmiddleend flambda ocamlcommon runtimeopt stdlib)
  (modules optmain))
 
 (rule

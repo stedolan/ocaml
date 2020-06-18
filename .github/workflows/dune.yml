@@ -4,7 +4,8 @@
 name: dune
 
 # Configure when to run the workflows. Currently only when
-# it affects the `flambda2.0` branch (either pushes to the branch, or pull request against it).
+# it affects the `flambda2.0-stable` branch (either pushes to the branch,
+# or pull request against it).
 on:
   push:
     branches:
@@ -122,11 +123,11 @@ jobs:
     # compiler and dune.
 
     # Configure the flambda compiler
-    - name: Configure the flambda2 compiler (stage 1)
+    - name: Configure the flambda compiler (stage 1)
       working-directory: test
       run: ./configure --enable-flambda
     # Build ocamlc, ocamlopt.opt using dune
-    - name: Build the flambda2 compiler (stage 1)
+    - name: Build the flambda compiler (stage 1)
       working-directory: test
       run: dune build --profile release --display quiet @world
     # Output full dune log in case of build failure
@@ -154,11 +155,11 @@ jobs:
       working-directory: test
       run: git apply .github/workflows/testsuite_makefile.patch
     # Configure the flambda compiler
-    - name: Configure the flambda2 compiler (stage 2)
+    - name: Configure the flambda compiler (stage 2)
       working-directory: test
       run: ./configure --enable-flambda
     # Build the flambda compiler and stdlib
-    - name: Build the flambda2 compiler (stage 2)
+    - name: Build the flambda compiler (stage 2)
       working-directory: test
       run: dune build --profile=release --display quiet @world
     # Output full dune log in case of build failure

@@ -220,29 +220,26 @@ module type Optcommon_options = sig
   val _dinterval : unit -> unit
   val _dstartup :  unit -> unit
 
-  (** Flambda 2 user flags *)
-  val _flambda2_join_points : unit -> unit
-  val _no_flambda2_join_points : unit -> unit
-  val _flambda2_unbox_along_intra_function_control_flow : unit -> unit
-  val _no_flambda2_unbox_along_intra_function_control_flow : unit -> unit
-  val _flambda2_lift_inconstants : unit -> unit
-  val _no_flambda2_lift_inconstants : unit -> unit
-  val _flambda2_backend_cse_at_toplevel : unit -> unit
-  val _no_flambda2_backend_cse_at_toplevel : unit -> unit
-  val _flambda2_cse_depth : int -> unit
-  val _flambda2_expert_denest_at_toplevel : unit -> unit
-  val _no_flambda2_expert_denest_at_toplevel : unit -> unit
-  val _flambda2_expert_code_id_and_symbol_scoping_checks : unit -> unit
-  val _no_flambda2_expert_code_id_and_symbol_scoping_checks : unit -> unit
-  val _flambda2_expert_fallback_inlining_heuristic : unit -> unit
-  val _no_flambda2_expert_fallback_inlining_heuristic : unit -> unit
-  val _flambda2_debug_concrete_types_only_on_canonicals : unit -> unit
-  val _no_flambda2_debug_concrete_types_only_on_canonicals : unit -> unit
+  val _flambda_join_points : unit -> unit
+  val _no_flambda_join_points : unit -> unit
+  val _flambda_unbox_along_intra_function_control_flow : unit -> unit
+  val _no_flambda_unbox_along_intra_function_control_flow : unit -> unit
+  val _flambda_lift_inconstants : unit -> unit
+  val _no_flambda_lift_inconstants : unit -> unit
+  val _flambda_backend_cse_at_toplevel : unit -> unit
+  val _no_flambda_backend_cse_at_toplevel : unit -> unit
+  val _flambda_cse_depth : int -> unit
+  val _flambda_expert_denest_at_toplevel : unit -> unit
+  val _no_flambda_expert_denest_at_toplevel : unit -> unit
+  val _flambda_expert_code_id_and_symbol_scoping_checks : unit -> unit
+  val _no_flambda_expert_code_id_and_symbol_scoping_checks : unit -> unit
+  val _flambda_expert_fallback_inlining_heuristic : unit -> unit
+  val _no_flambda_expert_fallback_inlining_heuristic : unit -> unit
+  val _flambda_debug_concrete_types_only_on_canonicals : unit -> unit
+  val _no_flambda_debug_concrete_types_only_on_canonicals : unit -> unit
 
-  (** Flambda 2 debugging flags *)
   val _dprepared_lambda : unit -> unit
   val _dilambda : unit -> unit
-  val _drawflambda2 : unit -> unit
 end;;
 
 module type Optcomp_options = sig
