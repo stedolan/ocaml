@@ -61,7 +61,8 @@ let structured_constants = ref structured_constants_empty
 let exported_constants = Hashtbl.create 17
 
 let default_ui_export_info =
-  Cmx_format.Clambda Value_unknown
+  if Config.flambda then Cmx_format.Flambda None
+  else Cmx_format.Clambda Value_unknown
 
 let current_unit =
   { ui_name = "";
