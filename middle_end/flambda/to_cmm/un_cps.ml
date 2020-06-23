@@ -618,11 +618,16 @@ let decide_inline_let effs v body =
   let free_names = Expr.free_names body in
   match Name_occurrences.count_variable free_names v with
   | Zero ->
-    if Effects_and_coeffects.has_commuting_effects effs
-    then Regular (* Could be Inline technically, but it's not clear the
-                    code would be better (nor more readable). *)
-    else Skip
-  | One -> Inline
+    begin match Env.classify effs with
+    | Coeffect | Pure -> Skip
+    | Effect -> Regular (* Could be Inline technically, but it doesn't matter
+                           since it can only be flushed by the env. *)
+    end
+  | One ->
+    begin match Env.classify effs with
+    | Effect when not (Flambda_features.Expert.inline_effects_in_cmm ()) -> Regular
+    | _ -> Inline
+    end
   | More_than_one -> Regular
 
 (* Helpers for translating functions *)
@@ -1253,7 +1258,11 @@ and let_dynamic_set_of_closures env res body closure_vars decls elts =
                  (List.map fst (Closure_id.Map.bindings decls))
                  (List.map fst (Var_within_closure.Map.bindings elts))
   in
-  let l, env, effs = fill_layout decls elts env Ece.pure [] 0 layout in
+  (* Allocating the closure has at least generative effects *)
+  let effs =
+    Effects.Only_generative_effects Immutable, Coeffects.No_coeffects
+  in
+  let l, env, effs = fill_layout decls elts env effs [] 0 layout in
   let csoc = C.make_closure_block l in
   (* Create a variable to hold the set of closure *)
   let soc_var = Variable.create "*set_of_closures*" in
@@ -1261,7 +1270,7 @@ and let_dynamic_set_of_closures env res body closure_vars decls elts =
   (* Get from the env the cmm variable that was created and bound
      to the compiled set of closures. *)
   let soc_cmm_var, env, peff = Env.inline_variable env soc_var in
-  assert (Ece.is_pure peff);
+  assert (Env.classify peff = Env.Pure);
   (* Add env bindings for all the closure variables. *)
   let env =
     Closure_id.Map.fold (fun cid v acc ->
@@ -1276,8 +1285,7 @@ and let_dynamic_set_of_closures env res body closure_vars decls elts =
 and get_closure_by_offset env set_cmm cid =
   match Env.closure_offset env cid with
   | Some { offset; _ } ->
-    let effs = Effects_and_coeffects.read in
-    C.infix_field_address ~dbg: Debuginfo.none set_cmm offset, effs
+    C.infix_field_address ~dbg: Debuginfo.none set_cmm offset, Ece.pure
   | None ->
     Misc.fatal_errorf "No closure offset for %a" Closure_id.print cid
 

@@ -956,6 +956,17 @@ let mk_no_flambda_expert_fallback_inlining_heuristic f =
     " Allow inlining of functions whose bodies contain closures (default)"
 ;;
 
+let mk_flambda_expert_inline_effects_in_cmm f =
+  "-flambda-expert-inline-effects-in-cmm", Arg.Unit f,
+  " Allow inlining of effectful expressions in the produced cmm"
+;;
+
+let mk_no_flambda_expert_inline_effects_in_cmm f =
+  "-no-flambda-expert-inline-effects-in-cmm", Arg.Unit f,
+  " Prevent inlining of effectful expressions in the produced cmm (default)"
+;;
+
+
 let mk_flambda_debug_concrete_types_only_on_canonicals f =
   "-flambda-debug-concrete-types-only-on-canonicals", Arg.Unit f,
     " Check that concrete types are only assigned to canonical names"
@@ -1195,6 +1206,8 @@ module type Optcommon_options = sig
   val _no_flambda_expert_code_id_and_symbol_scoping_checks : unit -> unit
   val _flambda_expert_fallback_inlining_heuristic : unit -> unit
   val _no_flambda_expert_fallback_inlining_heuristic : unit -> unit
+  val _flambda_expert_inline_effects_in_cmm : unit -> unit
+  val _no_flambda_expert_inline_effects_in_cmm : unit -> unit
   val _flambda_debug_concrete_types_only_on_canonicals : unit -> unit
   val _no_flambda_debug_concrete_types_only_on_canonicals : unit -> unit
 
@@ -1548,6 +1561,10 @@ struct
       F._flambda_expert_fallback_inlining_heuristic;
     mk_no_flambda_expert_fallback_inlining_heuristic
       F._no_flambda_expert_fallback_inlining_heuristic;
+    mk_flambda_expert_inline_effects_in_cmm
+      F._flambda_expert_inline_effects_in_cmm;
+    mk_no_flambda_expert_inline_effects_in_cmm
+      F._no_flambda_expert_inline_effects_in_cmm;
     mk_flambda_debug_concrete_types_only_on_canonicals
       F._flambda_debug_concrete_types_only_on_canonicals;
     mk_no_flambda_debug_concrete_types_only_on_canonicals
@@ -1695,6 +1712,10 @@ module Make_opttop_options (F : Opttop_options) = struct
       F._flambda_expert_fallback_inlining_heuristic;
     mk_no_flambda_expert_fallback_inlining_heuristic
       F._no_flambda_expert_fallback_inlining_heuristic;
+    mk_flambda_expert_inline_effects_in_cmm
+      F._flambda_expert_inline_effects_in_cmm;
+    mk_no_flambda_expert_inline_effects_in_cmm
+      F._no_flambda_expert_inline_effects_in_cmm;
     mk_flambda_debug_concrete_types_only_on_canonicals
       F._flambda_debug_concrete_types_only_on_canonicals;
     mk_no_flambda_debug_concrete_types_only_on_canonicals
@@ -2008,6 +2029,10 @@ module Default = struct
       set Flambda.Expert.fallback_inlining_heuristic
     let _no_flambda_expert_fallback_inlining_heuristic =
       clear Flambda.Expert.fallback_inlining_heuristic
+    let _flambda_expert_inline_effects_in_cmm =
+      set Flambda.Expert.inline_effects_in_cmm
+    let _no_flambda_expert_inline_effects_in_cmm =
+      clear Flambda.Expert.inline_effects_in_cmm
     let _flambda_debug_concrete_types_only_on_canonicals =
       set Flambda.Debug.concrete_types_only_on_canonicals
     let _no_flambda_debug_concrete_types_only_on_canonicals =

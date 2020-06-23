@@ -433,6 +433,7 @@ module Flambda = struct
     let denest_at_toplevel = ref true
     let code_id_and_symbol_scoping_checks = ref false
     let fallback_inlining_heuristic = ref false
+    let inline_effects_in_cmm = ref false
   end
 
   module Debug = struct

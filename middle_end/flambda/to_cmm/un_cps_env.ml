@@ -327,12 +327,24 @@ let next_order =
   (fun () -> incr r; !r)
 
 let classify effs =
-  if Effects_and_coeffects.has_commuting_effects effs then
-    Effect
-  else if Effects_and_coeffects.has_commuting_coeffects effs then
-    Coeffect
-  else
-    Pure
+  match (effs : Effects_and_coeffects.t) with
+  (* For the purpose of un_cps, generative effects, i.e. allocations,
+     will be considered to have effects because the mutable state of
+     the gc that allocations actually effect can be observed by
+     coeffects performed by function calls (particularly coming from
+     the Gc module). *)
+  | Arbitrary_effects, (Has_coeffects | No_coeffects)
+  | Only_generative_effects _, (Has_coeffects | No_coeffects)
+    -> Effect
+  (* Coeffects without any effect. These expression can commute with other
+     coeffectful expressions (and pure expressions), but cannot commut with
+     an effectful expression. *)
+  | No_effects, Has_coeffects
+    -> Coeffect
+  (* Pure expressions: these can be commuted with *everything*, including
+     effectful expressions such as function calls. *)
+  | No_effects, No_coeffects
+    -> Pure
 
 let mk_binding ?extra env inline effs var cmm_expr =
   let order = next_order () in

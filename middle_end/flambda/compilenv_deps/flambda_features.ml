@@ -27,4 +27,6 @@ module Expert = struct
     !Clflags.Flambda.Expert.code_id_and_symbol_scoping_checks
   let fallback_inlining_heuristic () =
     !Clflags.Flambda.Expert.fallback_inlining_heuristic
+  let inline_effects_in_cmm () =
+    !Clflags.Flambda.Expert.inline_effects_in_cmm
 end

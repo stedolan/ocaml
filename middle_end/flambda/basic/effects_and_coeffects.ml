@@ -32,37 +32,3 @@ let read : t = No_effects, Has_coeffects
 let join (eff1, coeff1) (eff2, coeff2) =
   Effects.join eff1 eff2, Coeffects.join coeff1 coeff2
 
-
-(* For the purpose of commuting (i.e. there is no duplication),
-   generative effects do not count. *)
-let has_commuting_effects t =
-  match (t: t) with
-  | No_effects, _
-  | Only_generative_effects _, _ -> false
-  | Arbitrary_effects, _ -> true
-
-let has_commuting_coeffects t =
-  match (t: t) with
-  | _, No_coeffects -> false
-  | _, Has_coeffects -> true
-
-let commuting_aux t =
-  has_commuting_effects t, has_commuting_coeffects t
-
-(* is_pure, aka commutes with everything *)
-let is_pure t =
-  not (has_commuting_effects t) &&
-  not (has_commuting_coeffects t)
-
-(* Can expression with the given effects and coeffects commute ? *)
-let commute ec1 ec2 =
-  match commuting_aux ec1, commuting_aux ec2 with
-  (* Pure computations commute with everything. *)
-  | (false, false), _
-  | _, (false, false) -> true
-  (* Coeffects can commute. *)
-  | (false, true), (false, true) -> true
-  (* Effects cannot commute with anything *)
-  | (true, _), _
-  | _, (true, _) -> false
-

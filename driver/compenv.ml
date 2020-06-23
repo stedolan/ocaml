@@ -468,6 +468,9 @@ let read_one_param ppf position name v =
   | "flambda-expert-fallback-inlining-heuristic" ->
     set "flambda-expert-fallback-inlining-heuristic"
       [ Flambda.Expert.fallback_inlining_heuristic ] v
+  | "flambda-inline-effects-in-cmm" ->
+    set "flambda-inline-effects-in-cmm"
+      [ Flambda.Expert.inline_effects_in_cmm ] v
   | "flambda-debug-concrete-types-only-on-canonicals" ->
     set "flambda-debug-concrete-types-only-on-canonicals"
       [ Flambda.Debug.concrete_types_only_on_canonicals ] v
