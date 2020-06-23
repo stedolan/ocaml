@@ -20,7 +20,7 @@ open! Simplify_import
 
 let create_static_const (to_lift : T.to_lift) : Static_const.t =
   match to_lift with
-  | Immutable_block (tag, fields) ->
+  | Immutable_block { tag; is_unique; fields; } ->
     let of_kind_values =
       List.map (fun (field : T.var_or_symbol_or_tagged_immediate)
               : Static_const.Field_of_block.t ->
@@ -30,7 +30,10 @@ let create_static_const (to_lift : T.to_lift) : Static_const.t =
           | Tagged_immediate imm -> Tagged_immediate imm)
         fields
     in
-    Block (tag, Immutable, of_kind_values)
+    let mut : Mutability.t =
+      if is_unique then Immutable_unique else Immutable
+    in
+    Block (tag, mut, of_kind_values)
   | Boxed_float f -> Boxed_float (Const f)
   | Boxed_int32 i -> Boxed_int32 (Const i)
   | Boxed_int64 i -> Boxed_int64 (Const i)

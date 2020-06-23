@@ -538,7 +538,10 @@ type var_or_symbol_or_tagged_immediate = private
 
 type to_lift = (* private *) (* CR mshinwell: resurrect *)
   | Immutable_block of
-      Tag.Scannable.t * (var_or_symbol_or_tagged_immediate list)
+      { tag : Tag.Scannable.t;
+        is_unique : bool;
+        fields : (var_or_symbol_or_tagged_immediate list);
+      }
   | Boxed_float of Float.t
   | Boxed_int32 of Int32.t
   | Boxed_int64 of Int64.t

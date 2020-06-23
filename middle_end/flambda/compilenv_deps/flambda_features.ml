@@ -18,6 +18,7 @@ let join_points () = !Clflags.Flambda.join_points
 let unbox_along_intra_function_control_flow () =
   !Clflags.Flambda.unbox_along_intra_function_control_flow
 let lift_inconstants () = !Clflags.Flambda.lift_inconstants
+let lift_toplevel_inconstants () = !Clflags.Flambda.lift_toplevel_inconstants
 let backend_cse_at_toplevel () = !Clflags.Flambda.backend_cse_at_toplevel
 let cse_depth () = !Clflags.Flambda.cse_depth
 
