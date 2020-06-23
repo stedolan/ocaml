@@ -268,6 +268,7 @@ let load_lambda ppf ~module_ident ~required_globals lam size =
         ~middle_end:Flambda_middle_end.middle_end
         ~ppf_dump:ppf
         ~required_globals
+        ()
     else
       let program =
         { Lambda.
