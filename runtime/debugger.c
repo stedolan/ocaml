@@ -141,6 +141,8 @@ static void open_connection(void)
 #endif
   dbg_in = caml_open_descriptor_in(dbg_socket);
   dbg_out = caml_open_descriptor_out(dbg_socket);
+  Lock (dbg_in);
+  Lock (dbg_out);
   if (!caml_debugger_in_use) caml_putword(dbg_out, -1); /* first connection */
 #ifdef _WIN32
   caml_putword(dbg_out, _getpid());
@@ -152,6 +154,8 @@ static void open_connection(void)
 
 static void close_connection(void)
 {
+  Unlock(dbg_in);
+  Unlock(dbg_out);
   caml_close_channel(dbg_in);
   caml_close_channel(dbg_out);
   dbg_socket = -1;              /* was closed by caml_close_channel */
