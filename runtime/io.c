@@ -157,6 +157,17 @@ CAMLexport int caml_channel_binary_mode(struct channel *channel)
 #endif
 }
 
+static void check_pending(struct channel *channel)
+{
+  if (caml_check_pending_actions()) {
+    /* Temporarily unlock the channel, to ensure locks are not held
+       while any signal handlers (or finalisers, etc) are running */
+    Unlock(channel);
+    caml_process_pending_actions();
+    Lock(channel);
+  }
+}
+
 /* Output */
 
 /* Attempt to flush the buffer. This will make room in the buffer for
@@ -167,12 +178,15 @@ CAMLexport int caml_channel_binary_mode(struct channel *channel)
 CAMLexport int caml_flush_partial(struct channel *channel)
 {
   int towrite, written;
+ again:
+  check_pending(channel);
 
   towrite = channel->curr - channel->buff;
   CAMLassert (towrite >= 0);
   if (towrite > 0) {
     written = caml_write_fd(channel->fd, channel->flags,
                             channel->buff, towrite);
+    if (written == Io_interrupted) goto again;
     channel->offset += written;
     if (written < towrite)
       memmove(channel->buff, channel->buff + written, towrite - written);
@@ -203,6 +217,8 @@ CAMLexport void caml_putword(struct channel *channel, uint32_t w)
 CAMLexport int caml_putblock(struct channel *channel, char *p, intnat len)
 {
   int n, free, towrite, written;
+ again:
+  check_pending(channel);
 
   n = len >= INT_MAX ? INT_MAX : (int) len;
   free = channel->end - channel->curr;
@@ -218,8 +234,11 @@ CAMLexport int caml_putblock(struct channel *channel, char *p, intnat len)
     towrite = channel->end - channel->buff;
     written = caml_write_fd(channel->fd, channel->flags,
                             channel->buff, towrite);
-    if (written < towrite)
+    if (written == Io_interrupted) {
+      goto again;
+    } else if (written < towrite) {
       memmove(channel->buff, channel->buff + written, towrite - written);
+    }
     channel->offset += written;
     channel->curr = channel->end - written;
     return free;
@@ -259,16 +278,22 @@ CAMLexport file_offset caml_pos_out(struct channel *channel)
 /* caml_do_read is exported for Cash */
 CAMLexport int caml_do_read(int fd, char *p, unsigned int n)
 {
-  return caml_read_fd(fd, 0, p, n);
+  int r;
+  do {
+    r = caml_read_fd(fd, 0, p, n);
+  } while (r == Io_interrupted);
+  return r;
 }
 
 CAMLexport unsigned char caml_refill(struct channel *channel)
 {
   int n;
-
+ again:
+  check_pending(channel);
   n = caml_read_fd(channel->fd, channel->flags,
                    channel->buff, channel->end - channel->buff);
-  if (n == 0) caml_raise_end_of_file();
+  if (n == Io_interrupted) goto again;
+  else if (n == 0) caml_raise_end_of_file();
   channel->offset += n;
   channel->max = channel->buff + n;
   channel->curr = channel->buff + 1;
@@ -292,7 +317,8 @@ CAMLexport uint32_t caml_getword(struct channel *channel)
 CAMLexport int caml_getblock(struct channel *channel, char *p, intnat len)
 {
   int n, avail, nread;
-
+ again:
+  check_pending(channel);
   n = len >= INT_MAX ? INT_MAX : (int) len;
   avail = channel->max - channel->curr;
   if (n <= avail) {
@@ -306,6 +332,7 @@ CAMLexport int caml_getblock(struct channel *channel, char *p, intnat len)
   } else {
     nread = caml_read_fd(channel->fd, channel->flags, channel->buff,
                          channel->end - channel->buff);
+    if (nread == Io_interrupted) goto again;
     channel->offset += nread;
     channel->max = channel->buff + nread;
     if (n > nread) n = nread;
@@ -355,7 +382,8 @@ CAMLexport intnat caml_input_scan_line(struct channel *channel)
 {
   char * p;
   int n;
-
+ again:
+  check_pending(channel);
   p = channel->curr;
   do {
     if (p >= channel->max) {
@@ -378,7 +406,8 @@ CAMLexport intnat caml_input_scan_line(struct channel *channel)
       /* Fill the buffer as much as possible */
       n = caml_read_fd(channel->fd, channel->flags,
                        channel->max, channel->end - channel->max);
-      if (n == 0) {
+      if (n == Io_interrupted) goto again;
+      else if (n == 0) {
         /* End-of-file encountered. Return the number of characters in the
            buffer, with negative sign since we haven't encountered
            a newline. */
@@ -757,6 +786,8 @@ CAMLprim value caml_ml_input(value vchannel, value buff, value vstart,
   int n, avail, nread;
 
   Lock(channel);
+ again:
+  check_pending(channel);
   /* We cannot call caml_getblock here because buff may move during
      caml_read_fd */
   start = Long_val(vstart);
@@ -773,6 +804,7 @@ CAMLprim value caml_ml_input(value vchannel, value buff, value vstart,
   } else {
     nread = caml_read_fd(channel->fd, channel->flags, channel->buff,
                          channel->end - channel->buff);
+    if (nread == Io_interrupted) goto again;
     channel->offset += nread;
     channel->max = channel->buff + nread;
     if (n > nread) n = nread;
