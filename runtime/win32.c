@@ -61,6 +61,25 @@ unsigned short caml_win32_minor = 0;
 unsigned short caml_win32_build = 0;
 unsigned short caml_win32_revision = 0;
 
+static volatile HANDLE thread_doing_io = INVALID_HANDLE_VALUE;
+static HANDLE main_thread = INVALID_HANDLE_VALUE;
+
+static void start_io() {
+  if (main_thread == INVALID_HANDLE_VALUE) {
+    DuplicateHandle(GetCurrentProcess(),
+                    GetCurrentThread(),
+                    GetCurrentProcess(),
+                    &main_thread,
+                    FALSE,
+                    DUPLICATE_SAME_ACCESS);
+  }
+  thread_doing_io = main_thread;
+}
+
+static void stop_io() {
+  thread_doing_io = INVALID_HANDLE_VALUE;
+}
+
 CAMLnoreturn_start
 static void caml_win32_sys_error (int errnum)
 CAMLnoreturn_end;
@@ -88,7 +107,14 @@ int caml_read_fd(int fd, int flags, void * buf, int n)
   int retcode;
   if ((flags & CHANNEL_FLAG_FROM_SOCKET) == 0) {
     caml_enter_blocking_section();
+    SetLastError(0);
     retcode = read(fd, buf, n);
+    if (GetLastError() == ERROR_OPERATION_ABORTED) {
+      /* retcode is not very trustworthy here:
+         https://bugs.python.org/issue30237 */
+      caml_leave_blocking_section();
+      return Io_interrupted;
+    }
     /* Large reads from console can fail with ENOMEM.  Reduce requested size
        and try again. */
     if (retcode == -1 && errno == ENOMEM && n > 16384) {
@@ -304,6 +330,10 @@ static BOOL WINAPI ctrl_handler(DWORD event)
      (it looks like we're running in a different thread than
      the main program!).  So, just record the signal. */
   caml_record_signal(SIGINT);
+  /* Wake up the main program if blocked */
+  if (thread_doing_io != INVALID_HANDLE_VALUE) {
+    CancelSynchronousIo(thread_doing_io);
+  }
   /* We have handled the event */
   return TRUE;
 }
