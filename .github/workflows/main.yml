@@ -55,19 +55,24 @@ jobs:
     # Debug step
     - name: Debug step
       run: echo "J is $J"
-    # Build ocamlc, ocamlopt and just enough to run the testsuite
+    # Build the compiler
     - name: Build the compiler
       run: |
         make -j $J world
         make -j $J opt
         make -j $J opt.opt
-        make       -C testsuite tools lib
+    # Build ocamlnat
+    - name: Build ocamlnat
+      run: |
+        make -j $J ocamlnat
     # Generate list of tests to run
     - name: Generate test list
       run: grep -v '#' .github/workflows/test-list > .github/workflows/main.list
-    # Run some part of the testsuite
+    # Build & Run some part of the testsuite
     - name: Running the testsuite
-      run: cd testsuite && make list-parallel FILE=../.github/workflows/main.list
+      run: |
+        make -C testsuite tools lib
+        make -C testsuite list-parallel FILE=../.github/workflows/main.list
     # If the testsuite has failed, dump the relavant ocamltest logs
     - name: Ocamltest failing logs
       if: failure()
