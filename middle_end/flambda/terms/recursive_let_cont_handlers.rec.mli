@@ -33,6 +33,14 @@ val pattern_match
   -> f:(body:Expr.t -> Continuation_handlers.t -> 'a)
   -> 'a
 
+(** Deconstruct two continuation bindings using the same bound continuations. *)
+val pattern_match_pair
+   : t
+  -> t
+  -> f:(body1:Expr.t -> body2:Expr.t
+    -> Continuation_handlers.t -> Continuation_handlers.t -> 'a)
+  -> 'a
+
 val create
    : body:Expr.t
   -> Continuation_handlers.t

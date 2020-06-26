@@ -465,6 +465,18 @@ end and Recursive_let_cont_handlers : sig
      : t
     -> f:(body:Expr.t -> Continuation_handlers.t -> 'a)
     -> 'a
+
+(** Deconstruct two continuation bindings using the same bound continuations. *)
+  val pattern_match_pair
+   : t
+  -> t
+  -> f:(body1:Expr.t
+    -> body2:Expr.t
+    -> Continuation_handlers.t
+    -> Continuation_handlers.t
+    -> 'a)
+  -> 'a
+
 end and Continuation_handlers : sig
   (** The result of pattern matching on [Recursive_let_cont_handlers]
       (see above). *)
