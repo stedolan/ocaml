@@ -890,11 +890,11 @@ and apply_call env e =
     let ty = machtype_of_return_arity return_arity in
     let args, env, _ = arg_list env (Apply_expr.args e) in
     let args, env =
-      match (info : Env.function_info option) with
-      | None | Some { needs_closure_arg = true; } ->
+      if Exported_code.Calling_convention.needs_closure_arg info
+      then
         let f, env, _ = simple env f in
         args @ [f], env
-      | Some { needs_closure_arg = false; } ->
+      else
         args, env
     in
     let f_code = symbol (Code_id.code_symbol code_id) in
@@ -1380,9 +1380,12 @@ let unit (middle_end_result : Flambda_middle_end.middle_end_result) =
   let unit = middle_end_result.unit in
   let offsets =
     match middle_end_result.cmx with
-    | None -> Exported_offsets.imported_offsets ()
-    | Some cmx -> Flambda_cmx_format.exported_offsets cmx
+    | None ->
+      Exported_offsets.imported_offsets ()
+    | Some cmx ->
+      Flambda_cmx_format.exported_offsets cmx
   in
+  let functions_info = middle_end_result.all_code in
   Profile.record_call "flambda_to_cmm" (fun () ->
     let offsets = Un_cps_closure.compute_offsets offsets unit in
     begin match middle_end_result.cmx with
@@ -1398,7 +1401,7 @@ let unit (middle_end_result : Flambda_middle_end.middle_end_result) =
        arrange that the return continuation turns into "return unit".
        (Module initialisers return the unit value). *)
     let env =
-      Env.mk offsets dummy_k
+      Env.mk offsets functions_info dummy_k
         (Flambda_unit.exn_continuation unit)
         used_closure_vars
     in

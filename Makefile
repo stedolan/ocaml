@@ -331,6 +331,7 @@ MIDDLE_END_FLAMBDA_TERMS=\
 
 MIDDLE_END_FLAMBDA_CMX=\
   middle_end/flambda/cmx/exported_offsets.cmo \
+  middle_end/flambda/cmx/exported_code.cmo \
   middle_end/flambda/cmx/flambda_cmx_format.cmo
 
 MIDDLE_END_FLAMBDA_SIMPLIFY=\

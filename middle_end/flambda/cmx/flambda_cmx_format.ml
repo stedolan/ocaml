@@ -32,7 +32,7 @@ type table_data = {
 type t0 = {
   original_compilation_unit : Compilation_unit.t;
   final_typing_env : Flambda_type.Typing_env.Serializable.t;
-  all_code : Flambda.Function_params_and_body.t Code_id.Map.t;
+  all_code : Exported_code.t;
   exported_offsets : Exported_offsets.t;
   table_data : table_data;
 }
@@ -43,16 +43,9 @@ let create ~final_typing_env ~all_code ~exported_offsets =
   let typing_env_exported_ids =
     Flambda_type.Typing_env.Serializable.all_ids_for_export final_typing_env
   in
+  let all_code_exported_ids = Exported_code.all_ids_for_export all_code in
   let exported_ids =
-    Code_id.Map.fold (fun code_id params_and_body ids ->
-        let ids_for_params_and_body =
-          Flambda.Function_params_and_body.all_ids_for_export params_and_body
-        in
-        Ids_for_export.add_code_id
-          (Ids_for_export.union ids ids_for_params_and_body)
-          code_id)
-      all_code
-      typing_env_exported_ids
+    Ids_for_export.union typing_env_exported_ids all_code_exported_ids
   in
   let symbols =
     Symbol.Set.fold (fun symbol symbols ->
@@ -131,16 +124,7 @@ let import_typing_env_and_code0 t =
   let typing_env =
     Flambda_type.Typing_env.Serializable.import import_map t.final_typing_env
   in
-  let all_code =
-    Code_id.Map.fold (fun code_id params_and_body all_code ->
-        let code_id = Ids_for_export.Import_map.code_id import_map code_id in
-        let params_and_body =
-          Flambda.Function_params_and_body.import import_map params_and_body
-        in
-        Code_id.Map.add code_id params_and_body all_code)
-      t.all_code
-      Code_id.Map.empty
-  in
+  let all_code = Exported_code.import import_map t.all_code in
   typing_env, all_code
 
 let import_typing_env_and_code t =
@@ -153,7 +137,7 @@ let import_typing_env_and_code t =
         let typing_env =
           Flambda_type.Typing_env.Serializable.merge typing_env typing_env0
         in
-        let code = Code_id.Map.disjoint_union code code0 in
+        let code = Exported_code.merge code code0 in
         typing_env, code)
       (import_typing_env_and_code0 t0)
       rem
@@ -162,6 +146,12 @@ let exported_offsets t =
   List.fold_left (fun offsets t0 ->
       Exported_offsets.merge offsets t0.exported_offsets)
     Exported_offsets.empty
+    t
+
+let functions_info t =
+  List.fold_left (fun code t0 ->
+      Exported_code.merge code t0.all_code)
+    Exported_code.empty
     t
 
 let with_exported_offsets t exported_offsets =
@@ -231,7 +221,7 @@ let print0 ppf t =
   Format.fprintf ppf "@[<hov>Typing env:@ %a@]@;"
     Flambda_type.Typing_env.Serializable.print typing_env;
   Format.fprintf ppf "@[<hov>Code:@ %a@]@;"
-    (Code_id.Map.print Flambda.Function_params_and_body.print) code;
+    Exported_code.print code;
   Format.fprintf ppf "@[<hov>Offsets:@ %a@]@;"
     Exported_offsets.print t.exported_offsets
 

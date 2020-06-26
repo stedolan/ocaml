@@ -20,6 +20,7 @@ type middle_end_result = {
   (* CR mshinwell: This next field is redundant *)
   cmx : Flambda_cmx_format.t option;
   unit : Flambda_unit.t;
+  all_code : Exported_code.t;
 }
 
 let check_invariants unit =
@@ -130,6 +131,7 @@ let middle_end ~ppf_dump:ppf ~prefixname ~backend ~filename ~module_ident
     in
     { cmx = simplify_result.cmx;
       unit = simplify_result.unit;
+      all_code = simplify_result.all_code;
     }
   with Misc.Fatal_error -> begin
     Format.eprintf "\n%sOriginal backtrace is:%s\n%s\n"

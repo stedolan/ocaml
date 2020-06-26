@@ -25,6 +25,7 @@ open! Simplify_import
 type simplify_result = {
   cmx : Flambda_cmx_format.t option;
   unit : Flambda_unit.t;
+  all_code : Exported_code.t;
 }
 
 let predefined_exception_typing_env ~backend ~resolver ~get_imported_names =
@@ -48,7 +49,7 @@ let run ~backend ~round unit =
   let exn_continuation = FU.exn_continuation unit in
   let module_symbol = FU.module_symbol unit in
   let imported_names = ref Name.Set.empty in
-  let imported_code = ref Code_id.Map.empty in
+  let imported_code = ref Exported_code.empty in
   let imported_units = ref Compilation_unit.Map.empty in
   let resolver comp_unit =
     Flambda_cmx.load_cmx_file_contents backend comp_unit ~imported_names
@@ -90,13 +91,18 @@ let run ~backend ~round unit =
       ~exn_cont_scope
   in
   let return_cont_env = DA.continuation_uses_env dacc in
+  let all_code =
+    Exported_code.merge (R.all_code r)
+      (Exported_code.mark_as_imported !imported_code)
+  in
   let cmx =
     Flambda_cmx.prepare_cmx_file_contents ~return_cont_env
-      ~return_continuation ~module_symbol (R.all_code r)
+      ~return_continuation ~module_symbol all_code
   in
   let unit =
     FU.create ~return_continuation ~exn_continuation ~module_symbol ~body
   in
   { cmx;
     unit;
+    all_code;
   }

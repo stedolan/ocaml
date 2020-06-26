@@ -21,6 +21,7 @@
 type middle_end_result = private {
   cmx : Flambda_cmx_format.t option;
   unit : Flambda_unit.t;
+  all_code : Exported_code.t;
 }
 
 (** This function is not currently re-entrant. *)

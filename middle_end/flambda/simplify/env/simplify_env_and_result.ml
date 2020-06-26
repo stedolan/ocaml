@@ -25,8 +25,7 @@ module TE = Flambda_type.Typing_env
 
 type resolver = Compilation_unit.t -> Flambda_type.Typing_env.t option
 type get_imported_names = unit -> Name.Set.t
-type get_imported_code =
-  unit -> Function_params_and_body.t Code_id.Map.t
+type get_imported_code = unit -> Exported_code.t
 
 module rec Downwards_env : sig
   include I.Downwards_env
@@ -37,7 +36,7 @@ end = struct
     backend : (module Flambda_backend_intf.S);
     round : int;
     typing_env : TE.t;
-    get_imported_code : (unit -> Function_params_and_body.t Code_id.Map.t);
+    get_imported_code : (unit -> Exported_code.t);
     inlined_debuginfo : Debuginfo.t;
     can_inline : bool;
     inlining_depth_increment : int;
@@ -364,11 +363,11 @@ end = struct
 
   let mem_code t code_id =
     Code_id.Map.mem code_id t.code
-      || Code_id.Map.mem code_id (t.get_imported_code ())
+      || Exported_code.mem code_id (t.get_imported_code ())
 
   let check_code_id_is_bound t code_id =
     if (not (Code_id.Map.mem code_id t.code))
-      && (not (Code_id.Map.mem code_id (t.get_imported_code ())))
+      && (not (Exported_code.mem code_id (t.get_imported_code ())))
     then begin
       Misc.fatal_errorf "Unbound code ID %a in environment:@ %a"
         Code_id.print code_id
@@ -403,11 +402,7 @@ end = struct
   let find_code t id =
     match Code_id.Map.find id t.code with
     | exception Not_found ->
-      begin match Code_id.Map.find id (t.get_imported_code ()) with
-      | exception Not_found ->
-        Misc.fatal_errorf "Code ID %a not bound" Code_id.print id
-      | code -> code
-      end
+      Exported_code.find_code (t.get_imported_code ()) id
     | code -> code
 
   let with_code ~from t =
@@ -677,7 +672,7 @@ end = struct
       lifted_constants_innermost_last : Lifted_constant.t list;
       shareable_constants : Symbol.t Static_const.Map.t;
       used_closure_vars : Var_within_closure.Set.t;
-      all_code : Function_params_and_body.t Code_id.Map.t;
+      all_code : Exported_code.t;
     }
 
   let print ppf { resolver = _; get_imported_names = _;
@@ -701,7 +696,7 @@ end = struct
       lifted_constants_innermost_last = [];
       shareable_constants = Static_const.Map.empty;
       used_closure_vars = Var_within_closure.Set.empty;
-      all_code = Code_id.Map.empty;
+      all_code = Exported_code.empty;
     }
 
   let new_lifted_constant t lifted_constant =
@@ -751,7 +746,7 @@ end = struct
   let used_closure_vars t = t.used_closure_vars
 
   let remember_code_for_cmx t code =
-    let all_code = Code_id.Map.disjoint_union code t.all_code in
+    let all_code = Exported_code.add_code code t.all_code in
     { t with all_code; }
 
   let all_code t = t.all_code

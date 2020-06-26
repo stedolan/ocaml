@@ -2,11 +2,9 @@
 (*                                                                        *)
 (*                                 OCaml                                  *)
 (*                                                                        *)
-(*                       Pierre Chambart, OCamlPro                        *)
-(*           Mark Shinwell and Leo White, Jane Street Europe              *)
+(*                       Vincent Laviron, OCamlPro                        *)
 (*                                                                        *)
-(*   Copyright 2013--2019 OCamlPro SAS                                    *)
-(*   Copyright 2014--2019 Jane Street Group LLC                           *)
+(*   Copyright 2020 OCamlPro SAS                                          *)
 (*                                                                        *)
 (*   All rights reserved.  This file is distributed under the terms of    *)
 (*   the GNU Lesser General Public License version 2.1, with the          *)
@@ -14,23 +12,30 @@
 (*                                                                        *)
 (**************************************************************************)
 
-[@@@ocaml.warning "+a-4-30-40-41-42"]
+module Calling_convention : sig
+  type t
 
-(** Simplification of Flambda programs: inlining, specialisation,
-    unboxing and so forth.
+  val print : Format.formatter -> t -> unit
 
-    Readers interested in the function inlining strategy should read the
-    [Inlining_decision] module first.
-*)
+  val needs_closure_arg : t -> bool
+end
 
-type simplify_result = private {
-  cmx : Flambda_cmx_format.t option;
-  unit : Flambda_unit.t;
-  all_code : Exported_code.t;
-}
+type t
 
-val run
-   : backend:(module Flambda_backend_intf.S)
-  -> round:int
-  -> Flambda_unit.t
-  -> simplify_result
+include Contains_ids.S with type t := t
+
+val print : Format.formatter -> t -> unit
+
+val empty : t
+
+val add_code : Flambda.Function_params_and_body.t Code_id.Map.t -> t -> t
+
+val mark_as_imported : t -> t
+
+val merge : t -> t -> t
+
+val mem : Code_id.t -> t -> bool
+
+val find_code : t -> Code_id.t -> Flambda.Function_params_and_body.t
+
+val find_calling_convention : t -> Code_id.t -> Calling_convention.t

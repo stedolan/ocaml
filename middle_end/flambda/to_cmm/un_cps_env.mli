@@ -47,6 +47,7 @@ type t
 
 val mk :
   Exported_offsets.t ->
+  Exported_code.t ->
   Continuation.t -> Continuation.t ->
   Var_within_closure.Set.t -> t
 (** [mk offsets k k_exn used_closure_vars] creates a local environment for
@@ -57,9 +58,6 @@ val enter_function_def : t -> Continuation.t -> Continuation.t -> t
 (** [enter_function_def env k k_exn] creates a local environment for
     translating a flambda expression, with return continuation [k], exception
     continuation [k_exn], preserving the global info from [env]. *)
-
-val dummy : Exported_offsets.t -> Var_within_closure.Set.t -> t
-(** Create an environment with dummy return adn exception continuations. *)
 
 
 (** {2 Continuations} *)
@@ -73,15 +71,7 @@ val exn_cont : t -> Continuation.t
 
 (** {2 Function info *)
 
-type function_info = {
-  needs_closure_arg : bool;
-  (* Whether direct calls need to provide a closure or can skip it *)
-}
-
-val add_function_info : t -> Code_id.t -> function_info -> t
-(** Add information on the given function *)
-
-val get_function_info : t -> Code_id.t -> function_info option
+val get_function_info : t -> Code_id.t -> Exported_code.Calling_convention.t
 (** Retrieve known information on the given function *)
 
 

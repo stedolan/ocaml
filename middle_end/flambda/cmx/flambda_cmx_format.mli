@@ -23,16 +23,18 @@ type t
 
 val create
    : final_typing_env:Flambda_type.Typing_env.Serializable.t
-  -> all_code:Flambda.Function_params_and_body.t Code_id.Map.t
+  -> all_code:Exported_code.t
   -> exported_offsets:Exported_offsets.t
   -> t
 
 val import_typing_env_and_code
    : t
   -> Flambda_type.Typing_env.Serializable.t *
-     Flambda.Function_params_and_body.t Code_id.Map.t
+     Exported_code.t
 
 val exported_offsets : t -> Exported_offsets.t
+
+val functions_info : t -> Exported_code.t
 
 val with_exported_offsets : t -> Exported_offsets.t -> t
 

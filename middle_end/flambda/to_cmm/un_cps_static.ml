@@ -246,14 +246,6 @@ and fill_static_up_to j acc i =
   if i = j then acc
   else fill_static_up_to j (C.cint 1n :: acc) (i + 1)
 
-let update_env_for_function
-    env code_id ~return_continuation:_ _exn_k _ps ~body ~my_closure =
-  let free_vars = Expr.free_names body in
-  (* Format.eprintf "Free vars: %a@." Variable.Set.print free_vars; *)
-  let needs_closure_arg = Name_occurrences.mem_var free_vars my_closure in
-  let info : Env.function_info = { needs_closure_arg; } in
-  Env.add_function_info env code_id info
-
 let update_env_for_set_of_closure env { SCCSC.code; set_of_closures = _; } =
   Code_id.Map.fold
     (fun code_id SC.Code.({ params_and_body = p; newer_version_of; }) env ->
@@ -269,8 +261,8 @@ let update_env_for_set_of_closure env { SCCSC.code; set_of_closures = _; } =
        | Deleted ->
          Env.mark_code_id_as_deleted env code_id
        | Present p ->
-         Function_params_and_body.pattern_match p
-           ~f:(update_env_for_function env code_id)
+         (* Function info should be already computed *)
+         env
     ) code env
 
 let add_function env r ~params_and_body code_id p =

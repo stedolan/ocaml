@@ -79,11 +79,6 @@ type stage =
 
 (* Translation environment *)
 
-type function_info = {
-  needs_closure_arg : bool;
-  (* Whether direct calls need to provide a closure or can skip it *)
-}
-
 type t = {
 
   (* Global information.
@@ -104,7 +99,7 @@ type t = {
 
   names_in_scope : Code_id_or_symbol.Set.t;
   (* Code ids and symbols bound in this scope, for invariant checking *)
-  functions_info: function_info Code_id.Map.t;
+  functions_info: Exported_code.t;
   (* Information about known functions *)
   deleted : Code_id.Set.t;
   used_code_ids : Code_id.Set.t;
@@ -147,9 +142,9 @@ type t = {
 
 }
 
-let mk offsets k_return k_exn used_closure_vars = {
+let mk offsets functions_info k_return k_exn used_closure_vars = {
   k_return; k_exn; used_closure_vars; offsets;
-  functions_info = Code_id.Map.empty;
+  functions_info;
   stages = [];
   pures = Variable.Map.empty;
   vars = Variable.Map.empty;
@@ -180,26 +175,13 @@ let enter_function_def env k_return k_exn = {
   exn_conts_extra_args = Continuation.Map.empty;
 }
 
-let dummy offsets used_closure_vars =
-  mk
-    offsets
-    (Continuation.create ())
-    (Continuation.create ())
-    used_closure_vars
-
 let return_cont env = env.k_return
 let exn_cont env = env.k_exn
 
 (* Function info *)
 
-let add_function_info env code_id info =
-  let functions_info =
-    Code_id.Map.add code_id info env.functions_info
-  in
-  { env with functions_info; }
-
 let get_function_info env code_id =
-  Code_id.Map.find_opt code_id env.functions_info
+  Exported_code.find_calling_convention env.functions_info code_id
 
 (* Variables *)
 
