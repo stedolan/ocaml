@@ -342,6 +342,12 @@ module type Lifted_constant = sig
     -> Flambda.Function_params_and_body.t Code_id.Map.t
     -> t
 
+  val create_deleted_piece_of_code
+     : downwards_env
+    -> ?newer_versions_of:Code_id.t Code_id.Map.t
+    -> Code_id.t
+    -> t
+
   val denv_at_definition : t -> downwards_env
   val bound_symbols : t -> Flambda.Let_symbol_expr.Bound_symbols.t
   val defining_expr : t -> Flambda.Static_const.t

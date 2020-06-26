@@ -461,3 +461,35 @@ let pieces_of_code ?newer_versions_of ?set_of_closures code =
     }]
   in
   bound_symbols, static_const
+
+let deleted_pieces_of_code ?newer_versions_of code_ids =
+  let newer_versions_of =
+    Option.value newer_versions_of ~default:Code_id.Map.empty
+  in
+  let code =
+    Code_id.Set.fold (fun id code_map ->
+        let newer_version_of =
+          Code_id.Map.find_opt id newer_versions_of
+        in
+        let code : Static_const.Code.t =
+          { params_and_body = Deleted;
+            newer_version_of;
+          }
+        in
+        Code_id.Map.add id code code_map)
+      code_ids
+      Code_id.Map.empty
+  in
+  let static_const : Static_const.t =
+    Sets_of_closures [{
+      code;
+      set_of_closures = Set_of_closures.empty;
+    }]
+  in
+  let bound_symbols : Bound_symbols.t =
+    Sets_of_closures [{
+      code_ids = Code_id.Map.keys code;
+      closure_symbols = Closure_id.Map.empty;
+    }]
+  in
+  bound_symbols, static_const

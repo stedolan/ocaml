@@ -806,6 +806,16 @@ end = struct
     create_pieces_of_code denv ?newer_versions_of
       (Code_id.Map.singleton code_id params_and_body)
 
+  let create_deleted_piece_of_code denv ?newer_versions_of code_id =
+    let bound_symbols, defining_expr =
+      Let_symbol.deleted_pieces_of_code ?newer_versions_of
+        (Code_id.Set.singleton code_id)
+    in
+    { denv;
+      bound_symbols;
+      defining_expr;
+      types_of_symbols = Symbol.Map.empty;
+    }
   let denv_at_definition t = t.denv
   let bound_symbols t = t.bound_symbols
   let defining_expr t = t.defining_expr

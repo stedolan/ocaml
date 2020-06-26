@@ -84,3 +84,8 @@ val pieces_of_code
   -> ?set_of_closures:(Symbol.t Closure_id.Map.t * Set_of_closures.t)
   -> Function_params_and_body.t Code_id.Map.t
   -> Bound_symbols.t * Static_const.t
+
+val deleted_pieces_of_code
+   : ?newer_versions_of:Code_id.t Code_id.Map.t
+  -> Code_id.Set.t
+  -> Bound_symbols.t * Static_const.t
