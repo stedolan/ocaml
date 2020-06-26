@@ -708,11 +708,15 @@ let mem ?min_name_mode t name =
         | None -> false
         | Some c -> c <= 0
         end)
-    ~symbol:(fun sym -> Symbol.Set.mem sym t.defined_symbols)
+    ~symbol:(fun sym ->
+      (* CR mshinwell: This might not take account of symbols in missing
+         .cmx files *)
+      Symbol.Set.mem sym t.defined_symbols
+        || Name.Set.mem name (t.get_imported_names ()))
 
-let mem_simple t simple =
+let mem_simple ?min_name_mode t simple =
   Simple.pattern_match simple
-    ~name:(fun name -> mem t name)
+    ~name:(fun name -> mem ?min_name_mode t name)
     ~const:(fun _ -> true)
 
 let with_current_level t ~current_level =

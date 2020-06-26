@@ -27,6 +27,34 @@ open! Simplify_import
 
 type 'a k = DA.t -> ('a * UA.t)
 
+let get_and_place_lifted_constants dacc uacc scoping_rule
+      ~prior_lifted_constants ~extra_lifted_constants ~body =
+  let lifted_constants = R.get_lifted_constants (UA.r uacc) in
+  let uacc =
+    UA.map_r uacc ~f:(fun r -> R.set_lifted_constants r prior_lifted_constants)
+  in
+  let all_lifted_constants =
+    extra_lifted_constants
+      @ List.map (fun lifted_constant ->
+          LC.bound_symbols lifted_constant, LC.defining_expr lifted_constant,
+            Name_occurrences.empty)
+        lifted_constants
+  in
+  let sorted_lifted_constants =
+    (* CR mshinwell: [Sort_lifted_constants] should never need dacc here.
+       We should maybe change the interface to make it optional and cause
+       an error if it tries to use it. *)
+    Sort_lifted_constants.sort dacc all_lifted_constants
+  in
+  let body, r =
+    List.fold_left (fun (body, r) (bound_symbols, defining_expr) ->
+        Simplify_common.create_let_symbol r scoping_rule
+          (UA.code_age_relation uacc) bound_symbols defining_expr body)
+      (body, UA.r uacc)
+      sorted_lifted_constants.bindings_outermost_last
+  in
+  body, UA.with_r uacc r
+
 let rec simplify_let
   : 'a. DA.t -> Let.t -> 'a k -> Expr.t * 'a * UA.t
 = fun dacc let_expr k ->
@@ -34,14 +62,61 @@ let rec simplify_let
   let original_dacc = dacc in
   (* CR mshinwell: Find out if we need the special fold function for lets. *)
   L.pattern_match let_expr ~f:(fun ~bound_vars ~body ->
+    let defining_expr = L.defining_expr let_expr in
+    let is_set_of_closures = Named.is_set_of_closures defining_expr in
+    let place_lifted_constants_immediately =
+      (* Simplification of toplevel sets of closures can yield constants
+         that must be placed immediately around the body rather than
+         propagated upwards to the previous enclosing [Let_symbol].  That this
+         is so follows from the fact that such constants may involve
+         variables in their definition.  We cannot follow the pattern of the
+         [Reified] case below as that would cause the bodies of the
+         functions involved to be simplified a second time. *)
+      is_set_of_closures && DE.at_unit_toplevel (DA.denv dacc)
+    in
+    let prior_lifted_constants = R.get_lifted_constants (DA.r dacc) in
+    let dacc =
+      if place_lifted_constants_immediately then
+        DA.map_r dacc ~f:R.clear_lifted_constants
+      else
+        dacc
+    in
     let simplify_named_result =
       Simplify_named.simplify_named dacc ~bound_vars (L.defining_expr let_expr)
     in
     match simplify_named_result with
     | Bindings { bindings_outermost_first = bindings; dacc; } ->
+      let lifted_constants_after_defining_expr =
+        R.get_lifted_constants (DA.r dacc)
+      in
+      let dacc =
+        if not place_lifted_constants_immediately then dacc
+        else DA.map_r dacc ~f:R.clear_lifted_constants
+      in
       let body, user_data, uacc = simplify_expr dacc body k in
-      Simplify_common.bind_let_bound ~bindings ~body, user_data, uacc
+      let body = Simplify_common.bind_let_bound ~bindings ~body in
+      if place_lifted_constants_immediately then
+        let extra_lifted_constants =
+          List.map (fun lifted_const ->
+              LC.bound_symbols lifted_const,
+                LC.defining_expr lifted_const,
+                  Name_occurrences.empty)
+            lifted_constants_after_defining_expr
+        in
+        let expr, uacc =
+          get_and_place_lifted_constants dacc uacc Dominator
+            ~extra_lifted_constants
+            ~prior_lifted_constants ~body
+        in
+        expr, user_data, uacc
+      else
+        body, user_data, uacc
     | Reified { definition; bound_symbol; static_const; dacc; } ->
+      if place_lifted_constants_immediately then begin
+        Misc.fatal_errorf "Did not expect [Simplify_named] to return \
+            [Reified] (bound symbol %a)"
+          Bound_symbols.print bound_symbol
+      end;
       let let_expr =
         Expr.create_pattern_let bound_vars definition body
       in
@@ -54,6 +129,11 @@ let rec simplify_let
       let dacc = DA.with_r original_dacc (DA.r dacc) in
       simplify_expr dacc let_symbol_expr k
     | Shared { symbol; kind; } ->
+      if place_lifted_constants_immediately then begin
+        Misc.fatal_errorf "Did not expect [Simplify_named] to return \
+            [Shared] (symbol %a)"
+          Symbol.print symbol
+      end;
       let var = Bindable_let_bound.must_be_singleton bound_vars in
       let ty = T.alias_type_of kind (Simple.symbol symbol) in
       let dacc =
@@ -162,39 +242,18 @@ and simplify_let_symbol
     | Sets_of_closures _ -> dacc
   in
   let body, user_data, uacc = simplify_expr dacc body k in
-  let lifted_constants = R.get_lifted_constants (UA.r uacc) in
-  let uacc =
-    UA.map_r uacc ~f:(fun r -> R.set_lifted_constants r prior_lifted_constants)
+  let expr, uacc =
+    (* It's valid to use [dacc] to examine each constant during sorting
+       because the constants don't involve variables.  They may involve
+       symbols, but those symbols are either already bound by [dacc], or
+       are in the list of constants being sorted. *)
+    get_and_place_lifted_constants dacc uacc scoping_rule
+      ~prior_lifted_constants
+      ~extra_lifted_constants:
+        [bound_symbols, defining_expr, Name_occurrences.empty]
+      ~body
   in
-  let all_lifted_constants =
-    (bound_symbols, defining_expr, Name_occurrences.empty)
-      :: List.map (fun lifted_constant ->
-          LC.bound_symbols lifted_constant, LC.defining_expr lifted_constant,
-            Name_occurrences.empty)
-        lifted_constants
-  in
-(*
-Format.eprintf "All bindings:@ %a\n%!"
-  (Format.pp_print_list ~pp_sep:Format.pp_print_space
-    (fun ppf (bound_syms, def) ->
-      Format.fprintf ppf "@[(%a@ %a)@]"
-        Bound_symbols.print bound_syms Static_const.print def))
-  all_lifted_constants;
-*)
-  let sorted_lifted_constants =
-    (* CR mshinwell: [Sort_lifted_constants] should never need dacc here.
-       We should maybe change the interface to make it optional and cause
-       an error if it tries to use it. *)
-    Sort_lifted_constants.sort dacc all_lifted_constants
-  in
-  let expr, r =
-    List.fold_left (fun (body, r) (bound_symbols, defining_expr) ->
-        Simplify_common.create_let_symbol r scoping_rule
-          (UA.code_age_relation uacc) bound_symbols defining_expr body)
-      (body, UA.r uacc)
-      sorted_lifted_constants.bindings_outermost_last
-  in
-  expr, user_data, UA.with_r uacc r
+  expr, user_data, uacc
 
 and simplify_one_continuation_handler :
  'a. DA.t

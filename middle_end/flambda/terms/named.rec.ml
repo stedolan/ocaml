@@ -141,7 +141,7 @@ let at_most_generative_effects (t : t) =
   | Set_of_closures _ -> true
 
 let dummy_value (kind : K.t) : t =
-  let simple = 
+  let simple =
     match kind with
     | Value -> Simple.const_zero
     | Naked_number Naked_immediate ->
@@ -158,3 +158,8 @@ let dummy_value (kind : K.t) : t =
     | Fabricated -> Misc.fatal_error "[Fabricated] kind not expected here"
   in
   Simple simple
+
+let is_set_of_closures t =
+  match t with
+  | Set_of_closures _ -> true
+  | Simple _ | Prim _ -> false

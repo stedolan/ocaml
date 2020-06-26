@@ -248,7 +248,7 @@ end = struct
     in
     let env_inside_functions,
         closure_element_types_all_sets_inside_functions_rev =
-      List.fold_left 
+      List.fold_left
         (fun (env_inside_functions,
               closure_element_types_all_sets_inside_functions_rev)
              closure_element_types ->
@@ -363,6 +363,7 @@ let simplify_function context r closure_id function_decl
                 TE.with_code_age_relation typing_env code_age_relation)
               |> DE.add_lifted_constants ~lifted:(R.get_lifted_constants r))
           in
+          assert (not (DE.at_unit_toplevel (DA.denv dacc)));
           (* CR mshinwell: DE.no_longer_defining_symbol is redundant now? *)
           match
             Simplify_toplevel.simplify_toplevel dacc body
@@ -521,7 +522,7 @@ let simplify_and_lift_set_of_closures dacc ~closure_bound_vars_inverse
           closure_id
           |> Closure_id.rename
           |> Closure_id.to_string
-          |> Linkage_name.create 
+          |> Linkage_name.create
         in
         Symbol.create (Compilation_unit.get_current_exn ()) name)
       (Function_declarations.funs function_decls)
@@ -719,7 +720,7 @@ let type_closure_elements_and_make_lifting_decision_for_one_set dacc
      we get here in the case where we are considering lifting a set that has
      not been lifted before, there are never any other mutually-recursive
      sets ([Named.t] does not allow them). *)
-  let can_lift =
+  let can_lift_even_if_not_at_toplevel =
     Var_within_closure.Map.for_all (fun _ simple ->
         Simple.pattern_match simple
           ~const:(fun _ -> true)
@@ -729,6 +730,10 @@ let type_closure_elements_and_make_lifting_decision_for_one_set dacc
               ~symbol:(fun _sym -> true)))
       closure_elements
   in
+  let can_lift =
+    DE.at_unit_toplevel (DA.denv dacc)
+      || can_lift_even_if_not_at_toplevel
+  in
   { can_lift;
     closure_elements;
     closure_element_types;
@@ -736,9 +741,6 @@ let type_closure_elements_and_make_lifting_decision_for_one_set dacc
 
 let type_closure_elements_for_previously_lifted_set dacc
       ~min_name_mode set_of_closures =
-  (* N.B. The returned [can_lift] might not be [true], since the closure
-     variables might actually assigned to be [Variable]s, in the case of a
-     non-constant lifted closure. *)
   type_closure_elements_and_make_lifting_decision_for_one_set dacc
     ~min_name_mode ~closure_bound_vars_inverse:Variable.Map.empty
     set_of_closures

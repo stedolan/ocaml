@@ -68,3 +68,5 @@ val invariant_returning_kind
    : Invariant_env.t
   -> t
   -> Flambda_primitive.result_kind
+
+val is_set_of_closures : t -> bool

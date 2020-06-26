@@ -196,6 +196,9 @@ end and Named : sig
   (** Return a defining expression for a [Let] which is kind-correct, but not
       necessarily type-correct, at the given kind. *)
   val dummy_value : Flambda_kind.t -> t
+
+  (** Returns [true] iff the given expression is a set of closures. *)
+  val is_set_of_closures : t -> bool
 end and Let_expr : sig
   (** The alpha-equivalence classes of expressions that bind variables. *)
   type t
