@@ -35,12 +35,6 @@ let flambda_backend =
   (module Asmgen.Flambda_backend : Flambda_backend_intf.S)
 
 let flambda i typed =
-  if !Clflags.classic_inlining then begin
-    Clflags.default_simplify_rounds := 1;
-    Clflags.use_inlining_arguments_set Clflags.classic_arguments;
-    Clflags.unbox_free_vars_of_closures := false;
-    Clflags.unbox_specialised_args := false
-  end;
   typed
   |> Profile.(record transl)
       (Translmod.transl_implementation_flambda i.module_name)
