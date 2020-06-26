@@ -26,10 +26,22 @@ include Expr_std.S with type t := t
 
 include Contains_ids.S with type t := t
 
+module Result_continuation : sig
+
+  type t =
+    | Return of Continuation.t
+    | Never_returns
+
+  include Identifiable.S with type t := t
+
+  include Contains_names.S with type t := t
+
+end
+
 (** Create an application expression. *)
 val create
    : callee:Simple.t
-  -> continuation:Continuation.t
+  -> continuation:Result_continuation.t
   -> Exn_continuation.t
   -> args:Simple.t list
   -> call_kind:Call_kind.t
@@ -49,7 +61,7 @@ val args : t -> Simple.t list
 val call_kind : t -> Call_kind.t
 
 (** Where to send the result of the application. *)
-val continuation : t -> Continuation.t
+val continuation : t -> Result_continuation.t
 
 (** Where to jump to upon the application raising an exception. *)
 val exn_continuation : t -> Exn_continuation.t
@@ -62,9 +74,9 @@ val dbg : t -> Debuginfo.t
 val inline : t -> Inline_attribute.t
 
 (** Change the return continuation of an application. *)
-val with_continuation : t -> Continuation.t -> t
+val with_continuation : t -> Result_continuation.t -> t
 
-val with_continuations : t -> Continuation.t -> Exn_continuation.t -> t
+val with_continuations : t -> Result_continuation.t -> Exn_continuation.t -> t
 
 val with_exn_continuation : t -> Exn_continuation.t -> t
 
@@ -74,7 +86,7 @@ val with_call_kind : t -> Call_kind.t -> t
 (** Change the continuation, callee and arguments of an application. *)
 val with_continuation_callee_and_args
    : t
-  -> Continuation.t
+  -> Result_continuation.t
   -> callee:Simple.t
   -> args:Simple.t list
   -> t

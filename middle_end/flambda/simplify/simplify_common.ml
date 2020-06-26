@@ -158,16 +158,21 @@ let add_wrapper_for_fixed_arity_continuation uacc cont ~use_id arity ~around =
     Let_cont.create_non_recursive new_cont new_handler ~body:(around new_cont)
 
 let add_wrapper_for_fixed_arity_apply uacc ~use_id arity apply =
-  let cont = Apply.continuation apply in
-  add_wrapper_for_fixed_arity_continuation uacc cont
-    ~use_id arity
-    ~around:(fun return_cont ->
-      let exn_cont =
-        UE.resolve_exn_continuation_aliases (UA.uenv uacc)
-          (Apply.exn_continuation apply)
-      in
-      let apply = Apply.with_continuations apply return_cont exn_cont in
-      Expr.create_apply apply)
+  match Apply.continuation apply with
+  | Never_returns ->
+    Expr.create_apply apply
+  | Return cont ->
+    add_wrapper_for_fixed_arity_continuation uacc cont
+      ~use_id arity
+      ~around:(fun return_cont ->
+        let exn_cont =
+          UE.resolve_exn_continuation_aliases (UA.uenv uacc)
+            (Apply.exn_continuation apply)
+        in
+        let apply =
+          Apply.with_continuations apply (Return return_cont) exn_cont
+        in
+        Expr.create_apply apply)
 
 let update_exn_continuation_extra_args uacc ~exn_cont_use_id apply =
   let exn_cont_rewrite =

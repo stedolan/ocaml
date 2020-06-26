@@ -125,7 +125,7 @@ let tupled_function_call_stub
     in
     let apply =
       Flambda.Apply.create ~callee:(Simple.var unboxed_version_var)
-        ~continuation:return_continuation
+        ~continuation:(Return return_continuation)
         exn_continuation
         ~args:(Simple.vars params)
         ~call_kind
@@ -353,7 +353,7 @@ let close_c_call t ~let_bound_var (prim : Primitive.description)
   let call args =
     let apply =
       Flambda.Apply.create ~callee:(Simple.symbol call_symbol)
-        ~continuation:return_continuation
+        ~continuation:(Return return_continuation)
         exn_continuation
         ~args
         ~call_kind
@@ -636,7 +636,7 @@ let rec close t env (ilam : Ilambda.t) : Expr.t * _ =
     let exn_continuation = close_exn_continuation t env exn_continuation in
     let apply =
       Flambda.Apply.create ~callee:(find_simple_from_id t env func)
-        ~continuation
+        ~continuation:(Return continuation)
         exn_continuation
         ~args:(find_simples t env args)
         ~call_kind
@@ -1063,12 +1063,17 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
       ~filename (ilam : Ilambda.program) =
   let module Backend = (val backend : Flambda_backend_intf.S) in
   let compilation_unit = Compilation_unit.get_current_exn () in
+  let bound_error_symbol =
+    Lambda_to_flambda_primitives_helpers.caml_ml_array_bound_error
+  in
   let t =
     { backend;
       current_unit_id = Compilation_unit.get_persistent_ident compilation_unit;
       symbol_for_global' = Backend.symbol_for_global';
       filename;
-      imported_symbols = Symbol.Set.empty;
+      (* CR: externals such as bound_error_symbol should ideally not be par of
+         the imported symbols, and not be required to be in the typing env. *)
+      imported_symbols = Symbol.Set.singleton bound_error_symbol;
       declared_symbols = [];
       shareable_constants = Static_const.Map.empty;
       code = [];

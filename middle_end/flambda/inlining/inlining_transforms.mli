@@ -23,7 +23,7 @@ val inline
   -> callee:Simple.t
   -> args:Simple.t list
   -> Flambda_type.Function_declaration_type.Inlinable.t
-  -> apply_return_continuation:Continuation.t
+  -> apply_return_continuation:Apply.Result_continuation.t
   -> apply_exn_continuation:Exn_continuation.t
   -> apply_inlining_depth:int
   -> unroll_to:int option

@@ -36,10 +36,16 @@ let inline dacc ~callee ~args function_decl
               (apply_inlining_depth + 1)
           in
           let make_inlined_body ~apply_exn_continuation ~apply_return_continuation =
+            let perm = Name_permutation.empty in
             let perm =
-              Name_permutation.add_continuation
-                (Name_permutation.add_continuation Name_permutation.empty
-                  return_continuation apply_return_continuation)
+              match (apply_return_continuation : Apply.Result_continuation.t)with
+              | Return k ->
+                Name_permutation.add_continuation perm
+                return_continuation k
+              | Never_returns -> perm
+            in
+            let perm =
+              Name_permutation.add_continuation perm
                 (Exn_continuation.exn_handler exn_continuation)
                 apply_exn_continuation
             in
@@ -74,39 +80,44 @@ let inline dacc ~callee ~args function_decl
                  a wrapper that pops then jumps back.
               *)
               let wrapper = Continuation.create ~sort:Exn () in
-              let pop_wrapper_cont = Continuation.create () in
-              let pop_wrapper_handler =
-                let kinded_params =
-                  List.map (fun k -> (Variable.create "wrapper_return", k))
-                    (I.result_arity function_decl)
-                in
-                let trap_action =
-                  Trap_action.Pop { exn_handler = wrapper; raise_kind = None; }
-                in
-                let args = List.map (fun (v, _) -> Simple.var v) kinded_params in
-                let handler =
-                  Expr.create_apply_cont (Apply_cont.create
-                    ~trap_action
-                    apply_return_continuation
-                    ~args
-                    ~dbg: Debuginfo.none)
-                in
-                let params_and_handler =
-                  Continuation_params_and_handler.create
-                    (Kinded_parameter.List.create kinded_params)
-                    ~handler
-                in
-                Continuation_handler.create ~params_and_handler
-                  ~stub:false
-                  ~is_exn_handler:false
-              in
-              let body =
-                make_inlined_body ~apply_exn_continuation:wrapper
-                  ~apply_return_continuation:pop_wrapper_cont
-              in
               let body_with_pop =
-                Let_cont.create_non_recursive pop_wrapper_cont
-                  pop_wrapper_handler ~body
+                match (apply_return_continuation : Apply.Result_continuation.t) with
+                | Never_returns ->
+                  make_inlined_body ~apply_exn_continuation:wrapper
+                    ~apply_return_continuation
+                | Return apply_return_continuation ->
+                  let pop_wrapper_cont = Continuation.create () in
+                  let pop_wrapper_handler =
+                    let kinded_params =
+                      List.map (fun k -> (Variable.create "wrapper_return", k))
+                        (I.result_arity function_decl)
+                    in
+                    let trap_action =
+                      Trap_action.Pop { exn_handler = wrapper; raise_kind = None; }
+                    in
+                    let args = List.map (fun (v, _) -> Simple.var v) kinded_params in
+                    let handler =
+                      Expr.create_apply_cont (Apply_cont.create
+                                                ~trap_action
+                                                apply_return_continuation
+                                                ~args
+                                                ~dbg: Debuginfo.none)
+                    in
+                    let params_and_handler =
+                      Continuation_params_and_handler.create
+                        (Kinded_parameter.List.create kinded_params)
+                        ~handler
+                    in
+                    Continuation_handler.create ~params_and_handler
+                      ~stub:false
+                      ~is_exn_handler:false
+                  in
+                  let body =
+                    make_inlined_body ~apply_exn_continuation:wrapper
+                      ~apply_return_continuation:(Return pop_wrapper_cont)
+                  in
+                  Let_cont.create_non_recursive pop_wrapper_cont
+                    pop_wrapper_handler ~body
               in
               let wrapper_handler =
                 let param = Variable.create "exn" in

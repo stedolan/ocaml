@@ -389,7 +389,8 @@ val indirect_call :
 (** Same as {!direct_call} but for an indirect call. *)
 
 val extcall :
-  ?dbg:Debuginfo.t -> ?label:int -> alloc:bool ->
+  ?dbg:Debuginfo.t -> ?label:int ->
+  returns:bool -> alloc:bool ->
   string -> Cmm.machtype -> Cmm.expression list -> Cmm.expression
 (** Create a C function call. *)
 

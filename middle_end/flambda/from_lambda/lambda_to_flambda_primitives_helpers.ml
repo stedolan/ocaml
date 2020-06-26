@@ -88,39 +88,11 @@ let print_list_of_simple_or_prim ppf simple_or_prim_list =
     (Format.pp_print_list ~pp_sep:Format.pp_print_space print_simple_or_prim)
     simple_or_prim_list
 
-let expression_for_failure ~backend exn_cont ~register_const_string
-      primitive dbg (failure : failure) =
-  let module B = (val backend : Flambda_backend_intf.S) in
-  let exn_bucket, extra_let_binding =
-    match failure with
-    | Division_by_zero -> Simple.symbol B.division_by_zero, None
-    | Index_out_of_bounds ->
-      let exn_bucket = Variable.create "exn_bucket" in
-      (* CR mshinwell: Share this text with elsewhere. *)
-      let error_text = register_const_string "index out of bounds" in
-      let contents_of_exn_bucket = [
-        Simple.symbol B.invalid_argument;
-        Simple.symbol error_text;
-      ]
-      in
-      let extra_let_binding =
-        Var_in_binding_pos.create exn_bucket Name_mode.normal,
-          Named.create_prim (Variadic (Make_block (
-              Values (Tag.Scannable.zero, [Any_value; Any_value]),
-                Immutable),
-              contents_of_exn_bucket))
-            dbg
-      in
-      Simple.var exn_bucket, Some extra_let_binding
-  in
-  let exn_cont =
-    match exn_cont with
-    | Some exn_cont -> exn_cont
-    | None ->
-      Misc.fatal_errorf "Validity checks for primitive@ %a@ may raise, but \
-          no exception continuation was supplied with the Lambda primitive"
-        print_expr_primitive primitive
-  in
+let caml_ml_array_bound_error =
+  let name = Linkage_name.create "caml_ml_array_bound_error" in
+  Symbol.create (Compilation_unit.external_symbols ()) name
+
+let raise_exn_for_failure ~dbg exn_cont exn_bucket extra_let_binding =
   let exn_handler = Exn_continuation.exn_handler exn_cont in
   let trap_action =
     Trap_action.Pop {
@@ -143,6 +115,63 @@ let expression_for_failure ~backend exn_cont ~register_const_string
   | None -> apply_cont
   | Some (bound_var, defining_expr) ->
     Expr.create_let bound_var defining_expr apply_cont
+
+let expression_for_failure ~backend exn_cont ~register_const_string
+      primitive dbg (failure : failure) =
+  let module B = (val backend : Flambda_backend_intf.S) in
+  let exn_cont =
+    match exn_cont with
+    | Some exn_cont -> exn_cont
+    | None ->
+      Misc.fatal_errorf "Validity checks for primitive@ %a@ may raise, but \
+          no exception continuation was supplied with the Lambda primitive"
+        print_expr_primitive primitive
+  in
+  match failure with
+  | Division_by_zero ->
+    raise_exn_for_failure ~dbg exn_cont
+      (Simple.symbol B.division_by_zero) None
+  | Index_out_of_bounds ->
+    if true then begin
+      let call =
+        let callee = Simple.symbol caml_ml_array_bound_error in
+        let continuation = Apply.Result_continuation.Never_returns in
+        let args = [] in
+        let call_kind = Call_kind.c_call
+                          ~alloc:false
+                          ~param_arity:[]
+                          ~return_arity:[]
+        in
+        (* These inlining fields should not be used for C calls since
+           they can't really be inlined anyway. *)
+        let inline = Inline_attribute.Never_inline in
+        let inlining_depth = 0 in
+        Apply.create ~callee ~continuation exn_cont
+          ~args ~call_kind dbg ~inline ~inlining_depth
+      in
+      Expr.create_apply call
+    end else begin
+      let exn_bucket = Variable.create "exn_bucket" in
+      (* CR mshinwell: Share this text with elsewhere. *)
+      let error_text = register_const_string "index out of bounds" in
+      let contents_of_exn_bucket = [
+        Simple.symbol B.invalid_argument;
+        Simple.symbol error_text;
+      ]
+      in
+      let extra_let_binding =
+        Var_in_binding_pos.create exn_bucket Name_mode.normal,
+        Named.create_prim (Variadic (Make_block (
+          Values (Tag.Scannable.zero, [Any_value; Any_value]),
+          Immutable),
+                                     contents_of_exn_bucket))
+          dbg
+      in
+      raise_exn_for_failure
+        ~dbg exn_cont
+        (Simple.var exn_bucket)
+        (Some extra_let_binding)
+    end
 
 let rec bind_rec ~backend exn_cont
           ~register_const_string

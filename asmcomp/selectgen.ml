@@ -140,7 +140,7 @@ let env_empty = {
 
 let oper_result_type = function
     Capply ty -> ty
-  | Cextcall(_s, ty, _alloc, _) -> ty
+  | Cextcall { func = _; ty; alloc = _; label_after = _; returns = _; } -> ty
   | Cload (c, _) ->
       begin match c with
       | Word_val -> typ_val
@@ -521,13 +521,13 @@ method select_operation op args _dbg =
   | (Capply _, _) ->
     let label_after = Cmm.new_label () in
     (Icall_ind { label_after; }, args)
-  | (Cextcall(func, _ty, alloc, label_after), _) ->
+  | (Cextcall { func; ty = _; alloc;label_after; returns; }, _) ->
     let label_after =
       match label_after with
       | None -> Cmm.new_label ()
       | Some label_after -> label_after
     in
-    Iextcall { func; alloc; label_after; }, args
+    Iextcall { func; alloc; label_after; returns; }, args
   | (Cload (chunk, _mut), [arg]) ->
       let (addr, eloc) = self#select_addressing chunk arg in
       (Iload(chunk, addr), [eloc])
@@ -841,7 +841,7 @@ method emit_expr (env:environment) exp =
               self#insert_move_results env loc_res rd stack_ofs;
               set_traps_for_raise env;
               Some rd
-          | Iextcall _ ->
+          | Iextcall { returns; _ } ->
               let spacetime_reg =
                 self#about_to_emit_call env (Iop new_op) [| |] dbg
               in
@@ -853,7 +853,7 @@ method emit_expr (env:environment) exp =
                   loc_arg (Proc.loc_external_results rd) in
               self#insert_move_results env loc_res rd stack_ofs;
               set_traps_for_raise env;
-              Some rd
+              if returns then Some rd else None
           | Ialloc { bytes = _; spacetime_index; label_after_call_gc; } ->
               let rd = self#regs_for typ_val in
               let bytes = size_expr env (Ctuple new_args) in

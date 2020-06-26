@@ -18,9 +18,50 @@
 
 module K = Flambda_kind
 
+module Result_continuation = struct
+
+  type t =
+    | Return of Continuation.t
+    | Never_returns
+
+  include Identifiable.Make(struct
+      type nonrec t = t
+
+      let compare h1 h2 =
+        match h1, h2 with
+        | Return k1, Return k2 -> Continuation.compare k1 k2
+        | Never_returns, Never_returns -> 0
+        | Return _, Never_returns -> 1
+        | Never_returns, Return _ -> -1
+
+      let equal h1 h2 = compare h1 h2 = 0
+
+      let hash = function
+        | Return k -> Continuation.hash k
+        | Never_returns as h -> Hashtbl.hash h
+
+      let print fmt = function
+        | Return k -> Continuation.print fmt k
+        | Never_returns -> Format.fprintf fmt "∅"
+
+      let output ch h =
+        print (Format.formatter_of_out_channel ch) h
+    end)
+
+  let free_names = function
+    | Return k -> Name_occurrences.singleton_continuation k
+    | Never_returns -> Name_occurrences.empty
+
+  let apply_name_permutation t perm =
+    match t with
+    | Return k -> Return (Name_permutation.apply_continuation perm k)
+    | Never_returns -> Never_returns
+
+end
+
 type t = {
   callee : Simple.t;
-  continuation : Continuation.t;
+  continuation : Result_continuation.t;
   exn_continuation : Exn_continuation.t;
   args : Simple.t list;
   call_kind : Call_kind.t;
@@ -39,7 +80,7 @@ let print ppf { callee; continuation; exn_continuation; args; call_kind;
       @[<hov 1>(inlining_depth@ %d)@]\
       )@]"
     Simple.print callee
-    Continuation.print continuation
+    Result_continuation.print continuation
     Exn_continuation.print exn_continuation
     Simple.List.print args
     Call_kind.print call_kind
@@ -97,60 +138,73 @@ let invariant env
           print t
       end
     end;
-    begin match E.find_continuation_opt env continuation with
-    | None ->
-      unbound_continuation continuation "[Apply] term"
-    | Some (arity, kind (*, cont_stack *)) ->
-      begin match kind with
-      | Normal -> ()
-      | Exn_handler ->
-        Misc.fatal_errorf "Continuation %a is an exception handler \
-            but is used in this [Apply] term as a return continuation:@ %a"
-          Continuation.print continuation
-          print t
+    begin match continuation with
+    | Never_returns ->
+      begin match Call_kind.return_arity call_kind with
+      | [] -> ()
+      | a ->
+        Misc.fatal_errorf "This [Apply] never returns and so expects an empty \
+                           arity, but has a call kind arity of %a:@ %a"
+          Flambda_arity.print a print t
+      end
+    (* general case *)
+    | Return continuation ->
+      begin match E.find_continuation_opt env continuation with
+      | None ->
+        unbound_continuation continuation "[Apply] term"
+      | Some (arity, kind (*, cont_stack *)) ->
+        begin match kind with
+        | Normal -> ()
+        | Exn_handler ->
+          Misc.fatal_errorf "Continuation %a is an exception handler \
+                             but is used in this [Apply] term as a \
+                             return continuation:@ %a"
+            Continuation.print continuation
+            print t
+        end;
+        let expected_arity = Call_kind.return_arity call_kind in
+        if not (Flambda_arity.equal arity expected_arity)
+        then begin
+          Misc.fatal_errorf "Continuation %a called with wrong arity in \
+                             this [Apply] term: expected %a but used at %a:@ %a"
+            Continuation.print continuation
+            Flambda_arity.print expected_arity
+            Flambda_arity.print arity
+            print t
+        end (*;
+              E.Continuation_stack.unify continuation stack cont_stack *)
       end;
-      let expected_arity = Call_kind.return_arity call_kind in
-      if not (Flambda_arity.equal arity expected_arity)
-      then begin
-        Misc.fatal_errorf "Continuation %a called with wrong arity in \
-            this [Apply] term: expected %a but used at %a:@ %a"
-          Continuation.print continuation
-          Flambda_arity.print expected_arity
-          Flambda_arity.print arity
-          print t
-      end (*;
-      E.Continuation_stack.unify continuation stack cont_stack *)
-    end;
-    begin match
-      E.find_continuation_opt env
-        (Exn_continuation.exn_handler exn_continuation)
-    with
-    | None ->
-      unbound_continuation continuation
-        "[Apply] term exception continuation"
-    | Some (arity, kind (*, cont_stack *)) ->
-      begin match kind with
-      | Normal ->
-        Misc.fatal_errorf "Continuation %a is a normal continuation \
-            but is used in this [Apply] term as an exception handler:@ %a"
-          Continuation.print continuation
-          print t
-      | Exn_handler -> ()
+      begin match
+        E.find_continuation_opt env
+          (Exn_continuation.exn_handler exn_continuation)
+      with
+      | None ->
+        unbound_continuation continuation
+          "[Apply] term exception continuation"
+      | Some (arity, kind (*, cont_stack *)) ->
+        begin match kind with
+        | Normal ->
+          Misc.fatal_errorf "Continuation %a is a normal continuation \
+                             but is used in this [Apply] term as an exception handler:@ %a"
+            Continuation.print continuation
+            print t
+        | Exn_handler -> ()
+        end;
+        let expected_arity = [Flambda_kind.value] in
+        if not (Flambda_arity.equal arity expected_arity) then begin
+          Misc.fatal_errorf "Exception continuation %a named in this \
+                             [Apply] term has the wrong arity: expected %a but have %a:@ %a"
+            Continuation.print continuation
+            Flambda_arity.print expected_arity
+            Flambda_arity.print arity
+            print t
+        end (*;
+              E.Continuation_stack.unify exn_continuation stack cont_stack *)
       end;
-      let expected_arity = [Flambda_kind.value] in
-      if not (Flambda_arity.equal arity expected_arity) then begin
-        Misc.fatal_errorf "Exception continuation %a named in this \
-            [Apply] term has the wrong arity: expected %a but have %a:@ %a"
-          Continuation.print continuation
-          Flambda_arity.print expected_arity
-          Flambda_arity.print arity
-          print t
-      end (*;
-      E.Continuation_stack.unify exn_continuation stack cont_stack *)
-    end;
-    ignore (dbg : Debuginfo.t);
-    ignore (inline : Inline_attribute.t);
-    assert (inlining_depth >= 0)
+      ignore (dbg : Debuginfo.t);
+      ignore (inline : Inline_attribute.t);
+      assert (inlining_depth >= 0)
+    end
 
 let create ~callee ~continuation exn_continuation ~args ~call_kind dbg ~inline
       ~inlining_depth =
@@ -188,7 +242,7 @@ let free_names
       } =
   Name_occurrences.union_list [
     Simple.free_names callee;
-    Name_occurrences.singleton_continuation continuation;
+    Result_continuation.free_names continuation;
     Exn_continuation.free_names exn_continuation;
     Simple.List.free_names args;
     Call_kind.free_names call_kind;
@@ -206,7 +260,7 @@ let apply_name_permutation
       } as t)
       perm =
   let continuation' =
-    Name_permutation.apply_continuation perm continuation
+    Result_continuation.apply_name_permutation continuation perm
   in
   let exn_continuation' =
     Exn_continuation.apply_name_permutation exn_continuation perm

@@ -692,9 +692,15 @@ Format.eprintf "Simplifying inlined body with DE depth delta = %d\n%!"
     simplify_expr dacc inlined k
   | None ->
     let dacc, use_id =
-      DA.record_continuation_use dacc (Apply.continuation apply) Non_inlinable
-        ~typing_env_at_use:(DA.typing_env dacc)
-        ~arg_types:(T.unknown_types_from_arity result_arity)
+      match Apply.continuation apply with
+      | Never_returns -> dacc, None
+      | Return apply_return_continuation ->
+        let dacc, use_id =
+          DA.record_continuation_use dacc apply_return_continuation Non_inlinable
+            ~typing_env_at_use:(DA.typing_env dacc)
+            ~arg_types:(T.unknown_types_from_arity result_arity)
+        in
+        dacc, Some use_id
     in
     let dacc, exn_cont_use_id =
       DA.record_continuation_use dacc
@@ -710,8 +716,11 @@ Format.eprintf "Simplifying inlined body with DE depth delta = %d\n%!"
         apply
     in
     let expr =
-      Simplify_common.add_wrapper_for_fixed_arity_apply uacc ~use_id
-        result_arity apply
+      match use_id with
+      | None -> Expr.create_apply apply
+      | Some use_id ->
+        Simplify_common.add_wrapper_for_fixed_arity_apply uacc ~use_id
+          result_arity apply
     in
     expr, user_data, uacc
 
@@ -730,6 +739,12 @@ and simplify_direct_partial_application
      of type class like thing. *)
   let args = Apply.args apply in
   let dbg = Apply.dbg apply in
+  let apply_continuation =
+    match Apply.continuation apply with
+    | Never_returns ->
+      Misc.fatal_error "cannot simplify a partial application that never returns"
+    | Return continuation -> continuation
+  in
   begin match Apply.inline apply with
   | Always_inline | Never_inline ->
     Location.prerr_warning (Debuginfo.to_location dbg)
@@ -791,7 +806,7 @@ and simplify_direct_partial_application
     let body =
       let full_application =
         Apply.create ~callee:(Apply.callee apply)
-          ~continuation:return_continuation
+          ~continuation:(Return return_continuation)
           exn_continuation
           ~args
           ~call_kind
@@ -859,7 +874,7 @@ and simplify_direct_partial_application
     Set_of_closures.create function_decls ~closure_elements, dacc
   in
   let apply_cont =
-    Apply_cont.create (Apply.continuation apply)
+    Apply_cont.create apply_continuation
       ~args:[Simple.var wrapper_var] ~dbg
   in
   let expr =
@@ -911,7 +926,7 @@ and simplify_direct_over_application
   in
   let full_apply =
     Apply.with_continuation_callee_and_args apply
-      after_full_application
+      (Return after_full_application)
       ~callee:(Apply.callee apply)
       ~args:full_app_args
   in
@@ -986,7 +1001,12 @@ and simplify_function_call_where_callee's_type_unavailable
     -> args:Simple.t list -> arg_types:T.t list
     -> 'a k -> Expr.t * 'a * UA.t
 = fun dacc apply (call : Call_kind.Function_call.t) ~args:_ ~arg_types k ->
-  let cont = Apply.continuation apply in
+  let cont =
+    match Apply.continuation apply with
+    | Never_returns ->
+      Misc.fatal_error "cannot simplify an application that never returns"
+    | Return continuation -> continuation
+  in
   let denv = DA.denv dacc in
   let typing_env_at_use = DE.typing_env denv in
   let dacc, exn_cont_use_id =
@@ -1015,7 +1035,7 @@ and simplify_function_call_where_callee's_type_unavailable
     match call with
     | Indirect_unknown_arity ->
       let dacc, use_id =
-        DA.record_continuation_use dacc (Apply.continuation apply) Non_inlinable
+        DA.record_continuation_use dacc cont Non_inlinable
           ~typing_env_at_use ~arg_types:[T.any_value ()]
       in
       Call_kind.indirect_function_call_unknown_arity (), use_id, dacc
@@ -1187,6 +1207,12 @@ and simplify_method_call
       K.print callee_kind
       T.print callee_ty
   end;
+  let apply_cont =
+    match Apply.continuation apply with
+    | Never_returns ->
+      Misc.fatal_error "cannot simplify a method call that never returns"
+    | Return continuation -> continuation
+  in
   let denv = DA.denv dacc in
   DE.check_simple_is_bound denv obj;
   let expected_arity = List.map (fun _ -> K.value) arg_types in
@@ -1197,7 +1223,7 @@ and simplify_method_call
       Apply.print apply
   end;
   let dacc, use_id =
-    DA.record_continuation_use dacc (Apply.continuation apply) Non_inlinable
+    DA.record_continuation_use dacc apply_cont Non_inlinable
       ~typing_env_at_use:(DE.typing_env denv)
       ~arg_types:[T.any_value ()]
   in
@@ -1254,9 +1280,16 @@ and simplify_c_call
   end;
 *)
   let dacc, use_id =
-    DA.record_continuation_use dacc (Apply.continuation apply) Non_inlinable
-      ~typing_env_at_use:(DA.typing_env dacc)
-      ~arg_types:(T.unknown_types_from_arity return_arity)
+    match Apply.continuation apply with
+    | Return apply_continuation ->
+      let dacc, use_id =
+        DA.record_continuation_use dacc apply_continuation Non_inlinable
+          ~typing_env_at_use:(DA.typing_env dacc)
+          ~arg_types:(T.unknown_types_from_arity return_arity)
+      in
+      dacc, Some use_id
+    | Never_returns ->
+      dacc, None
   in
   let dacc, exn_cont_use_id =
     (* CR mshinwell: Try to factor out these stanzas, here and above. *)
@@ -1275,8 +1308,12 @@ and simplify_c_call
       apply
   in
   let expr =
-    Simplify_common.add_wrapper_for_fixed_arity_apply uacc ~use_id
-      return_arity apply
+    match use_id with
+    | Some use_id ->
+      Simplify_common.add_wrapper_for_fixed_arity_apply uacc ~use_id
+        return_arity apply
+    | None ->
+      Expr.create_apply apply
   in
   expr, user_data, uacc
 

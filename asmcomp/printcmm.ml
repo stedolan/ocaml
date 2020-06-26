@@ -119,7 +119,7 @@ let trywith_kind ppf kind =
 
 let operation d = function
   | Capply _ty -> "app" ^ Debuginfo.to_string d
-  | Cextcall(lbl, _ty, _alloc, _) ->
+  | Cextcall { func = lbl; ty = _; alloc = _; label_after = _; returns = _; } ->
       Printf.sprintf "extcall \"%s\"%s" lbl (Debuginfo.to_string d)
   | Cload (c, Asttypes.Immutable) -> Printf.sprintf "load %s" (chunk c)
   | Cload (c, Asttypes.Mutable) -> Printf.sprintf "load_mut %s" (chunk c)
@@ -227,7 +227,8 @@ let rec expr ppf = function
       List.iter (fun e -> fprintf ppf "@ %a" expr e) el;
       begin match op with
       | Capply mty -> fprintf ppf "@ %a" machtype mty
-      | Cextcall(_, mty, _, _) -> fprintf ppf "@ %a" machtype mty
+      | Cextcall { func = _; ty = mty; alloc = _; label_after = _; returns = _; } ->
+        fprintf ppf "@ %a" machtype mty
       | _ -> ()
       end;
       fprintf ppf ")@]"

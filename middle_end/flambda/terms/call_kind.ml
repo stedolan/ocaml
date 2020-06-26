@@ -113,9 +113,13 @@ let invariant0 t =
   match t with
   | Function call -> Function_call.invariant call
   | Method { kind = _; obj = _; } -> ()
-  | C_call { alloc = _; param_arity; return_arity; } ->
+  | C_call { alloc = _; param_arity = _; return_arity = _; } ->
+    (* CR gbury: these were removed because there didn't seem to be any problem
+       with 0-arity c-calls
     check_arity param_arity;
-    check_arity return_arity
+    check_arity return_arity;
+    *)
+    ()
 
 let invariant _env t = invariant0 t
 

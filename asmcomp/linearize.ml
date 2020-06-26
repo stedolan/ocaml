@@ -158,7 +158,8 @@ let linear i n contains_calls =
   let rec linear env i n =
     match i.Mach.desc with
       Iend -> n
-    | Iop(Itailcall_ind _ | Itailcall_imm _ as op) ->
+    | Iop(Itailcall_ind _ | Itailcall_imm _ as op)
+    | Iop((Iextcall { returns = false; _ }) as op) ->
         if not Config.spacetime then
           copy_instr (Lop op) i (discard_dead_code n)
         else

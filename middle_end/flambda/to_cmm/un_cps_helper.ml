@@ -189,8 +189,10 @@ let load ?(dbg=Debuginfo.none) kind mut addr =
 let store ?(dbg=Debuginfo.none) kind init addr value =
   Cmm.Cop (Cmm.Cstore (kind, init), [addr; value], dbg)
 
-let extcall ?(dbg=Debuginfo.none) ?label ~alloc name typ_res args =
-  Cmm.Cop (Cextcall (name, typ_res, alloc, label), args, dbg)
+let extcall ?(dbg=Debuginfo.none) ?label ~returns ~alloc name typ_res args =
+  if not returns then assert (typ_res = Cmm.typ_void);
+  Cmm.Cop (Cextcall  { func = name; ty = typ_res;
+                       alloc; label_after = label; returns; }, args, dbg)
 
 
 (* Arithmetic helpers *)
@@ -236,7 +238,7 @@ let make_array ?(dbg=Debuginfo.none) kind args =
       begin match args with
       | [] -> static_atom ~dbg 0
       | _ ->
-          extcall ~dbg ~alloc:true
+          extcall ~dbg ~alloc:true ~returns:true
             "caml_make_array" Cmm.typ_val
             [make_alloc dbg 0 args]
       end
@@ -342,13 +344,13 @@ let string_like_load_aux ~dbg kind width block ptr idx =
       if arch32 then
         begin match (kind : Flambda_primitive.string_like_value) with
         | String ->
-            extcall ~alloc:false
+            extcall ~alloc:false ~returns:true
               "caml_string_get_64" typ_int64 [block; idx]
         | Bytes ->
-            extcall ~alloc:false
+            extcall ~alloc:false ~returns:true
               "caml_bytes_get_64" typ_int64 [block; idx]
         | Bigstring ->
-            extcall ~alloc:false
+            extcall ~alloc:false ~returns:true
               "caml_ba_uint8_get64" typ_int64 [block; idx]
         end
       else begin
@@ -382,10 +384,10 @@ let bytes_like_set_aux ~dbg kind width block ptr idx value =
       if arch32 then
         begin match (kind : Flambda_primitive.bytes_like_value) with
         | Bytes ->
-            extcall ~alloc:false
+            extcall ~alloc:false ~returns:true
               "caml_bytes_set_64" typ_int64 [block; idx; value]
         | Bigstring ->
-            extcall ~alloc:false
+            extcall ~alloc:false ~returns:true
               "caml_ba_uint8_set64" typ_int64 [block; idx; value]
         end
       else begin
