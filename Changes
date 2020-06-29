@@ -74,6 +74,9 @@ Working version
   areas in the page table, subsumed by the new code fragment management API
   (Xavier Leroy, review by Jacques-Henri Jourdan)
 
+- #1128, ??: EINTR-based signals
+  (Stephen Dolan, review by ??)
+
 ### Code generation and optimizations:
 
 - #9620: Limit the number of parameters for an uncurried or untupled
