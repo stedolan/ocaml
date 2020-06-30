@@ -830,6 +830,8 @@ let effects_and_coeffects_of_unary_primitive p =
     reading_from_a_block Mutable
   | Unbox_number _ ->
     Effects.No_effects, Coeffects.No_coeffects
+  | Box_number Untagged_immediate ->
+    Effects.No_effects, Coeffects.No_coeffects
   | Box_number _ ->
     Effects.Only_generative_effects Immutable, Coeffects.No_coeffects
   | Select_closure _
