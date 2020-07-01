@@ -22,10 +22,10 @@ open! Simplify_import
    simplification of sets of closures, taking the used-var-in-closures
    set from the previous round. *)
 
-let function_decl_type denv function_decl ?code_id rec_info =
+let function_decl_type denv function_decl ?code_id ?params_and_body rec_info =
   let decision =
     Inlining_decision.make_decision_for_function_declaration
-      denv function_decl
+      denv ?params_and_body function_decl
   in
   let code_id = Option.value code_id ~default:(FD.code_id function_decl) in
   if Inlining_decision.Function_declaration_decision.can_inline decision then
@@ -406,9 +406,9 @@ let simplify_function context r closure_id function_decl
     let function_decl = FD.update_code_id function_decl new_code_id in
     let function_type =
       (* We need to use [dacc_after_body] to ensure that all [code_ids] in
-         [function_decl] are available for the inlining decision code. *)
+         [params_and_body] are available for the inlining decision code. *)
       function_decl_type (DA.denv dacc_after_body) function_decl
-        Rec_info.initial
+        ~params_and_body Rec_info.initial
     in
     let code_age_relation =
       TE.code_age_relation (DA.typing_env dacc_after_body)

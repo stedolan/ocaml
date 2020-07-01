@@ -30,6 +30,7 @@ end
 
 val make_decision_for_function_declaration
    : Simplify_env_and_result.Downwards_env.t
+  -> ?params_and_body:Function_params_and_body.t
   -> Function_declaration.t
   -> Function_declaration_decision.t
 

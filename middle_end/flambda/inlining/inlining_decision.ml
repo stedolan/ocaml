@@ -45,7 +45,7 @@ module Function_declaration_decision = struct
     | Inline -> true
 end
 
-let make_decision_for_function_declaration denv function_decl
+let make_decision_for_function_declaration denv ?params_and_body function_decl
       : Function_declaration_decision.t =
   (* At present, we follow Closure, taking inlining decisions without
      first examining call sites. *)
@@ -56,7 +56,12 @@ let make_decision_for_function_declaration denv function_decl
     if Function_declaration.stub function_decl then Stub
     else
       let code_id = Function_declaration.code_id function_decl in
-      let params_and_body = DE.find_code denv code_id in
+      let params_and_body =
+        match params_and_body with
+        | None ->
+          DE.find_code denv code_id
+        | Some params_and_body -> params_and_body
+      in
       Function_params_and_body.pattern_match params_and_body
         ~f:(fun ~return_continuation:_ _exn_continuation _params ~body
                 ~my_closure:_ : Function_declaration_decision.t ->
