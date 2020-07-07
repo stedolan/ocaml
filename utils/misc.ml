@@ -368,6 +368,14 @@ module Stdlib = struct
       | a1::l1, a2::l2, a3::l3, a4::l4 ->
         fold_left4 f (f accu a1 a2 a3 a4) l1 l2 l3 l4
       | _, _, _, _ -> invalid_arg "List.fold_left4"
+
+    let rec map_sharing f l0 =
+      match l0 with
+      | a::l ->
+        let a' = f a in
+        let l' = map_sharing f l in
+        if a' == a && l' == l then l0 else a' :: l'
+      | [] -> []
   end
 
   module Option = struct
@@ -866,6 +874,18 @@ let pp_two_columns ?(sep = "|") ?max_lines ppf (lines: (string * string) list) =
     else Format.fprintf ppf "%*s %s %s@," left_column_size line_l sep line_r
   ) lines;
   Format.fprintf ppf "@]"
+
+let print_assoc print_key print_datum ppf l =
+  if l = [] then
+    Format.fprintf ppf "{}"
+  else
+    Format.fprintf ppf "@[<hov 1>{%a}@]"
+      (Format.pp_print_list ~pp_sep:Format.pp_print_space
+        (fun ppf (key, datum) ->
+          Format.fprintf ppf "@[<hov 1>(%a@ %a)@]"
+            print_key key print_datum datum))
+      l
+
 
 (* showing configuration and configuration variables *)
 let show_config_and_exit () =

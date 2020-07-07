@@ -217,20 +217,20 @@ end
 
 module Code_and_set_of_closures = struct
   type t = {
-    code : Code.t Code_id.Map.t;
+    code : Code.t Code_id.Lmap.t;
     set_of_closures : Set_of_closures.t;
   }
 
   let print_with_cache ~cache ppf { code; set_of_closures; } =
     if Set_of_closures.is_empty set_of_closures then
-      match Code_id.Map.get_singleton code with
+      match Code_id.Lmap.get_singleton code with
       | None ->
         fprintf ppf "@[<hov 1>(@<0>%sCode@<0>%s@ (\
             @[<hov 1>%a@]\
             ))@]"
           (Flambda_colours.static_part ())
           (Flambda_colours.normal ())
-          (Code_id.Map.print (Code.print_with_cache ~cache)) code
+          (Code_id.Lmap.print (Code.print_with_cache ~cache)) code
       | Some (_code_id, code) ->
         fprintf ppf "@[<hov 1>(@<0>%sCode@<0>%s@ (\
             @[<hov 1>%a@]\
@@ -245,20 +245,22 @@ module Code_and_set_of_closures = struct
           ))@]"
         (Flambda_colours.static_part ())
         (Flambda_colours.normal ())
-        (Code_id.Map.print (Code.print_with_cache ~cache)) code
+        (Code_id.Lmap.print (Code.print_with_cache ~cache)) code
         (Set_of_closures.print_with_cache ~cache) set_of_closures
 
   let compare { code = code1; set_of_closures = set1; }
         { code = code2; set_of_closures = set2; } =
     let c =
-      Code_id.Set.compare (Code_id.Map.keys code1)
-        (Code_id.Map.keys code2)
+      let id_set code =
+        Code_id.Set.of_list (Code_id.Lmap.keys code)
+      in
+      Code_id.Set.compare (id_set code1) (id_set code2)
     in
     if c <> 0 then c
     else Set_of_closures.compare set1 set2
 
   let free_names { code; set_of_closures; } =
-    Code_id.Map.fold (fun _code_id code free_names ->
+    Code_id.Lmap.fold (fun _code_id code free_names ->
         Name_occurrences.union_list [
           (* [code_id] does not count as a free name. *)
           Code.free_names code;
@@ -269,7 +271,7 @@ module Code_and_set_of_closures = struct
 
   let apply_name_permutation ({ code; set_of_closures; } as t) perm =
     let code' =
-      Code_id.Map.map_sharing
+      Code_id.Lmap.map_sharing
         (fun code -> Code.apply_name_permutation code perm)
         code
     in
@@ -290,7 +292,7 @@ module Code_and_set_of_closures = struct
     let set_of_closures_ids =
       Set_of_closures.all_ids_for_export set_of_closures
     in
-    Code_id.Map.fold (fun code_id code ids ->
+    Code_id.Lmap.fold (fun code_id code ids ->
         Ids_for_export.union ids
           (Ids_for_export.add_code_id (Code.all_ids_for_export code) code_id))
       code
@@ -298,12 +300,12 @@ module Code_and_set_of_closures = struct
 
   let import import_map { code; set_of_closures; } =
     let code =
-      Code_id.Map.fold (fun code_id code all_code ->
+      Code_id.Lmap.bindings code
+      |> List.map (fun (code_id, code) ->
           let code_id = Ids_for_export.Import_map.code_id import_map code_id in
           let code = Code.import import_map code in
-          Code_id.Map.add code_id code all_code)
-        code
-        Code_id.Map.empty
+          code_id, code)
+      |> Code_id.Lmap.of_list
     in
     let set_of_closures =
       Set_of_closures.import import_map set_of_closures
@@ -311,7 +313,7 @@ module Code_and_set_of_closures = struct
     { code; set_of_closures; }
 
   let map_code t ~f =
-    { code = Code_id.Map.mapi f t.code;
+    { code = Code_id.Lmap.mapi f t.code;
       set_of_closures = t.set_of_closures;
     }
 end
@@ -456,12 +458,11 @@ end)
 let get_pieces_of_code t =
   match t with
   | Sets_of_closures sets ->
-    List.fold_left
-      (fun result
-           ({ code; set_of_closures = _; } : Code_and_set_of_closures.t) ->
-        Code_id.Map.disjoint_union code result)
-      Code_id.Map.empty
-      sets
+    Code_id.Lmap.disjoint_union_many
+      (List.map
+        (fun ({ code; set_of_closures = _; } : Code_and_set_of_closures.t) ->
+          code)
+        sets)
   | Block _
   | Boxed_float _
   | Boxed_int32 _
@@ -470,10 +471,10 @@ let get_pieces_of_code t =
   | Immutable_float_block _
   | Immutable_float_array _
   | Mutable_string _
-  | Immutable_string _ -> Code_id.Map.empty
+  | Immutable_string _ -> Code_id.Lmap.empty
 
 let get_pieces_of_code' t =
-  Code_id.Map.filter_map (get_pieces_of_code t)
+  Code_id.Lmap.filter_map (get_pieces_of_code t)
     ~f:(fun _ code ->
       match code.Code.params_and_body with
       | Deleted -> None

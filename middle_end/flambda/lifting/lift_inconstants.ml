@@ -65,7 +65,7 @@ let lift_set_of_closures_discovered_via_reified_continuation_param_types dacc
   let module I = T.Function_declaration_type.Inlinable in
   let set_of_closures =
     let function_decls =
-      Closure_id.Map.map (fun inlinable ->
+      Closure_id.Lmap.map (fun inlinable ->
         Function_declaration.create ~code_id:(I.code_id inlinable)
           ~params_arity:(I.param_arity inlinable)
           ~result_arity:(I.result_arity inlinable)
@@ -79,10 +79,10 @@ let lift_set_of_closures_discovered_via_reified_continuation_param_types dacc
     in
     Set_of_closures.create function_decls ~closure_elements:closure_vars
   in
-  let bind_continuation_param_to_symbol dacc ~closure_symbols =
+  let bind_continuation_param_to_symbol dacc ~closure_symbol_map =
     let dacc, symbol =
       DA.map_denv2 dacc ~f:(fun denv ->
-        match Closure_id.Map.find closure_id closure_symbols with
+        match Closure_id.Map.find closure_id closure_symbol_map with
         | exception Not_found ->
           Misc.fatal_errorf "Variable %a claimed to hold closure with \
               closure ID %a, but no symbol was found for that closure ID"
@@ -100,7 +100,7 @@ let lift_set_of_closures_discovered_via_reified_continuation_param_types dacc
   match Set_of_closures.Map.find set_of_closures closure_symbols_by_set with
   | exception Not_found ->
     let closure_symbols =
-      Closure_id.Map.mapi (fun closure_id _function_decl ->
+      Closure_id.Lmap.mapi (fun closure_id _function_decl ->
           (* CR mshinwell: share name computation with
              [Simplify_named] *)
           let name =
@@ -114,7 +114,7 @@ let lift_set_of_closures_discovered_via_reified_continuation_param_types dacc
     in
     let dacc =
       DA.map_denv dacc ~f:(fun denv ->
-        Closure_id.Map.fold (fun _closure_id closure_symbol denv ->
+        Closure_id.Lmap.fold (fun _closure_id closure_symbol denv ->
             DE.define_symbol denv closure_symbol K.value)
           closure_symbols
           denv)
@@ -131,7 +131,7 @@ let lift_set_of_closures_discovered_via_reified_continuation_param_types dacc
       Let_symbol.pieces_of_code
         ~newer_versions_of:Code_id.Map.empty
         ~set_of_closures:(closure_symbols, set_of_closures)
-        Code_id.Map.empty
+        Code_id.Lmap.empty
     in
     (* This reification process will result in [Let_symbol] bindings containing
        closure symbol definitions but no code.  The code will be simplified
@@ -173,18 +173,22 @@ let lift_set_of_closures_discovered_via_reified_continuation_param_types dacc
     let reified_definitions =
       (fst definition, snd definition, extra_deps) :: reified_definitions
     in
+    let closure_symbol_map =
+      Closure_id.Lmap.bindings closure_symbols
+      |> Closure_id.Map.of_list
+    in
     let closure_symbols_by_set =
-      Set_of_closures.Map.add set_of_closures closure_symbols
+      Set_of_closures.Map.add set_of_closures closure_symbol_map
         closure_symbols_by_set
     in
     let dacc, reified_continuation_params_to_symbols =
-      bind_continuation_param_to_symbol dacc ~closure_symbols
+      bind_continuation_param_to_symbol dacc ~closure_symbol_map
     in
     dacc, reified_continuation_params_to_symbols, reified_definitions,
       closure_symbols_by_set
-  | closure_symbols ->
+  | closure_symbol_map ->
     let dacc, reified_continuation_params_to_symbols =
-      bind_continuation_param_to_symbol dacc ~closure_symbols
+      bind_continuation_param_to_symbol dacc ~closure_symbol_map
     in
     dacc, reified_continuation_params_to_symbols, reified_definitions,
       closure_symbols_by_set
@@ -261,6 +265,11 @@ let reify_types_of_continuation_param_types dacc ~params =
             dacc, reified_continuation_params_to_symbols, reified_definitions,
               closure_symbols_by_set
           else
+            (* CR lmaurer: function_decls has arbitrary order *)
+            let function_decls =
+              Closure_id.Map.bindings function_decls
+              |> Closure_id.Lmap.of_list
+            in
             lift_set_of_closures_discovered_via_reified_continuation_param_types
               dacc var closure_id function_decls ~closure_vars
               ~reified_continuation_params_to_symbols

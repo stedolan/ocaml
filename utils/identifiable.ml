@@ -172,15 +172,7 @@ module Make_map (T : Thing) (Set : Set with module T := T) = struct
     of_list (List.map (fun (k, v) -> f k, v) (bindings m))
 
   let print print_datum ppf t =
-    if is_empty t then
-      Format.fprintf ppf "{}"
-    else
-      Format.fprintf ppf "@[<hov 1>{%a}@]"
-        (Format.pp_print_list ~pp_sep:Format.pp_print_space
-          (fun ppf (key, datum) ->
-            Format.fprintf ppf "@[<hov 1>(%a@ %a)@]"
-              T.print key print_datum datum))
-        (bindings t)
+    Misc.print_assoc T.print print_datum ppf (bindings t)
 
   let keys map = fold (fun k _ set -> Set.add k set) map Set.empty
 

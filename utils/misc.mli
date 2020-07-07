@@ -150,6 +150,10 @@ module Stdlib : sig
       -> 'd list
       -> 'e list
       -> 'a
+
+    val map_sharing : ('a -> 'a) -> 'a t -> 'a t
+    (** Returns the original list if the function always returns a value
+        physically equal to its argument *)
   end
 
   module Option : sig
@@ -472,6 +476,11 @@ val pp_two_columns :
     bb  | dddddd
     v}
 *)
+
+(** Format an association list as a sequence of key-value pairs. *)
+val print_assoc :
+  (Format.formatter -> 'a -> unit) -> (Format.formatter -> 'b -> unit) ->
+  Format.formatter -> ('a * 'b) list -> unit
 
 (** configuration variables *)
 val show_config_and_exit : unit -> unit

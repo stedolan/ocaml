@@ -98,7 +98,8 @@ UTILS=utils/config.cmo utils/build_path_prefix_map.cmo utils/misc.cmo \
 	utils/consistbl.cmo utils/strongly_connected_components.cmo \
 	utils/one_bit_fewer.cmo \
 	utils/targetint.cmo utils/int_replace_polymorphic_compare.cmo \
-	utils/domainstate.cmo utils/printing_cache.cmo
+	utils/domainstate.cmo utils/printing_cache.cmo \
+	utils/lmap.cmo
 
 PARSING=parsing/location.cmo parsing/longident.cmo \
   parsing/docstrings.cmo parsing/syntaxerr.cmo \

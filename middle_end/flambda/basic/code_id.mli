@@ -19,6 +19,8 @@
 include Identifiable.S
 type exported
 
+module Lmap : Lmap.S with type key = t
+
 val initialise : unit -> unit
 
 val create : name:string -> Compilation_unit.t -> t

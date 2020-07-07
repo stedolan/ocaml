@@ -53,7 +53,7 @@
    config build_path_prefix_map misc identifiable numbers arg_helper clflags
    profile terminfo ccomp warnings consistbl strongly_connected_components
    one_bit_fewer targetint load_path
-   int_replace_polymorphic_compare printing_cache
+   int_replace_polymorphic_compare printing_cache lmap
    ; manual update: mli only files
    targetint_intf
 

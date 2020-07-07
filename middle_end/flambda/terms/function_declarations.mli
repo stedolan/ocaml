@@ -44,13 +44,16 @@ val empty : t
 
 val is_empty : t -> bool
 
-(** Create a set of function declarations given the individual
-    declarations. *)
-val create : Function_declaration.t Closure_id.Map.t -> t
+(** Create a set of function declarations in the given order. *)
+val create : Function_declaration.t Closure_id.Lmap.t -> t
 
 (** The function(s) defined by the set of function declarations, indexed
     by closure ID. *)
 val funs : t -> Function_declaration.t Closure_id.Map.t
+
+(** The function(s) defined by the set of function declarations, in the order
+    originally given. *)
+val funs_in_order : t -> Function_declaration.t Closure_id.Lmap.t
 
 (** [find f t] raises [Not_found] if [f] is not in [t]. *)
 val find : t -> Closure_id.t -> Function_declaration.t

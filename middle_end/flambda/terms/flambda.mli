@@ -228,7 +228,7 @@ end and Let_symbol_expr : sig
     module Code_and_set_of_closures : sig
       type t = {
         code_ids : Code_id.Set.t;
-        closure_symbols : Symbol.t Closure_id.Map.t;
+        closure_symbols : Symbol.t Closure_id.Lmap.t
       }
 
       val print : Format.formatter -> t -> unit
@@ -288,8 +288,8 @@ end and Let_symbol_expr : sig
       version of [id2]. *)
   val pieces_of_code
      : ?newer_versions_of:Code_id.t Code_id.Map.t
-    -> ?set_of_closures:(Symbol.t Closure_id.Map.t * Set_of_closures.t)
-    -> Function_params_and_body.t Code_id.Map.t
+    -> ?set_of_closures:(Symbol.t Closure_id.Lmap.t * Set_of_closures.t)
+    -> Function_params_and_body.t Code_id.Lmap.t
     -> Bound_symbols.t * Static_const.t
 
   val deleted_pieces_of_code
@@ -614,7 +614,7 @@ end and Static_const : sig
       set of closures. *)
   module Code_and_set_of_closures : sig
     type t = {
-      code : Code.t Code_id.Map.t;
+      code : Code.t Code_id.Lmap.t;
       (* CR mshinwell: Check the free names of the set of closures *)
       set_of_closures : Set_of_closures.t;
     }
@@ -643,9 +643,9 @@ end and Static_const : sig
   include Identifiable.S with type t := t
   include Contains_names.S with type t := t
 
-  val get_pieces_of_code : t -> Static_const.Code.t Code_id.Map.t
+  val get_pieces_of_code : t -> Code.t Code_id.Lmap.t
 
-  val get_pieces_of_code' : t -> Function_params_and_body.t Code_id.Map.t
+  val get_pieces_of_code' : t -> Function_params_and_body.t Code_id.Lmap.t
 
   (** Returns [true] iff the given term does not contain any variables,
       which means that the corresponding value can be statically allocated,

@@ -57,6 +57,11 @@ end)
 
 include Self
 
+module Lmap = Lmap.Make(struct
+  type nonrec t = t
+  include Self
+end)
+
 let next_stamp = ref 0
 
 let get_next_stamp () =

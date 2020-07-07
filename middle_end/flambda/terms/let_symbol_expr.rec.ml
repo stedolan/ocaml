@@ -20,7 +20,7 @@ module Bound_symbols = struct
   module Code_and_set_of_closures = struct
     type t = {
       code_ids : Code_id.Set.t;
-      closure_symbols : Symbol.t Closure_id.Map.t;
+      closure_symbols : Symbol.t Closure_id.Lmap.t
     }
 
     (* CR mshinwell: Share with [Bindable_let_bound] and below *)
@@ -33,7 +33,8 @@ module Bound_symbols = struct
 
     let print ppf { code_ids; closure_symbols; } =
       match
-        Code_id.Set.elements code_ids, Closure_id.Map.bindings closure_symbols
+        Code_id.Set.elements code_ids,
+        Closure_id.Lmap.bindings closure_symbols
       with
       | [code_id], [] ->
         Format.fprintf ppf "%a" Code_id.print code_id
@@ -50,10 +51,10 @@ module Bound_symbols = struct
           Code_id.Set.print code_ids
           (Format.pp_print_list ~pp_sep:Format.pp_print_space
             print_closure_binding)
-          (Closure_id.Map.bindings closure_symbols)
+          (Closure_id.Lmap.bindings closure_symbols)
 
     let being_defined { code_ids = _; closure_symbols; } =
-      Closure_id.Map.fold (fun _closure_id symbol being_defined ->
+      Closure_id.Lmap.fold (fun _closure_id symbol being_defined ->
           Symbol.Set.add symbol being_defined)
         closure_symbols
         Symbol.Set.empty
@@ -69,14 +70,14 @@ module Bound_symbols = struct
           code_ids
           Name_occurrences.empty
       in
-      Closure_id.Map.fold (fun _closure_id closure_sym bound_names ->
+      Closure_id.Lmap.fold (fun _closure_id closure_sym bound_names ->
           Name_occurrences.add_symbol bound_names closure_sym Name_mode.normal)
         closure_symbols
         from_code_ids
 
     let all_ids_for_export { code_ids; closure_symbols; } =
       let symbols =
-        Closure_id.Map.fold (fun _closure_id sym symbols ->
+        Closure_id.Lmap.fold (fun _closure_id sym symbols ->
             Symbol.Set.add sym symbols)
           closure_symbols
           Symbol.Set.empty
@@ -88,7 +89,7 @@ module Bound_symbols = struct
         Code_id.Set.map (Ids_for_export.Import_map.code_id import_map) code_ids
       in
       let closure_symbols =
-        Closure_id.Map.map (Ids_for_export.Import_map.symbol import_map)
+        Closure_id.Lmap.map (Ids_for_export.Import_map.symbol import_map)
           closure_symbols
       in
       { code_ids; closure_symbols; }
@@ -117,7 +118,13 @@ module Bound_symbols = struct
   (* CR mshinwell: This should have an [invariant] function.  One thing to
      check is that the [closure_symbols] are all distinct. *)
 
-  let invariant _ _ = ()
+  let invariant _ t =
+    match t with
+    | Singleton _ -> ()
+    | Sets_of_closures sets ->
+      List.iter (fun { Code_and_set_of_closures.closure_symbols; _ } ->
+        Closure_id.Lmap.invariant closure_symbols
+      ) sets
 
   let being_defined t =
     match t with
@@ -218,7 +225,7 @@ let body t = t.body
 
 type flattened_for_printing_descr =
   | Code of Code_id.t * Static_const.Code.t
-  | Set_of_closures of Symbol.t Closure_id.Map.t * Set_of_closures.t
+  | Set_of_closures of Symbol.t Closure_id.Lmap.t * Set_of_closures.t
   | Other of Symbol.t * Static_const.t
 
 type flattened_for_printing = {
@@ -253,7 +260,7 @@ let flatten_for_printing { scoping_rule; bound_symbols; defining_expr; _ } =
              ({ code; set_of_closures; }
                 : Static_const.Code_and_set_of_closures.t) ->
           let flattened, _ =
-            Code_id.Map.fold (fun code_id code (flattened', first) ->
+            Code_id.Lmap.fold (fun code_id code (flattened', first) ->
                 let flattened =
                   { second_or_later_binding_within_one_set = not first;
                     second_or_later_set_of_closures;
@@ -269,7 +276,7 @@ let flatten_for_printing { scoping_rule; bound_symbols; defining_expr; _ } =
             if Set_of_closures.is_empty set_of_closures then []
             else
               let second_or_later_binding_within_one_set =
-                not (Code_id.Map.is_empty code)
+                not (Code_id.Lmap.is_empty code)
               in
               [{ second_or_later_binding_within_one_set;
                  second_or_later_set_of_closures;
@@ -305,7 +312,7 @@ let print_flattened_descr_lhs ppf descr =
             (Flambda_colours.elide ())
             (Flambda_colours.normal ()))
         print_closure_binding)
-      (Closure_id.Map.bindings closure_symbols)
+      (Closure_id.Lmap.bindings closure_symbols)
   | Other (symbol, _) -> Symbol.print ppf symbol
 
 (* CR mshinwell: Use [print_with_cache]? *)
@@ -386,8 +393,9 @@ let print_with_cache ~cache ppf t =
 let print ppf t = print_with_cache ~cache:(Printing_cache.create ()) ppf t
 
 let invariant env
-      { scoping_rule = _; bound_symbols = _; defining_expr = _; body; } =
+      { scoping_rule = _; bound_symbols; defining_expr = _; body; } =
   (* Static_const.invariant env defining_expr; *) (* CR mshinwell: FIXME *)
+  Bound_symbols.invariant env bound_symbols;
   Expr.invariant env body
 
 let free_names { scoping_rule = _; bound_symbols; defining_expr; body; } =
@@ -435,7 +443,7 @@ let pieces_of_code ?newer_versions_of ?set_of_closures code =
     Option.value newer_versions_of ~default:Code_id.Map.empty
   in
   let code =
-    Code_id.Map.mapi (fun id params_and_body : Static_const.Code.t ->
+    Code_id.Lmap.mapi (fun id params_and_body : Static_const.Code.t ->
         let newer_version_of =
           Code_id.Map.find_opt id newer_versions_of
         in
@@ -446,7 +454,7 @@ let pieces_of_code ?newer_versions_of ?set_of_closures code =
   in
   let closure_symbols, set_of_closures =
     Option.value set_of_closures
-      ~default:(Closure_id.Map.empty, Set_of_closures.empty)
+      ~default:(Closure_id.Lmap.empty, Set_of_closures.empty)
   in
   let static_const : Static_const.t =
     Sets_of_closures [{
@@ -456,7 +464,7 @@ let pieces_of_code ?newer_versions_of ?set_of_closures code =
   in
   let bound_symbols : Bound_symbols.t =
     Sets_of_closures [{
-      code_ids = Code_id.Map.keys code;
+      code_ids = Code_id.Lmap.keys code |> Code_id.Set.of_list;
       closure_symbols;
     }]
   in
@@ -476,9 +484,9 @@ let deleted_pieces_of_code ?newer_versions_of code_ids =
             newer_version_of;
           }
         in
-        Code_id.Map.add id code code_map)
+        Code_id.Lmap.add id code code_map)
       code_ids
-      Code_id.Map.empty
+      Code_id.Lmap.empty
   in
   let static_const : Static_const.t =
     Sets_of_closures [{
@@ -488,8 +496,8 @@ let deleted_pieces_of_code ?newer_versions_of code_ids =
   in
   let bound_symbols : Bound_symbols.t =
     Sets_of_closures [{
-      code_ids = Code_id.Map.keys code;
-      closure_symbols = Closure_id.Map.empty;
+      code_ids = Code_id.Lmap.keys code |> Code_id.Set.of_list;
+      closure_symbols = Closure_id.Lmap.empty;
     }]
   in
   bound_symbols, static_const

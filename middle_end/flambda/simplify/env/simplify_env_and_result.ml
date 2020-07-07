@@ -456,7 +456,7 @@ end = struct
     in
     List.fold_left (fun denv lifted_constant ->
         let defining_expr = LC.defining_expr lifted_constant in
-        Code_id.Map.fold
+        Code_id.Lmap.fold
           (fun code_id
                ({ params_and_body; newer_version_of; } : Static_const.Code.t)
                denv ->
@@ -804,7 +804,7 @@ end = struct
       | Some older -> Some (Code_id.Map.singleton code_id older)
     in
     create_pieces_of_code denv ?newer_versions_of
-      (Code_id.Map.singleton code_id params_and_body)
+      (Code_id.Lmap.singleton code_id params_and_body)
 
   let create_deleted_piece_of_code denv ?newer_versions_of code_id =
     let bound_symbols, defining_expr =

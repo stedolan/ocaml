@@ -18,12 +18,11 @@
 
 (** The form of expression that binds symbols to statically-allocated
     constants. *)
-
 module Bound_symbols : sig
   module Code_and_set_of_closures : sig
     type t = {
       code_ids : Code_id.Set.t;
-      closure_symbols : Symbol.t Closure_id.Map.t;
+      closure_symbols : Symbol.t Closure_id.Lmap.t;
       (* CR mshinwell: keep a separate field for the symbols being defined? *)
     }
 
@@ -81,8 +80,8 @@ include Contains_ids.S with type t := t
     version of [id2]. *)
 val pieces_of_code
    : ?newer_versions_of:Code_id.t Code_id.Map.t
-  -> ?set_of_closures:(Symbol.t Closure_id.Map.t * Set_of_closures.t)
-  -> Function_params_and_body.t Code_id.Map.t
+  -> ?set_of_closures:(Symbol.t Closure_id.Lmap.t * Set_of_closures.t)
+  -> Function_params_and_body.t Code_id.Lmap.t
   -> Bound_symbols.t * Static_const.t
 
 val deleted_pieces_of_code

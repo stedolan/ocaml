@@ -297,7 +297,9 @@ let create_let_symbol0 r code_age_relation (bound_symbols : Bound_symbols.t)
       in
       let r =
         R.remember_code_for_cmx r
-          (Static_const.get_pieces_of_code' static_const)
+          (Static_const.get_pieces_of_code' static_const
+           |> Code_id.Lmap.bindings
+           |> Code_id.Map.of_list)
       in
       expr, r
 
@@ -348,6 +350,8 @@ let create_let_symbol r (scoping_rule : Let_symbol.Scoping_rule.t)
     in
     let r =
       R.remember_code_for_cmx r
-        (Static_const.get_pieces_of_code' static_const)
+        (Static_const.get_pieces_of_code' static_const
+         |> Code_id.Lmap.bindings
+         |> Code_id.Map.of_list)
     in
     expr, r

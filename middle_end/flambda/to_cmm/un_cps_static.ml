@@ -247,7 +247,7 @@ and fill_static_up_to j acc i =
   else fill_static_up_to j (C.cint 1n :: acc) (i + 1)
 
 let update_env_for_set_of_closure env { SCCSC.code; set_of_closures = _; } =
-  Code_id.Map.fold
+  Code_id.Lmap.fold
     (fun code_id SC.Code.({ params_and_body = p; newer_version_of; }) env ->
        (* Check scope of the closure id *)
        let env =
@@ -280,13 +280,17 @@ let add_functions
     | Deleted -> r
     | Present p -> add_function env r ~params_and_body code_id p
   in
-  Code_id.Map.fold aux code r
+  Code_id.Lmap.fold aux code r
 
 let preallocate_set_of_closures
     (r, updates, env)
     { BSCSC.code_ids = _; closure_symbols; }
     { SCCSC.code = _; set_of_closures; } =
   let env, data, updates =
+    let closure_symbols =
+      closure_symbols |> Closure_id.Lmap.bindings
+      |> Closure_id.Map.of_list
+    in
     static_set_of_closures env closure_symbols set_of_closures updates
   in
   let r = R.set_data r data in

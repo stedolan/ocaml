@@ -27,6 +27,8 @@
 
 include Identifiable.S
 
+module Lmap : Lmap.S with type key = t
+
 val wrap : Compilation_unit.t -> Variable.t -> t
 
 val unwrap : t -> Variable.t

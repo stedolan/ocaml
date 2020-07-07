@@ -914,7 +914,7 @@ and simplify_direct_partial_application
     in
     let function_decls =
       Function_declarations.create
-        (Closure_id.Map.singleton wrapper_closure_id function_decl)
+        (Closure_id.Lmap.singleton wrapper_closure_id function_decl)
     in
     let closure_elements =
       Var_within_closure.Map.of_list applied_args_with_closure_vars
