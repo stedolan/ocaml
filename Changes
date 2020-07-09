@@ -523,6 +523,10 @@ OCaml 4.10.0 (21 February 2020)
 - #9261: Fix a soundness bug in Rec_check, new in 4.10 (from #8908)
   (Vincent Laviron, review by Jeremy Yallop and Gabriel Scherer)
 
+- #9736, #9749: Compaction must start in a heap where all free blocks are
+  blue, which was not the case with the best-fit allocator.
+  (Damien Doligez, report by Leo White, review by Leo White)
+
 OCaml 4.09 maintenance branch:
 ------------------------------
 
