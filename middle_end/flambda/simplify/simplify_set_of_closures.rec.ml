@@ -472,10 +472,9 @@ let simplify_set_of_closures0 dacc context set_of_closures
           UA.lifted_constants_still_to_be_placed uacc_after_upwards_traversal
         in
         let result_function_decls_in_set =
-          Closure_id.Lmap.add closure_id function_decl
-            result_function_decls_in_set
+          (closure_id, function_decl) :: result_function_decls_in_set
         in
-        let code = Code_id.Lmap.add new_code_id params_and_body code in
+        let code = (new_code_id, params_and_body) :: code in
         let fun_types = Closure_id.Map.add closure_id function_type fun_types in
         let lifted_consts_prev_functions =
           LCS.union lifted_consts_this_function lifted_consts_prev_functions
@@ -488,7 +487,7 @@ let simplify_set_of_closures0 dacc context set_of_closures
           UA.shareable_constants uacc_after_upwards_traversal,
           lifted_consts_prev_functions)
       all_function_decls_in_set
-      (Closure_id.Lmap.empty, Code_id.Lmap.empty, Closure_id.Map.empty,
+      ([], [], Closure_id.Map.empty,
         TE.code_age_relation (DA.typing_env dacc),
         DA.used_closure_vars dacc, DA.shareable_constants dacc, LCS.empty)
   in
@@ -497,6 +496,10 @@ let simplify_set_of_closures0 dacc context set_of_closures
     |> DA.with_used_closure_vars ~used_closure_vars
     |> DA.with_shareable_constants ~shareable_constants
   in
+  let all_function_decls_in_set =
+    Closure_id.Lmap.of_list (List.rev all_function_decls_in_set)
+  in
+  let code = Code_id.Lmap.of_list (List.rev code) in
   let closure_types_by_bound_name =
     let closure_types_via_aliases =
       Closure_id.Map.map (fun name ->
@@ -783,12 +786,17 @@ let simplify_non_lifted_set_of_closures dacc
   let min_name_mode =
     Bindable_let_bound.name_mode bound_vars
   in
-  let closure_bound_vars_inverse =
-    Closure_id.Map.fold (fun closure_id var closure_bound_vars_inverse ->
+  let closure_bound_vars, closure_bound_vars_inverse =
+    List.fold_left2 (
+      fun (closure_bound_vars, closure_bound_vars_inverse) closure_id var ->
+        Closure_id.Map.add closure_id var closure_bound_vars,
         Variable.Map.add (Var_in_binding_pos.var var) closure_id
           closure_bound_vars_inverse)
+      (Closure_id.Map.empty, Variable.Map.empty)
+      (Set_of_closures.function_decls set_of_closures
+        |> Function_declarations.funs_in_order
+        |> Closure_id.Lmap.keys)
       closure_bound_vars
-      Variable.Map.empty
   in
   (* CR mshinwell: [closure_element_types] is barely worth keeping *)
   let { can_lift; closure_elements; closure_element_types; } =

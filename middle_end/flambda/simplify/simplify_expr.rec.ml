@@ -937,9 +937,7 @@ and simplify_direct_partial_application
   in
   let expr =
     let wrapper_var = VB.create wrapper_var Name_mode.normal in
-    let closure_vars =
-      Closure_id.Map.singleton wrapper_closure_id wrapper_var
-    in
+    let closure_vars = [wrapper_var]  in
     let pattern = Bindable_let_bound.set_of_closures ~closure_vars in
     Expr.create_pattern_let pattern
       (Named.create_set_of_closures wrapper_taking_remaining_args)

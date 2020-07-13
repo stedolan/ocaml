@@ -23,19 +23,12 @@ type t =
   | Singleton of Var_in_binding_pos.t
   | Set_of_closures of {
       name_mode : Name_mode.t;
-      closure_vars : Var_in_binding_pos.t Closure_id.Map.t;
+      closure_vars : Var_in_binding_pos.t list;
     }
   | Symbols of symbols
 
 include Identifiable.Make (struct
   type nonrec t = t
-
-  let print_closure_binding ppf (closure_id, var) =
-    Format.fprintf ppf "@[%a @<0>%s\u{21a4}@<0>%s %a@]"
-      Var_in_binding_pos.print var
-      (Flambda_colours.elide ())
-      (Flambda_colours.elide ())
-      Closure_id.print closure_id
 
   let print ppf t =
     match t with
@@ -43,8 +36,8 @@ include Identifiable.Make (struct
     | Set_of_closures { name_mode = _; closure_vars; } ->
       Format.fprintf ppf "@[<hov 1>(%a)@]"
         (Format.pp_print_list ~pp_sep:Format.pp_print_space
-          print_closure_binding)
-        (Closure_id.Map.bindings closure_vars)
+          Var_in_binding_pos.print)
+        closure_vars
     | Symbols _ ->
       Misc.fatal_error "Printing of [Symbols] in [Bindable_let_bound] \
         not implemented"
@@ -73,12 +66,12 @@ let free_names t =
     let var = Var_in_binding_pos.var var in
     Name_occurrences.singleton_variable var Name_mode.normal
   | Set_of_closures { name_mode = _; closure_vars; } ->
-    Closure_id.Map.fold (fun _closure_id var free_names ->
+    List.fold_left (fun free_names var ->
         let var = Var_in_binding_pos.var var in
         Name_occurrences.add_variable free_names var
           Name_mode.normal)
-      closure_vars
       Name_occurrences.empty
+      closure_vars
   | Symbols { bound_symbols; scoping_rule = _; } ->
     Bound_symbols.free_names bound_symbols
 
@@ -90,7 +83,7 @@ let apply_name_permutation t perm =
     else Singleton var'
   | Set_of_closures { name_mode; closure_vars; } ->
     let closure_vars' =
-      Closure_id.Map.map_sharing (fun var ->
+      Misc.Stdlib.List.map_sharing (fun var ->
           Var_in_binding_pos.apply_name_permutation var perm)
         closure_vars
     in
@@ -104,10 +97,10 @@ let all_ids_for_export t =
     Ids_for_export.add_variable Ids_for_export.empty
       (Var_in_binding_pos.var var)
   | Set_of_closures { name_mode = _; closure_vars; } ->
-    Closure_id.Map.fold (fun _closure_id var ids ->
+    List.fold_left (fun ids var ->
         Ids_for_export.add_variable ids (Var_in_binding_pos.var var))
-      closure_vars
       Ids_for_export.empty
+      closure_vars
   | Symbols { bound_symbols; scoping_rule = _; } ->
     Bound_symbols.all_ids_for_export bound_symbols
 
@@ -121,7 +114,7 @@ let import import_map t =
       (Var_in_binding_pos.create raw_var (Var_in_binding_pos.name_mode var))
   | Set_of_closures { name_mode; closure_vars; } ->
     let closure_vars =
-      Closure_id.Map.map (fun var ->
+      List.map (fun var ->
           Var_in_binding_pos.create
             (Ids_for_export.Import_map.variable import_map
                (Var_in_binding_pos.var var))
@@ -138,7 +131,7 @@ let rename t =
   | Singleton var -> Singleton (Var_in_binding_pos.rename var)
   | Set_of_closures { name_mode; closure_vars; } ->
     let closure_vars =
-      Closure_id.Map.map (fun var -> Var_in_binding_pos.rename var) closure_vars
+      List.map (fun var -> Var_in_binding_pos.rename var) closure_vars
     in
     Set_of_closures { name_mode; closure_vars; }
   | Symbols _ -> t
@@ -152,23 +145,14 @@ let add_to_name_permutation t1 ~guaranteed_fresh:t2 perm =
   | Set_of_closures { name_mode = _; closure_vars = closure_vars1; },
       Set_of_closures { name_mode = _;
         closure_vars = closure_vars2; } ->
-    let perm =
-      Closure_id.Map.fold2_stop_on_key_mismatch
-        (fun _closure_var var1 var2 perm ->
-          Name_permutation.add_fresh_variable perm
-            (Var_in_binding_pos.var var1)
-            ~guaranteed_fresh:(Var_in_binding_pos.var var2))
-        closure_vars1
-        closure_vars2
-        perm
-    in
-    begin match perm with
-    | Some perm -> perm
-    | None ->
-      Misc.fatal_errorf "Mismatching closure vars:@ %a@ and@ %a"
-        print t1
-        print t2
-    end
+    List.fold_left2
+      (fun perm var1 var2 ->
+        Name_permutation.add_fresh_variable perm
+          (Var_in_binding_pos.var var1)
+          ~guaranteed_fresh:(Var_in_binding_pos.var var2))
+      perm
+      closure_vars1
+      closure_vars2
   | Symbols _, Symbols _ -> perm
   | (Singleton _ | Set_of_closures _ | Symbols _), _ ->
     Misc.fatal_errorf "Kind mismatch:@ %a@ and@ %a"
@@ -187,11 +171,11 @@ let singleton var = Singleton var
 
 let set_of_closures ~closure_vars =
   let name_modes =
-    Closure_id.Map.fold (fun _closure_id var name_modes ->
+    List.fold_left (fun name_modes var ->
         Name_mode.Set.add (Var_in_binding_pos.name_mode var)
           name_modes)
-      closure_vars
       Name_mode.Set.empty
+      closure_vars
   in
   match Name_mode.Set.elements name_modes with
   | [] -> Misc.fatal_error "No closure IDs provided"
@@ -203,7 +187,9 @@ let set_of_closures ~closure_vars =
     }
   | _ ->
     Misc.fatal_errorf "Inconsistent name occurrence kinds:@ %a"
-      (Closure_id.Map.print Var_in_binding_pos.print) closure_vars
+      (Format.pp_print_list ~pp_sep:Format.pp_print_space
+        Var_in_binding_pos.print)
+      closure_vars
 
 let symbols bound_symbols scoping_rule =
   Symbols { bound_symbols; scoping_rule; }
@@ -236,15 +222,14 @@ let all_bound_vars t =
   match t with
   | Singleton var -> Var_in_binding_pos.Set.singleton var
   | Set_of_closures { closure_vars; _ } ->
-    Var_in_binding_pos.Set.of_list (Closure_id.Map.data closure_vars)
+    Var_in_binding_pos.Set.of_list closure_vars
   | Symbols _ -> Var_in_binding_pos.Set.empty
 
 let all_bound_vars' t =
   match t with
   | Singleton var -> Variable.Set.singleton (Var_in_binding_pos.var var)
   | Set_of_closures { closure_vars; _ } ->
-    Variable.Set.of_list (
-      List.map Var_in_binding_pos.var (Closure_id.Map.data closure_vars))
+    Variable.Set.of_list (List.map Var_in_binding_pos.var closure_vars)
   | Symbols _ -> Variable.Set.empty
 
 let let_symbol_scoping_rule t =

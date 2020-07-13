@@ -726,7 +726,7 @@ and let_symbol env res bound_symbols _scoping_rule const body =
 
 and let_set_of_closures env res body closure_vars s =
   let fun_decls = Set_of_closures.function_decls s in
-  let decls = Function_declarations.funs fun_decls in
+  let decls = Function_declarations.funs_in_order fun_decls in
   let elts = filter_closure_vars env (Set_of_closures.closure_elements s) in
   if Var_within_closure.Map.is_empty elts then
     let_static_set_of_closures env res body closure_vars s
@@ -1234,12 +1234,16 @@ and invalid _env res _e =
 and let_static_set_of_closures env res body closure_vars s =
   (* Generate symbols for the set of closures, and each of the closures *)
   let comp_unit = Compilation_unit.get_current_exn () in
-  let closure_symbols = Closure_id.Map.map (fun v ->
+  let cids =
+    Function_declarations.funs_in_order (Set_of_closures.function_decls s)
+    |> Closure_id.Lmap.keys
+  in
+  let closure_symbols = List.map2 (fun cid v ->
     let v = Var_in_binding_pos.var v in
     (* rename v just to have a different name for the symbol and the variable *)
     let name = Variable.unique_name (Variable.rename v) in
-    Symbol.create comp_unit (Linkage_name.create name)
-  ) closure_vars in
+    cid, Symbol.create comp_unit (Linkage_name.create name)
+  ) cids closure_vars |> Closure_id.Map.of_list in
   (* Statically allocate the set of closures *)
   let env, static_data, updates =
     Un_cps_static.static_set_of_closures env closure_symbols s None
@@ -1255,12 +1259,12 @@ and let_static_set_of_closures env res body closure_vars s =
      CR gbury: inline the variables (require to extend un_cps_enc to
      inline pure variables more than once). *)
   let env =
-    Closure_id.Map.fold (fun cid v acc ->
+    List.fold_left2 (fun acc cid v ->
       let v = Var_in_binding_pos.var v in
       let sym = symbol (Closure_id.Map.find cid closure_symbols) in
       let sym_cmm = C.symbol sym in
       Env.bind_variable acc v Ece.pure false sym_cmm
-    ) closure_vars env
+    ) env cids closure_vars
   in
   (* go on in the body *)
   expr env res body
@@ -1269,14 +1273,15 @@ and let_static_set_of_closures env res body closure_vars s =
 and let_dynamic_set_of_closures env res body closure_vars decls elts =
   (* Create the allocation block for the set of closures *)
   let layout = Env.layout env
-                 (List.map fst (Closure_id.Map.bindings decls))
+                 (List.map fst (Closure_id.Lmap.bindings decls))
                  (List.map fst (Var_within_closure.Map.bindings elts))
   in
   (* Allocating the closure has at least generative effects *)
   let effs =
     Effects.Only_generative_effects Immutable, Coeffects.No_coeffects
   in
-  let l, env, effs = fill_layout decls elts env effs [] 0 layout in
+  let decl_map = decls |> Closure_id.Lmap.bindings |> Closure_id.Map.of_list in
+  let l, env, effs = fill_layout decl_map elts env effs [] 0 layout in
   let csoc = C.make_closure_block l in
   (* Create a variable to hold the set of closure *)
   let soc_var = Variable.create "*set_of_closures*" in
@@ -1287,11 +1292,11 @@ and let_dynamic_set_of_closures env res body closure_vars decls elts =
   assert (Env.classify peff = Env.Pure);
   (* Add env bindings for all the closure variables. *)
   let env =
-    Closure_id.Map.fold (fun cid v acc ->
+    List.fold_left2 (fun acc cid v ->
       let v = Var_in_binding_pos.var v in
       let e, effs = get_closure_by_offset env soc_cmm_var cid in
       let_expr_bind body acc v e effs
-    ) closure_vars env in
+    ) env (Closure_id.Lmap.keys decls) closure_vars in
   (* The set of closures, as well as the individual closures variables
      are correctly set in the env, go on translating the body. *)
   expr env res body
