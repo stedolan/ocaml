@@ -2412,12 +2412,16 @@ labeled_simple_expr:
       { (Optional $1, $2) }
 ;
 newtype:
-  x = mkrhs(LIDENT)
-    { x, None }
+    x = mkrhs(LIDENT)
+      { x, None }
+  | LPAREN x = mkrhs(LIDENT) COLON l = layout RPAREN
+      { x, Some l }
 ;
 newtype_list:
-  TYPE xs = newtype+
-    { xs }
+    TYPE xs = newtype+
+      { xs }
+  | TYPE x = mkrhs(LIDENT) COLON l = layout
+      { [x, Some l] }
 ;
 %inline let_ident:
     val_ident { mkpatvar ~loc:$sloc $1 }
@@ -2934,17 +2938,27 @@ type_kind:
     COLONEQUAL nonempty_type_kind
       { $2 }
 ;
+layout:
+    l = mkloc(LIDENT)
+      { { play_desc = [l]; play_loc = make_loc $sloc } }
+  | l1 = layout; STAR; l2 = layout
+      { { play_desc = l1.play_desc @ l2.play_desc; play_loc = make_loc $sloc } }
+  | LPAREN; l = layout; RPAREN
+      { l }
+;
 type_parameters:
     /* empty */
       { [] }
-  | p = type_parameter
-      { [p] }
+  | v = type_variance p = type_variable
+      { [{ ptp_name = p; ptp_variance = v; ptp_layout = None}] }
   | LPAREN ps = separated_nonempty_llist(COMMA, type_parameter) RPAREN
       { ps }
 ;
 type_parameter:
     type_variance type_variable
       { { ptp_name = $2; ptp_variance = $1; ptp_layout = None } }
+  | type_variance type_variable COLON layout
+      { { ptp_name = $2; ptp_variance = $1; ptp_layout = Some $4 } }
 ;
 type_variable:
   mkloc(
@@ -3156,8 +3170,10 @@ with_type_binder:
 /* Polymorphic types */
 
 %inline typevar:
-  QUOTE mkrhs(ident)
-    { $2, None }
+    QUOTE mkrhs(ident)
+      { $2, None }
+  | LPAREN QUOTE mkrhs(ident) COLON layout RPAREN
+      { $3, Some $5 }
 ;
 %inline typevar_list:
   nonempty_llist(typevar)
