@@ -63,6 +63,8 @@ val add_equations_on_params
     [variable_is_from_missing_cmx_file]. *)
 val find : t -> Name.t -> Flambda_kind.t option -> Type_grammar.t
 
+val find_or_missing : t -> Name.t -> Type_grammar.t option
+
 val find_params : t -> Kinded_parameter.t list -> Type_grammar.t list
 
 val variable_is_from_missing_cmx_file : t -> Name.t -> bool
@@ -141,7 +143,7 @@ val free_names_transitive : t -> Type_grammar.t -> Name_occurrences.t
 
 val defined_symbols : t -> Symbol.Set.t
 
-val clean_for_export : t -> module_symbol:Symbol.t -> t
+val clean_for_export : t -> reachable_names:Name_occurrences.t -> t
 
 module Serializable : sig
   type typing_env = t

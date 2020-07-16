@@ -134,12 +134,25 @@ let find_code t code_id =
     Misc.fatal_errorf "Actual code for Code ID %a is missing"
       Code_id.print code_id
 
+let find_code_if_not_imported t code_id =
+  match Code_id.Map.find code_id t with
+  | exception Not_found ->
+    Misc.fatal_errorf "Code ID %a not bound" Code_id.print code_id
+  | Present { params_and_body; calling_convention = _; } -> Some params_and_body
+  | Imported _ ->
+    None
+
 let find_calling_convention t code_id =
   match Code_id.Map.find code_id t with
   | exception Not_found ->
     Misc.fatal_errorf "Code ID %a not bound" Code_id.print code_id
   | Present { params_and_body = _; calling_convention; } -> calling_convention
   | Imported { calling_convention; } -> calling_convention
+
+let remove_unreachable t ~reachable_names =
+  Code_id.Map.filter (fun code_id _exported_code ->
+      Name_occurrences.mem_code_id reachable_names code_id)
+    t
 
 let all_ids_for_export t =
   Code_id.Map.fold (fun code_id code_data all_ids ->

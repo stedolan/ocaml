@@ -921,6 +921,12 @@ let with_only_variables { names; _ } =
     names;
   }
 
+let with_only_names_and_code_ids { names; code_ids; _ } =
+  { empty with
+    names;
+    code_ids;
+  }
+
 let without_code_ids t =
   { t with
     code_ids = For_code_ids.empty;
@@ -942,3 +948,6 @@ let fold_continuations_including_in_trap_actions t ~init ~f =
 let filter_names t ~f =
   let names = For_names.filter t.names ~f in
   { t with names; }
+
+let fold_code_ids t ~init ~f =
+  For_code_ids.fold t.code_ids ~init ~f

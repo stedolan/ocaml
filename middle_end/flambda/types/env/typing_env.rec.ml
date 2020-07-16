@@ -56,7 +56,7 @@ module Cached : sig
 
   val with_cse : t -> cse:Simple.t Flambda_primitive.Eligible_for_cse.Map.t -> t
 
-  val clean_for_export : t -> module_symbol:Symbol.t -> t
+  val clean_for_export : t -> reachable_names:Name_occurrences.t -> t
 
   val import : Ids_for_export.Import_map.t -> t -> t
 
@@ -146,10 +146,10 @@ end = struct
 
   let with_cse t ~cse = { t with cse; }
 
-  let clean_for_export t =
+  let clean_for_export t ~reachable_names =
     (* Two things happen:
        - All variables are existentialized (mode is switched to in_types)
-       - Names coming from other compilation units are removed
+       - Names coming from other compilation units or unreachable are removed
     *)
     let names_to_types =
       Name.Map.mapi (fun name ((ty, binding_time, _mode) as info) ->
@@ -161,16 +161,14 @@ end = struct
     let current_compilation_unit = Compilation_unit.get_current_exn () in
     let names_to_types =
       Name.Map.filter (fun name _info ->
-          Compilation_unit.equal (Name.compilation_unit name)
-            current_compilation_unit)
+          Name_occurrences.mem_name reachable_names name
+          && Compilation_unit.equal (Name.compilation_unit name)
+               current_compilation_unit)
         names_to_types
     in
     { t with
       names_to_types;
     }
-
-  let clean_for_export t ~module_symbol:_ =
-    clean_for_export t
 
   let import import_map { names_to_types; aliases; cse; } =
     let module Import = Ids_for_export.Import_map in
@@ -283,10 +281,10 @@ module One_level = struct
     Typing_env_level.defines_name_but_no_equations t.level name
 *)
 
-  let clean_for_export t ~module_symbol =
+  let clean_for_export t ~reachable_names =
     { t with
       just_after_level =
-        Cached.clean_for_export t.just_after_level ~module_symbol;
+        Cached.clean_for_export t.just_after_level ~reachable_names;
     }
 end
 
@@ -582,7 +580,9 @@ let check_optional_kind_matches name ty kind_opt =
         K.print kind
     end
 
-let find_with_binding_time_and_mode t name kind =
+exception Missing_cmx_and_kind
+
+let find_with_binding_time_and_mode' t name kind =
   match Name.Map.find name (names_to_types t) with
   | exception Not_found ->
     let comp_unit = Name.compilation_unit name in
@@ -622,9 +622,7 @@ let find_with_binding_time_and_mode t name kind =
               Type_grammar.unknown kind, Binding_time.imported_variables,
                 Name_mode.in_types
             | None ->
-              Misc.fatal_errorf "Don't know kind of variable %a from another \
-                  unit whose .cmx file is unavailable"
-                Name.print name)
+              raise Missing_cmx_and_kind)
       | Some t ->
         match Name.Map.find name (names_to_types t) with
         | exception Not_found ->
@@ -651,11 +649,24 @@ let find_with_binding_time_and_mode t name kind =
     check_optional_kind_matches name ty kind;
     found
 
+let find_with_binding_time_and_mode t name kind =
+  try find_with_binding_time_and_mode' t name kind
+  with
+  | Missing_cmx_and_kind ->
+    Misc.fatal_errorf "Don't know kind of variable %a from another \
+                       unit whose .cmx file is unavailable"
+      Name.print name
+
 let find t name kind =
   let ty, _binding_time, _name_mode =
     find_with_binding_time_and_mode t name kind
   in
   ty
+
+let find_or_missing t name =
+  match find_with_binding_time_and_mode' t name None with
+  | ty, _, _ -> Some ty
+  | exception Missing_cmx_and_kind -> None
 
 let find_params t params =
   List.map (fun param ->
@@ -1391,9 +1402,9 @@ and free_names_transitive0 t typ ~result =
 let free_names_transitive t typ =
   free_names_transitive0 t typ ~result:Name_occurrences.empty
 
-let clean_for_export t ~module_symbol =
+let clean_for_export t ~reachable_names =
   let current_level =
-    One_level.clean_for_export t.current_level ~module_symbol
+    One_level.clean_for_export t.current_level ~reachable_names
   in
   { t with
     current_level;

@@ -568,7 +568,7 @@ let merge t1 t2 =
                 if Binding_time.(equal (With_name_mode.binding_time data1)
                                    imported_variables)
                 then Some data2
-                else if Binding_time.(equal (With_name_mode.binding_time data1)
+                else if Binding_time.(equal (With_name_mode.binding_time data2)
                                    imported_variables)
                 then Some data1
                 else

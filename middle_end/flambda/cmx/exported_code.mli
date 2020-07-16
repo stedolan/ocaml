@@ -38,4 +38,11 @@ val mem : Code_id.t -> t -> bool
 
 val find_code : t -> Code_id.t -> Flambda.Function_params_and_body.t
 
+val find_code_if_not_imported
+   : t
+  -> Code_id.t
+  -> Flambda.Function_params_and_body.t option
+
 val find_calling_convention : t -> Code_id.t -> Calling_convention.t
+
+val remove_unreachable : t -> reachable_names:Name_occurrences.t -> t

@@ -51,6 +51,62 @@ let rec load_cmx_file_contents backend comp_unit ~imported_units ~imported_names
         Compilation_unit.Map.add comp_unit (Some typing_env) !imported_units;
       Some typing_env
 
+let compute_reachable_names_and_code ~module_symbol typing_env code =
+  let rec fixpoint names_to_add names_already_added =
+    if Name_occurrences.is_empty names_to_add
+    then names_already_added
+    else begin
+      let names_already_added =
+        Name_occurrences.union names_to_add names_already_added
+      in
+      let fold_code_id names_to_add code_id =
+        match Exported_code.find_code_if_not_imported code code_id with
+        | None -> names_to_add
+        | Some params_and_body ->
+          let params_and_body_names =
+            Function_params_and_body.free_names params_and_body
+          in
+          let names_to_consider =
+            Name_occurrences.with_only_names_and_code_ids params_and_body_names
+          in
+          let new_names =
+            Name_occurrences.diff names_to_consider names_already_added
+          in
+          Name_occurrences.union new_names names_to_add
+      in
+      let fold_name names_to_add name =
+        match TE.find_or_missing typing_env name with
+        | Some ty ->
+          let ty_names = T.free_names ty in
+          let names_to_consider =
+            Name_occurrences.with_only_names_and_code_ids ty_names
+          in
+          let new_names =
+            Name_occurrences.diff names_to_consider names_already_added
+          in
+          Name_occurrences.union new_names names_to_add
+        | None ->
+          (* A missing type cannot refer to names defined in the current unit *)
+          names_to_add
+      in
+      let from_code_ids =
+        Name_occurrences.fold_code_ids names_to_add
+          ~init:Name_occurrences.empty
+          ~f:fold_code_id
+      in
+      let from_names_and_code_ids =
+        Name_occurrences.fold_names names_to_add
+          ~init:from_code_ids
+          ~f:fold_name
+      in
+      fixpoint from_names_and_code_ids names_already_added
+    end
+  in
+  let init_names =
+    Name_occurrences.singleton_symbol module_symbol Name_mode.normal
+  in
+  fixpoint init_names Name_occurrences.empty
+
 let prepare_cmx_file_contents ~return_cont_env:cont_uses_env
       ~return_continuation ~module_symbol all_code =
   match
@@ -62,8 +118,14 @@ let prepare_cmx_file_contents ~return_cont_env:cont_uses_env
   | Some final_typing_env ->
     (* CR mshinwell: We should remove typing information about names that
        do not occur (transitively) in the type of the module block. *)
+    let reachable_names =
+      compute_reachable_names_and_code ~module_symbol final_typing_env all_code
+    in
+    let all_code =
+      Exported_code.remove_unreachable all_code ~reachable_names
+    in
     let final_typing_env =
-      TE.clean_for_export final_typing_env ~module_symbol
+      TE.clean_for_export final_typing_env ~reachable_names
       |> TE.Serializable.create
     in
     let exported_offsets =

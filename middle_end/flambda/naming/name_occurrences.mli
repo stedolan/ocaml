@@ -124,6 +124,8 @@ val without_code_ids : t -> t
 
 val with_only_variables :  t -> t
 
+val with_only_names_and_code_ids :  t -> t
+
 val mem_var : t -> Variable.t -> bool
 
 val mem_symbol : t -> Symbol.t -> bool
@@ -169,4 +171,10 @@ val fold_continuations_including_in_trap_actions
    : t
   -> init:'a
   -> f:('a -> Continuation.t -> 'a)
+  -> 'a
+
+val fold_code_ids
+   : t
+  -> init:'a
+  -> f:('a -> Code_id.t -> 'a)
   -> 'a
