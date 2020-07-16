@@ -958,7 +958,7 @@ and transl_prim_2 env p arg1 arg2 dbg =
   | Pcompare_floats ->
       bind "float_cmp" (transl_unbox_float dbg env arg1) (fun a1 ->
       bind "float_cmp" (transl_unbox_float dbg env arg2) (fun a2 ->
-        mk_compare_floats dbg a1 a2))
+        tag_int (mk_compare_floats_untagged dbg a1 a2) dbg))
   | Pisout ->
       transl_isout (transl env arg1) (transl env arg2) dbg
   (* Float operations *)

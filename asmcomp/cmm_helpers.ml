@@ -273,6 +273,12 @@ let mk_not dbg cmm =
       (* 1 -> 3, 3 -> 1 *)
       Cop(Csubi, [Cconst_int (4, dbg); c], dbg)
 
+let mk_compare_ints_untagged dbg a1 a2 =
+  bind "int_cmp" a1 (fun a1 ->
+    bind "int_cmp" a2 (fun a2 ->
+      let op1 = Cop(Ccmpi(Cgt), [a1; a2], dbg) in
+      let op2 = Cop(Ccmpi(Clt), [a1; a2], dbg) in
+      sub_int op1 op2 dbg))
 
 let mk_compare_ints dbg a1 a2 =
   match (a1,a2) with
@@ -284,15 +290,9 @@ let mk_compare_ints dbg a1 a2 =
      int_const dbg Nativeint.(compare (of_int c1) c2)
   | Cconst_natint (c1, _), Cconst_int (c2, _) ->
      int_const dbg Nativeint.(compare c1 (of_int c2))
-  | a1, a2 -> begin
-      bind "int_cmp" a1 (fun a1 ->
-        bind "int_cmp" a2 (fun a2 ->
-          let op1 = Cop(Ccmpi(Cgt), [a1; a2], dbg) in
-          let op2 = Cop(Ccmpi(Clt), [a1; a2], dbg) in
-          tag_int(sub_int op1 op2 dbg) dbg))
-    end
+  | a1, a2 -> tag_int (mk_compare_ints_untagged dbg a1 a2) dbg
 
-let mk_compare_floats dbg a1 a2 =
+let mk_compare_floats_untagged dbg a1 a2 =
   let op1 = Cop(Ccmpf(CFgt), [a1; a2], dbg) in
   let op2 = Cop(Ccmpf(CFlt), [a1; a2], dbg) in
   let op3 = Cop(Ccmpf(CFeq), [a1; a1], dbg) in
@@ -307,7 +307,7 @@ let mk_compare_floats dbg a1 a2 =
      Therefore, op3 is 0 if and only if a1 is NaN,
      and op4 is 0 if and only if a2 is NaN.
      See also caml_float_compare_unboxed in runtime/floats.c  *)
-  tag_int (add_int (sub_int op1 op2 dbg) (sub_int op3 op4 dbg) dbg) dbg
+  add_int (sub_int op1 op2 dbg) (sub_int op3 op4 dbg) dbg
 
 let create_loop body dbg =
   let cont = Lambda.next_raise_count () in

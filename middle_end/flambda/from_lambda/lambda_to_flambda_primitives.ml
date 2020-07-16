@@ -1000,15 +1000,19 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
       dbg;
     }
   | Pcompare_ints, [i1; i2] ->
-    Binary (Int_comp (Tagged_immediate, Signed,
+    tag_int (Binary (Int_comp (Tagged_immediate, Signed,
         Yielding_int_like_compare_functions),
-      i1, i2)
+      i1, i2))
   | Pcompare_floats, [f1; f2] ->
-    Binary (Float_comp Yielding_int_like_compare_functions, f1, f2)
+    tag_int (Binary (Float_comp Yielding_int_like_compare_functions,
+      Prim (Unary (Unbox_number Naked_float, f1)),
+      Prim (Unary (Unbox_number Naked_float, f2))))
   | Pcompare_bints int_kind, [i1; i2] ->
-    Binary (Int_comp (C.standard_int_of_boxed_integer int_kind, Signed,
+    let unboxing_kind = C.boxable_number_of_boxed_integer int_kind in
+    tag_int (Binary (Int_comp (C.standard_int_of_boxed_integer int_kind, Signed,
         Yielding_int_like_compare_functions),
-      i1, i2)
+      Prim (Unary (Unbox_number unboxing_kind, i1)),
+      Prim (Unary (Unbox_number unboxing_kind, i2))))
   | Pprobe_is_enabled { name; }, [] -> Nullary (Probe_is_enabled { name; })
   | ( Pmodint Unsafe
     | Pdivbint { is_safe = Unsafe; size = _; }

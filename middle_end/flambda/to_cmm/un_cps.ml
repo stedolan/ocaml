@@ -385,7 +385,7 @@ let binary_int_comp_primitive _env dbg kind signed cmp x y =
 let binary_int_comp_primitive_yielding_int _env dbg _kind
       (signed : Flambda_primitive.signed_or_unsigned) x y =
   match signed with
-  | Signed -> C.mk_compare_ints dbg x y
+  | Signed -> C.mk_compare_ints_untagged dbg x y
   | Unsigned ->
     Misc.fatal_error "Translation of [Int_comp] yielding an integer -1, 0 or 1 \
       in unsigned mode is not yet implemented"
@@ -407,7 +407,7 @@ let binary_float_comp_primitive _env dbg op x y =
   | Ge -> C.float_ge ~dbg x y
 
 let binary_float_comp_primitive_yielding_int _env dbg x y =
-  C.mk_compare_floats dbg x y
+  C.mk_compare_floats_untagged dbg x y
 
 (* Primitives *)
 
