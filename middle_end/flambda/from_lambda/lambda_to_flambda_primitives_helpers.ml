@@ -52,6 +52,7 @@ type failure =
 
 type expr_primitive =
   | Simple of Simple.t
+  | Nullary of P.nullary_primitive
   | Unary of P.unary_primitive * simple_or_prim
   | Binary of P.binary_primitive * simple_or_prim * simple_or_prim
   | Ternary of P.ternary_primitive * simple_or_prim * simple_or_prim
@@ -70,6 +71,7 @@ let rec print_expr_primitive ppf expr_primitive =
   let module W = Flambda_primitive.Without_args in
   match expr_primitive with
   | Simple simple -> Simple.print ppf simple
+  | Nullary prim -> W.print ppf (Nullary prim)
   | Unary (prim, _) -> W.print ppf (Unary prim)
   | Binary (prim, _, _) -> W.print ppf (Binary prim)
   | Ternary (prim, _, _, _) -> W.print ppf (Ternary prim)
@@ -148,6 +150,7 @@ let expression_for_failure ~backend exn_cont ~register_const_string
         let inlining_depth = 0 in
         Apply.create ~callee ~continuation exn_cont
           ~args ~call_kind dbg ~inline ~inlining_depth
+          ~probe_name:None
       in
       Expr.create_apply call
     end else begin
@@ -178,9 +181,10 @@ let rec bind_rec ~backend exn_cont
           (prim : expr_primitive)
           (dbg : Debuginfo.t)
           (cont : Named.t -> Expr.t * _)
-  : Expr.t * _ =
+      : Expr.t * _ =
   match prim with
   | Simple simple -> cont (Named.create_simple simple)
+  | Nullary prim -> cont (Named.create_prim (Nullary prim) dbg)
   | Unary (prim, arg) ->
     let cont (arg : Simple.t) =
       cont (Named.create_prim (Unary (prim, arg)) dbg)

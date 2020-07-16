@@ -292,6 +292,23 @@ let mk_compare_ints dbg a1 a2 =
           tag_int(sub_int op1 op2 dbg) dbg))
     end
 
+let mk_compare_floats dbg a1 a2 =
+  let op1 = Cop(Ccmpf(CFgt), [a1; a2], dbg) in
+  let op2 = Cop(Ccmpf(CFlt), [a1; a2], dbg) in
+  let op3 = Cop(Ccmpf(CFeq), [a1; a1], dbg) in
+  let op4 = Cop(Ccmpf(CFeq), [a2; a2], dbg) in
+  (* If both operands a1 and a2 are not NaN, then op3 = op4 = 1,
+     and the result is op1 - op2.
+     If at least one of the operands is NaN,
+     then op1 = op2 = 0, and the result is op3 - op4,
+     which orders NaN before other values.
+     To detect if the operand is NaN, we use the property:
+     for all x, NaN is not equal to x, even if x is NaN.
+     Therefore, op3 is 0 if and only if a1 is NaN,
+     and op4 is 0 if and only if a2 is NaN.
+     See also caml_float_compare_unboxed in runtime/floats.c  *)
+  tag_int (add_int (sub_int op1 op2 dbg) (sub_int op3 op4 dbg) dbg) dbg
+
 let create_loop body dbg =
   let cont = Lambda.next_raise_count () in
   let call_cont = Cexit (Lbl cont, [], []) in
@@ -2062,6 +2079,9 @@ module Int = Numbers.Int
 let default_apply = Int.Set.add 2 (Int.Set.add 3 Int.Set.empty)
   (* These apply funs are always present in the main program because
      the run-time system needs them (cf. runtime/<arch>.S) . *)
+
+let probe_is_enabled ~name dbg =
+  tag_int (Cop(Cprobe_is_enabled {name}, [], dbg)) dbg
 
 let generic_functions shared units =
   let (apply,send,curry) =

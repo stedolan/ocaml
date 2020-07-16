@@ -168,11 +168,15 @@ let set_of_targetint_set' (tis : Targetint.Set.t) : Set.t =
 let all_bools =
   Set.of_list [bool_true; bool_false]
 
+
 let all_regular_tags =
   Tag.Set.fold (fun tag acc ->
       Set.add (int (Tag.to_targetint_ocaml tag)) acc)
     Tag.all_regular_tags
     Set.empty
+
+let zero_one_and_minus_one =
+  Set.of_list [int TO.zero; int TO.one; int TO.minus_one]
 
 let map_value1 f t =
   { t with

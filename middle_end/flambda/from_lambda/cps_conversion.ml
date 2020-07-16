@@ -118,7 +118,7 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
   | Lconst const ->
     name_then_cps_non_tail "const" (I.Simple (Const const)) k k_exn
   | Lapply { ap_func; ap_args; ap_loc; ap_should_be_tailcall; ap_inlined;
-      ap_specialised; } ->
+      ap_specialised; ap_probe; } ->
     cps_non_tail_list ap_args (fun args ->
       cps_non_tail ap_func (fun func ->
         let continuation = Continuation.create () in
@@ -128,6 +128,11 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
           { exn_handler = k_exn;
             extra_args = [];
           }
+        in
+        let probe_name =
+          match ap_probe with
+          | None -> None
+          | Some { name; } -> Some name
         in
         let apply : Ilambda.apply = {
           kind = Function;
@@ -139,6 +144,7 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
           should_be_tailcall = ap_should_be_tailcall;
           inlined = ap_inlined;
           specialised = ap_specialised;
+          probe_name;
         } in
         I.Let_cont {
           name = continuation;
@@ -325,6 +331,7 @@ let rec cps_non_tail (lam : L.lambda) (k : Ident.t -> Ilambda.t)
             should_be_tailcall = false;
             inlined = Default_inline;
             specialised = Default_specialise;
+            probe_name = None;
           } in
           I.Let_cont {
             name = continuation;
@@ -435,6 +442,11 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
             extra_args = [];
           }
         in
+        let probe_name =
+          match apply.ap_probe with
+          | None -> None
+          | Some { name; } -> Some name
+        in
         let apply : I.apply = {
           kind = Function;
           func;
@@ -445,6 +457,7 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
           should_be_tailcall = apply.ap_should_be_tailcall;
           inlined = apply.ap_inlined;
           specialised = apply.ap_specialised;
+          probe_name;
         } in
         I.Apply apply) k_exn) k_exn
   | Lfunction func ->
@@ -609,6 +622,7 @@ and cps_tail (lam : L.lambda) (k : Continuation.t) (k_exn : Continuation.t)
             should_be_tailcall = false;
             inlined = Default_inline;
             specialised = Default_specialise;
+            probe_name = None;
           } in
           I.Apply apply) k_exn) k_exn) k_exn
   | Lassign (being_assigned, new_value) ->

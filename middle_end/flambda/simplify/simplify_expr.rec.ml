@@ -874,7 +874,7 @@ and simplify_direct_partial_application
     | Return continuation -> continuation
   in
   begin match Apply.inline apply with
-  | Always_inline | Never_inline ->
+  | Always_inline | Never_inline | Hint_inline ->
     Location.prerr_warning (Debuginfo.to_location dbg)
       (Warnings.Inlining_impossible "[@inlined] attributes may not be used \
         on partial applications")
@@ -941,6 +941,7 @@ and simplify_direct_partial_application
           dbg
           ~inline:Default_inline
           ~inlining_depth:(Apply.inlining_depth apply)
+          ~probe_name:(Apply.probe_name apply)
       in
       List.fold_left (fun expr (closure_var, arg) ->
           match Simple.must_be_var arg with
@@ -1332,6 +1333,7 @@ Format.eprintf "Apply of %a: apply's inlining depth %d, DE's delta %d\n%!"
           (DE.add_inlined_debuginfo' (DA.denv dacc) (Apply.dbg apply))
           ~inline:(Apply.inline apply)
           ~inlining_depth
+          ~probe_name:(Apply.probe_name apply)
       in
       Ok (callee_ty, apply, arg_types)
 

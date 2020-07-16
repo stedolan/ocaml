@@ -257,6 +257,7 @@ let close_c_call t ~let_bound_var (prim : Primitive.description)
         dbg
         ~inline:Default_inline
         ~inlining_depth:0
+        ~probe_name:None
     in
     Expr.create_apply apply
   in
@@ -522,7 +523,8 @@ let rec close t env (ilam : Ilambda.t) : Expr.t * _ =
     else
       body, delayed_handlers
   | Apply { kind; func; args; continuation; exn_continuation;
-      loc; should_be_tailcall = _; inlined; specialised = _; } ->
+      loc; should_be_tailcall = _; inlined; specialised = _;
+      probe_name; } ->
     let call_kind =
       match kind with
       | Function -> Call_kind.indirect_function_call_unknown_arity ()
@@ -531,6 +533,12 @@ let rec close t env (ilam : Ilambda.t) : Expr.t * _ =
           ~obj:(find_simple t env obj)
     in
     let exn_continuation = close_exn_continuation t env exn_continuation in
+    begin match probe_name, inlined with
+    | None, _ | Some _, Never_inline -> ()
+    | Some _, _ ->
+      Misc.fatal_errorf "Calls to probes must be marked [Never_inline]:@ %a"
+        Ilambda.print ilam
+    end;
     let apply =
       Apply.create ~callee:(find_simple_from_id t env func)
         ~continuation:(Return continuation)
@@ -540,6 +548,7 @@ let rec close t env (ilam : Ilambda.t) : Expr.t * _ =
         (Debuginfo.from_location loc)
         ~inline:(LC.inline_attribute inlined)
         ~inlining_depth:0
+        ~probe_name
     in
     Expr.create_apply apply, Delayed_handlers.empty
   | Apply_cont (cont, trap_action, args) ->

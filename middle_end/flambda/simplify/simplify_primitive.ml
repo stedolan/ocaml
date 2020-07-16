@@ -21,6 +21,9 @@ open! Simplify_import
 let simplify_primitive dacc ~original_named (prim : P.t) dbg ~result_var =
 (*Format.eprintf "Simplifying primitive:@ %a\n%!" P.print prim;*)
   match prim with
+  | Nullary prim ->
+    Simplify_nullary_primitive.simplify_nullary_primitive dacc
+      prim dbg ~result_var
   | Unary (prim, arg) ->
     Simplify_unary_primitive.simplify_unary_primitive dacc
       prim arg dbg ~result_var

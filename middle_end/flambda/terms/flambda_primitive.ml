@@ -309,6 +309,10 @@ let array_index_kind = K.value
 let string_or_bigstring_index_kind = K.value
 let bytes_or_bigstring_index_kind = K.value
 
+type 'op comparison_behaviour =
+  | Yielding_bool of 'op
+  | Yielding_int_like_compare_functions
+
 type comparison = Eq | Neq | Lt | Gt | Le | Ge
 
 let print_comparison ppf c =
@@ -321,6 +325,12 @@ let print_comparison ppf c =
   | Gt -> fprintf ppf ">"
   | Ge -> fprintf ppf ">="
   end
+
+let print_comparison_and_behaviour ppf behaviour =
+  match behaviour with
+  | Yielding_bool op -> print_comparison ppf op
+  | Yielding_int_like_compare_functions ->
+    Format.pp_print_string ppf "<compare>"
 
 type signed_or_unsigned =
   | Signed
@@ -345,6 +355,17 @@ let print_ordered_comparison ppf signedness c =
     | Gt -> fprintf ppf ">"
     | Ge -> fprintf ppf ">="
     end
+
+let print_ordered_comparison_and_behaviour ppf signedness behaviour =
+  match behaviour with
+  | Yielding_bool op -> print_ordered_comparison ppf signedness op
+  | Yielding_int_like_compare_functions ->
+    let signedness =
+      match signedness with
+      | Signed -> "signed"
+      | Unsigned -> "unsigned"
+    in
+    Format.fprintf ppf "<ordered-%s-compare>" signedness
 
 type equality_comparison = Eq | Neq
 
@@ -506,6 +527,36 @@ type arg_kinds =
 type result_kind =
   | Singleton of K.t
   | Unit
+
+type nullary_primitive =
+  | Probe_is_enabled of { name : string; }
+
+let nullary_primitive_eligible_for_cse p =
+  match p with
+  | Probe_is_enabled _ -> false
+
+let compare_nullary_primitive p1 p2 =
+  match p1, p2 with
+  | Probe_is_enabled { name = name1; }, Probe_is_enabled { name = name2; } ->
+    String.compare name1 name2
+
+let print_nullary_primitive ppf p =
+  let fprintf = Format.fprintf in
+  match p with
+  | Probe_is_enabled { name; } ->
+    fprintf ppf "@[<hov 1>(Probe_is_enabled %s)@]" name
+
+let result_kind_of_nullary_primitive p : result_kind =
+  match p with
+  | Probe_is_enabled _ -> Singleton K.value
+
+let effects_and_coeffects_of_nullary_primitive p =
+  match p with
+  | Probe_is_enabled _ -> Effects.No_effects, Coeffects.Has_coeffects
+
+let nullary_classify_for_printing p =
+  match p with
+  | Probe_is_enabled _ -> Neither
 
 type unary_primitive =
   | Duplicate_block of {
@@ -900,9 +951,9 @@ type binary_primitive =
   | Int_arith of Flambda_kind.Standard_int.t * binary_int_arith_op
   | Int_shift of Flambda_kind.Standard_int.t * int_shift_op
   | Int_comp of Flambda_kind.Standard_int.t * signed_or_unsigned
-      * ordered_comparison
+      * (ordered_comparison comparison_behaviour)
   | Float_arith of binary_float_arith_op
-  | Float_comp of comparison
+  | Float_comp of (comparison comparison_behaviour)
 
 let binary_primitive_eligible_for_cse p =
   match p with
@@ -1029,9 +1080,10 @@ let print_binary_primitive ppf p =
       print_equality_comparison op
   | Int_arith (_k, op) -> print_binary_int_arith_op ppf op
   | Int_shift (_k, op) -> print_int_shift_op ppf op
-  | Int_comp (_, signedness, c) -> print_ordered_comparison ppf signedness c
+  | Int_comp (_, signedness, c) ->
+    print_ordered_comparison_and_behaviour ppf signedness c
   | Float_arith op -> print_binary_float_arith_op ppf op
-  | Float_comp c -> print_comparison ppf c; fprintf ppf "."
+  | Float_comp c -> print_comparison_and_behaviour ppf c; fprintf ppf "."
 
 let args_kind_of_binary_primitive p =
   match p with
@@ -1290,6 +1342,7 @@ let variadic_classify_for_printing p =
   | Make_array _ -> Constructive
 
 type t =
+  | Nullary of nullary_primitive
   | Unary of unary_primitive * Simple.t
   | Binary of binary_primitive * Simple.t * Simple.t
   | Ternary of ternary_primitive * Simple.t * Simple.t * Simple.t
@@ -1300,6 +1353,7 @@ type primitive_application = t
 let invariant env t =
   let module E = Invariant_env in
   match t with
+  | Nullary _ -> ()
   | Unary (prim, x0) ->
     let kind0 = arg_kind_of_unary_primitive prim in
     E.check_simple_is_bound_and_of_kind env x0 kind0;
@@ -1374,6 +1428,7 @@ let invariant env t =
 
 let classify_for_printing t =
   match t with
+  | Nullary prim -> nullary_classify_for_printing prim
   | Unary (prim, _) -> unary_classify_for_printing prim
   | Binary (prim, _, _) -> binary_classify_for_printing prim
   | Ternary (prim, _, _, _) -> ternary_classify_for_printing prim
@@ -1387,12 +1442,14 @@ include Identifiable.Make (struct
     else
       let numbering t =
         match t with
-        | Unary _ -> 0
-        | Binary _ -> 1
-        | Ternary _ -> 2
-        | Variadic _ -> 3
+        | Nullary _ -> 0
+        | Unary _ -> 1
+        | Binary _ -> 2
+        | Ternary _ -> 3
+        | Variadic _ -> 4
       in
       match t1, t2 with
+      | Nullary p, Nullary p' -> compare_nullary_primitive p p'
       | Unary (p, s1), Unary (p', s1') ->
         let c = compare_unary_primitive p p' in
         if c <> 0 then c
@@ -1418,7 +1475,7 @@ include Identifiable.Make (struct
         let c = compare_variadic_primitive p p' in
         if c <> 0 then c
         else Simple.List.compare s s'
-      | (Unary _ | Binary _ | Ternary _ | Variadic _), _ ->
+      | (Nullary _ | Unary _ | Binary _ | Ternary _ | Variadic _), _ ->
         Stdlib.compare (numbering t1) (numbering t2)
 
   let equal t1 t2 = (compare t1 t2 = 0)
@@ -1433,6 +1490,11 @@ include Identifiable.Make (struct
       | Neither -> Flambda_colours.prim_neither ()
     in
     match t with
+    | Nullary prim ->
+      Format.fprintf ppf "@[<hov 1>(@<0>%s%a@<0>%s)@]"
+        colour
+        print_nullary_primitive prim
+        (Flambda_colours.normal ())
     | Unary (prim, v0) ->
       Format.fprintf ppf "@[<hov 1>(@<0>%s%a@<0>%s@ %a)@]"
         colour
@@ -1470,6 +1532,7 @@ let equal t1 t2 =
 
 let free_names t =
   match t with
+  | Nullary _ -> Name_occurrences.empty
   | Unary (Project_var { var = clos_var; project_from = _ }, x0) ->
     Name_occurrences.add_closure_var (Simple.free_names x0)
       clos_var Name_mode.normal
@@ -1491,6 +1554,7 @@ let apply_name_permutation t perm =
   (* CR mshinwell: add phys-equal checks *)
   let apply simple = Simple.apply_name_permutation simple perm in
   match t with
+  | Nullary _ -> t
   | Unary (prim, x0) -> Unary (prim, apply x0)
   | Binary (prim, x0, x1) -> Binary (prim, apply x0, apply x1)
   | Ternary (prim, x0, x1, x2) -> Ternary (prim, apply x0, apply x1, apply x2)
@@ -1499,6 +1563,7 @@ let apply_name_permutation t perm =
 
 let all_ids_for_export t =
   match t with
+  | Nullary _ -> Ids_for_export.empty
   | Unary (_prim, x0) -> Ids_for_export.from_simple x0
   | Binary (_prim, x0, x1) ->
     Ids_for_export.add_simple (Ids_for_export.from_simple x0) x1
@@ -1511,6 +1576,7 @@ let all_ids_for_export t =
 
 let import import_map t =
   match t with
+  | Nullary _ -> t
   | Unary (prim, x0) ->
     let x0 = Ids_for_export.Import_map.simple import_map x0 in
     Unary (prim, x0)
@@ -1531,6 +1597,7 @@ let import import_map t =
 
 let args t =
   match t with
+  | Nullary _ -> []
   | Unary (_, x0) -> [x0]
   | Binary (_, x0, x1) -> [x0; x1]
   | Ternary (_, x0, x1, x2) -> [x0; x1; x2]
@@ -1538,6 +1605,7 @@ let args t =
 
 let result_kind (t : t) =
   match t with
+  | Nullary prim -> result_kind_of_nullary_primitive prim
   | Unary (prim, _) -> result_kind_of_unary_primitive prim
   | Binary (prim, _, _) -> result_kind_of_binary_primitive prim
   | Ternary (prim, _, _, _) -> result_kind_of_ternary_primitive prim
@@ -1545,6 +1613,12 @@ let result_kind (t : t) =
 
 let result_kind' t =
   match result_kind t with
+  | Singleton kind -> kind
+  | Unit -> K.value
+
+let result_kind_of_nullary_primitive' t =
+  match result_kind_of_nullary_primitive t with
+  (* CR mshinwell: factor out this mapping *)
   | Singleton kind -> kind
   | Unit -> K.value
 
@@ -1574,6 +1648,7 @@ let result_kind_of_variadic_primitive' t =
 
 let effects_and_coeffects (t : t) =
   match t with
+  | Nullary prim -> effects_and_coeffects_of_nullary_primitive prim
   | Unary (prim, _) -> effects_and_coeffects_of_unary_primitive prim
   | Binary (prim, _, _) -> effects_and_coeffects_of_binary_primitive prim
   | Ternary (prim, _, _, _) -> effects_and_coeffects_of_ternary_primitive prim
@@ -1603,6 +1678,7 @@ module Eligible_for_cse = struct
        primitives, sort the arguments here *)
     let prim_eligible =
       match t with
+      | Nullary prim -> nullary_primitive_eligible_for_cse prim
       | Unary (prim, arg) -> unary_primitive_eligible_for_cse prim ~arg
       | Binary (prim, _, _) -> binary_primitive_eligible_for_cse prim
       | Ternary (prim, _, _, _) -> ternary_primitive_eligible_for_cse prim
@@ -1630,6 +1706,7 @@ module Eligible_for_cse = struct
       | Some map_arg ->
         let t =
           match t with
+          | Nullary _ -> t
           | Unary (prim, arg) ->
             let arg' = map_arg arg in
             if arg == arg' then t
@@ -1672,6 +1749,7 @@ module Eligible_for_cse = struct
 
   let fold_args t ~init ~f =
     match t with
+    | Nullary _ -> init, t
     | Unary (prim, arg) ->
       let acc, arg = f init arg in
       acc, Unary (prim, arg)
@@ -1696,6 +1774,7 @@ module Eligible_for_cse = struct
 
   let filter_map_args t ~f =
     match t with
+    | Nullary _ -> Some t
     | Unary (prim, arg) ->
       begin match f arg with
       | None -> None
@@ -1752,6 +1831,7 @@ end
 
 module Without_args = struct
   type t =
+    | Nullary of nullary_primitive
     | Unary of unary_primitive
     | Binary of binary_primitive
     | Ternary of ternary_primitive
@@ -1759,6 +1839,7 @@ module Without_args = struct
 
   let print ppf (t : t) =
     match t with
+    | Nullary prim -> print_nullary_primitive ppf prim
     | Unary prim -> print_unary_primitive ppf prim
     | Binary prim -> print_binary_primitive ppf prim
     | Ternary prim -> print_ternary_primitive ppf prim

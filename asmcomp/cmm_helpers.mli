@@ -156,6 +156,9 @@ val mk_not : Debuginfo.t -> expression -> expression
 (** Integer comparison that returns int not bool *)
 val mk_compare_ints : Debuginfo.t -> expression -> expression -> expression
 
+(** Floating-point comparison that returns int not bool *)
+val mk_compare_floats : Debuginfo.t -> expression -> expression -> expression
+
 (** Loop construction (while true do expr done).
     Used to be represented as Cloop. *)
 val create_loop : expression -> Debuginfo.t -> expression
@@ -586,6 +589,8 @@ val generic_apply :
 val send :
   Lambda.meth_kind -> expression -> expression -> expression list ->
   Debuginfo.t -> expression
+
+val probe_is_enabled : name:string -> Debuginfo.t -> expression
 
 (** Generic Cmm fragments *)
 

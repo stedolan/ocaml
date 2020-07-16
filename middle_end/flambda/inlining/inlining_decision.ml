@@ -52,6 +52,9 @@ let make_decision_for_function_declaration denv ?params_and_body function_decl
   match Function_declaration.inline function_decl with
   | Never_inline -> Never_inline_attribute
   | Always_inline -> Inline
+  (* CR mshinwell: Fix [Hint_inline].  At present we don't have any warning
+     even in the [Always_inline] case! *)
+  | Hint_inline -> Inline
   | Default_inline | Unroll _ ->
     if Function_declaration.stub function_decl then Stub
     else
@@ -151,7 +154,7 @@ let make_decision_for_call_site denv ~function_decl_rec_info
   else
     match inline with
     | Never_inline -> Never_inline_attribute
-    | Default_inline | Unroll _ | Always_inline ->
+    | Default_inline | Unroll _ | Always_inline | Hint_inline ->
       match Rec_info.unroll_to function_decl_rec_info with
       | Some unroll_to ->
         if Rec_info.depth function_decl_rec_info >= unroll_to then
@@ -175,5 +178,5 @@ let make_decision_for_call_site denv ~function_decl_rec_info
               Rec_info.depth function_decl_rec_info + unroll_to
             in
             Inline { attribute = Some Unroll; unroll_to = Some unroll_to; }
-          | Always_inline ->
+          | Always_inline | Hint_inline ->
             Inline { attribute = Some Always; unroll_to = None; }

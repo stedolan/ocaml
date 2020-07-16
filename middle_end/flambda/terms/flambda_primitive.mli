@@ -187,6 +187,10 @@ type signed_or_unsigned =
   | Signed
   | Unsigned
 
+(** Primitives taking no arguments. *)
+type nullary_primitive =
+  | Probe_is_enabled of { name : string; }
+
 (** Untagged binary integer arithmetic operations.
 
     [Swap_byte_endianness] on a [Tagged_immediate] treats the immediate as
@@ -262,6 +266,13 @@ type unary_primitive =
         the id of the closure pointed at in the set of closures
         given as argument. *)
 
+(** Whether a comparison is to yield a boolean result, as given by a
+    particular comparison operator, or whether it is to behave in the manner
+    of "compare" functions that yield tagged immediates -1, 0 or 1. *)
+type 'op comparison_behaviour =
+  | Yielding_bool of 'op
+  | Yielding_int_like_compare_functions
+
 (** Binary arithmetic operations on integers. *)
 type binary_int_arith_op =
   | Add | Sub | Mul | Div | Mod | And | Or | Xor
@@ -282,9 +293,9 @@ type binary_primitive =
   | Int_arith of Flambda_kind.Standard_int.t * binary_int_arith_op
   | Int_shift of Flambda_kind.Standard_int.t * int_shift_op
   | Int_comp of Flambda_kind.Standard_int.t * signed_or_unsigned
-      * ordered_comparison
+      * (ordered_comparison comparison_behaviour)
   | Float_arith of binary_float_arith_op
-  | Float_comp of comparison
+  | Float_comp of comparison comparison_behaviour
 
 (** Primitives taking exactly three arguments. *)
 type ternary_primitive =
@@ -302,6 +313,7 @@ type variadic_primitive =
 
 (** The application of a primitive to its arguments. *)
 type t =
+  | Nullary of nullary_primitive
   | Unary of unary_primitive * Simple.t
   | Binary of binary_primitive * Simple.t * Simple.t
   | Ternary of ternary_primitive * Simple.t * Simple.t * Simple.t
@@ -319,6 +331,7 @@ include Contains_ids.S with type t := t
     primitive matters, not the arguments. *)
 module Without_args : sig
   type t =
+    | Nullary of nullary_primitive
     | Unary of unary_primitive
     | Binary of binary_primitive
     | Ternary of ternary_primitive
@@ -353,6 +366,7 @@ type result_kind =
   | Unit
   (** The primitive returns the constant unit value. *)
 
+val result_kind_of_nullary_primitive : nullary_primitive -> result_kind
 val result_kind_of_unary_primitive : unary_primitive -> result_kind
 val result_kind_of_binary_primitive : binary_primitive -> result_kind
 val result_kind_of_ternary_primitive : ternary_primitive -> result_kind
@@ -362,6 +376,7 @@ val result_kind_of_variadic_primitive : variadic_primitive -> result_kind
 val result_kind : t -> result_kind
 
 (** Like the [result_kind]s, but returns the appropriate [Flambda_kind]. *)
+val result_kind_of_nullary_primitive' : nullary_primitive -> Flambda_kind.t
 val result_kind_of_unary_primitive' : unary_primitive -> Flambda_kind.t
 val result_kind_of_binary_primitive' : binary_primitive -> Flambda_kind.t
 val result_kind_of_ternary_primitive' : ternary_primitive -> Flambda_kind.t

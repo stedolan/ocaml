@@ -119,6 +119,7 @@ and apply = {
   should_be_tailcall : bool;
   inlined : Lambda.inline_attribute;
   specialised : Lambda.specialise_attribute;
+  probe_name : string option;
 }
 
 and apply_kind =

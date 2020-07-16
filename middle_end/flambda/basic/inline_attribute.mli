@@ -21,6 +21,7 @@ type t =
   | Never_inline
   | Unroll of int
   | Default_inline
+  | Hint_inline
 
 val print : Format.formatter -> t -> unit
 

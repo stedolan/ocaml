@@ -2396,14 +2396,12 @@ asmcomp/emit.cmo : \
     asmcomp/x86_gas.cmi \
     asmcomp/x86_dsl.cmi \
     asmcomp/x86_ast.cmi \
-    utils/warnings.cmi \
     asmcomp/reg.cmi \
     asmcomp/proc.cmi \
     asmcomp/printmach.cmi \
     utils/numbers.cmi \
     utils/misc.cmi \
     asmcomp/mach.cmi \
-    parsing/location.cmi \
     asmcomp/linear.cmi \
     lambda/lambda.cmi \
     asmcomp/emitaux.cmi \
@@ -2422,14 +2420,12 @@ asmcomp/emit.cmx : \
     asmcomp/x86_gas.cmx \
     asmcomp/x86_dsl.cmx \
     asmcomp/x86_ast.cmi \
-    utils/warnings.cmx \
     asmcomp/reg.cmx \
     asmcomp/proc.cmx \
     asmcomp/printmach.cmx \
     utils/numbers.cmx \
     utils/misc.cmx \
     asmcomp/mach.cmx \
-    parsing/location.cmx \
     asmcomp/linear.cmx \
     lambda/lambda.cmx \
     asmcomp/emitaux.cmx \
@@ -4845,6 +4841,7 @@ middle_end/flambda/from_lambda/eliminate_mutable_vars.cmi : \
 middle_end/flambda/from_lambda/ilambda.cmo : \
     utils/strongly_connected_components.cmi \
     lambda/printlambda.cmi \
+    utils/misc.cmi \
     lambda/lambda.cmi \
     typing/ident.cmi \
     middle_end/flambda/basic/continuation.cmi \
@@ -4853,6 +4850,7 @@ middle_end/flambda/from_lambda/ilambda.cmo : \
 middle_end/flambda/from_lambda/ilambda.cmx : \
     utils/strongly_connected_components.cmx \
     lambda/printlambda.cmx \
+    utils/misc.cmx \
     lambda/lambda.cmx \
     typing/ident.cmx \
     middle_end/flambda/basic/continuation.cmx \
@@ -6018,10 +6016,30 @@ middle_end/flambda/simplify/simplify_named.rec.cmi : \
     middle_end/flambda/terms/flambda.cmi \
     middle_end/flambda/simplify/env/downwards_acc.cmi \
     middle_end/flambda/naming/bindable_let_bound.cmi
+middle_end/flambda/simplify/simplify_nullary_primitive.cmo : \
+    middle_end/flambda/naming/var_in_binding_pos.cmi \
+    middle_end/flambda/simplify/simplify_import.cmi \
+    middle_end/flambda/simplify/basic/reachable.cmi \
+    middle_end/flambda/basic/name.cmi \
+    middle_end/flambda/simplify/simplify_nullary_primitive.cmi
+middle_end/flambda/simplify/simplify_nullary_primitive.cmx : \
+    middle_end/flambda/naming/var_in_binding_pos.cmx \
+    middle_end/flambda/simplify/simplify_import.cmx \
+    middle_end/flambda/simplify/basic/reachable.cmx \
+    middle_end/flambda/basic/name.cmx \
+    middle_end/flambda/simplify/simplify_nullary_primitive.cmi
+middle_end/flambda/simplify/simplify_nullary_primitive.cmi : \
+    middle_end/flambda/naming/var_in_binding_pos.cmi \
+    middle_end/flambda/simplify/basic/reachable.cmi \
+    middle_end/flambda/types/flambda_type.cmi \
+    middle_end/flambda/terms/flambda_primitive.cmi \
+    middle_end/flambda/simplify/env/downwards_acc.cmi \
+    lambda/debuginfo.cmi
 middle_end/flambda/simplify/simplify_primitive.cmo : \
     middle_end/flambda/simplify/simplify_variadic_primitive.cmi \
     middle_end/flambda/simplify/simplify_unary_primitive.cmi \
     middle_end/flambda/simplify/simplify_ternary_primitive.cmi \
+    middle_end/flambda/simplify/simplify_nullary_primitive.cmi \
     middle_end/flambda/simplify/simplify_import.cmi \
     middle_end/flambda/simplify/simplify_binary_primitive.cmi \
     middle_end/flambda/simplify/simplify_primitive.cmi
@@ -6029,6 +6047,7 @@ middle_end/flambda/simplify/simplify_primitive.cmx : \
     middle_end/flambda/simplify/simplify_variadic_primitive.cmx \
     middle_end/flambda/simplify/simplify_unary_primitive.cmx \
     middle_end/flambda/simplify/simplify_ternary_primitive.cmx \
+    middle_end/flambda/simplify/simplify_nullary_primitive.cmx \
     middle_end/flambda/simplify/simplify_import.cmx \
     middle_end/flambda/simplify/simplify_binary_primitive.cmx \
     middle_end/flambda/simplify/simplify_primitive.cmi
@@ -8361,7 +8380,6 @@ middle_end/flambda/types/env/aliases.cmx : \
     utils/misc.cmx \
     middle_end/flambda/cmx/ids_for_export.cmx \
     utils/clflags.cmx \
-<<<<<<< HEAD
     middle_end/flambda/types/env/binding_time.cmx \
     middle_end/flambda/types/env/aliases.cmi
 middle_end/flambda/types/env/aliases.cmi : \
@@ -8371,16 +8389,6 @@ middle_end/flambda/types/env/aliases.cmi : \
     middle_end/flambda/cmx/contains_ids.cmo \
     middle_end/flambda/types/env/binding_time.cmi
 middle_end/flambda/types/env/binding_time.cmo : \
-=======
-    middle_end/flambda2.0/types/env/binding_time.cmx \
-    middle_end/flambda2.0/types/env/aliases.cmi
-middle_end/flambda2.0/types/env/aliases.cmi : \
-    middle_end/flambda2.0/basic/simple.cmi \
-    middle_end/flambda2.0/naming/name_mode.cmi \
-    middle_end/flambda2.0/basic/name.cmi \
-    middle_end/flambda2.0/types/env/binding_time.cmi
-middle_end/flambda2.0/types/env/binding_time.cmo : \
->>>>>>> b1261fb01a... ocaml#9165 from gretay-js/fs-otherlibs (cherry-pick 3f33022488edd8260b98bdfa1c1ea35eee3146aa)
     utils/numbers.cmi \
     middle_end/flambda/naming/name_mode.cmi \
     utils/misc.cmi \

@@ -385,6 +385,7 @@ let split_direct_over_application apply ~param_arity =
       (Apply.dbg apply)
       ~inline:(Apply.inline apply)
       ~inlining_depth:(Apply.inlining_depth apply)
+      ~probe_name:(Apply.probe_name apply)
   in
   let after_full_application = Continuation.create () in
   let after_full_application_handler =

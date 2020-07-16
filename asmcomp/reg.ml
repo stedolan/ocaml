@@ -84,24 +84,10 @@ let clear_visited_marks () =
   incr visit_generation
 
 
-
-let visit_generation = ref 1
-
-let mark_visited r =
-  r.visited <- !visit_generation
-
-let is_visited r =
-  r.visited = !visit_generation
-
-let clear_visited_marks () =
-  incr visit_generation
-
-let unvisited () = !visit_generation - 1
-
 let create ty =
   let r = { raw_name = Raw_name.Anon; stamp = !currstamp; typ = ty;
             loc = Unknown; spill = false; interf = []; prefer = []; degree = 0;
-            spill_cost = 0; visited = unvisited (); part = None; } in
+            spill_cost = 0; visited = unvisited; part = None; } in
   reg_list := r :: !reg_list;
   incr currstamp;
   r
@@ -126,7 +112,7 @@ let clone r =
 let at_location ty loc =
   let r = { raw_name = Raw_name.R; stamp = !currstamp; typ = ty; loc;
             spill = false; interf = []; prefer = []; degree = 0;
-            spill_cost = 0; visited = unvisited (); part = None; } in
+            spill_cost = 0; visited = unvisited; part = None; } in
   hw_reg_list := r :: !hw_reg_list;
   incr currstamp;
   r

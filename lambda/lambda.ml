@@ -343,7 +343,11 @@ let primitive_can_raise = function
   | Pbbswap _
   | Pint_as_pointer
   | Popaque
-  | Pgettag -> false
+  | Pgettag
+  | Pcompare_ints
+  | Pcompare_floats
+  | Pcompare_bints _
+  | Pprobe_is_enabled _ -> false
 
 type structured_constant =
     Const_base of constant

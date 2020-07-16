@@ -48,10 +48,10 @@ module type Binary_arith_like_sig = sig
   val prover_lhs : (T.t -> Lhs.Set.t T.proof) T.type_accessor
   val prover_rhs : (T.t -> Rhs.Set.t T.proof) T.type_accessor
 
-  val unknown : T.t
-  val these : Result.Set.t -> T.t
-
   type op
+
+  val unknown : op -> T.t
+  val these : Result.Set.t -> T.t
 
   val op : op -> Lhs.t -> Rhs.t -> Result.t option
 
@@ -120,7 +120,7 @@ end = struct
     let proof2 = N.prover_rhs typing_env arg2_ty in
     let kind = N.result_kind in
     let result_unknown () =
-      let env_extension = TEE.one_equation result N.unknown in
+      let env_extension = TEE.one_equation result (N.unknown op) in
       Reachable.reachable original_term, env_extension, dacc
     in
     let result_invalid () =
@@ -154,7 +154,7 @@ end = struct
             | Some (Simple simple) -> T.alias_type_of kind simple
             | Some (Exactly _)
             | Some (Prim _)
-            | None -> N.unknown
+            | None -> N.unknown op
         in
         let env_extension = TEE.one_equation result ty in
         Reachable.reachable named, env_extension, dacc
@@ -259,7 +259,7 @@ end = struct
   let prover_lhs = I.unboxed_prover
   let prover_rhs = I.unboxed_prover
 
-  let unknown =
+  let unknown _ =
     match kind with
     | Tagged_immediate -> T.any_tagged_immediate ()
     | Naked_immediate -> T.any_naked_immediate ()
@@ -401,7 +401,7 @@ end = struct
   let prover_lhs = I.unboxed_prover
   let prover_rhs = T.prove_naked_immediates
 
-  let unknown =
+  let unknown _ =
     match kind with
     | Tagged_immediate -> T.any_tagged_immediate ()
     | Naked_immediate -> T.any_naked_immediate ()
@@ -497,13 +497,13 @@ module Binary_int_shift_nativeint =
 
 module Int_ops_for_binary_comp (I : A.Int_number_kind) : sig
   include Binary_arith_like_sig
-    with type op = P.ordered_comparison
+    with type op = P.ordered_comparison P.comparison_behaviour
 end = struct
   module Lhs = I.Num
   module Rhs = I.Num
   module Result = Target_imm
 
-  type op = P.ordered_comparison
+  type op = P.ordered_comparison P.comparison_behaviour
 
   let kind = I.kind
   let result_kind = K.naked_immediate
@@ -513,7 +513,12 @@ end = struct
   let prover_lhs = I.unboxed_prover
   let prover_rhs = I.unboxed_prover
 
-  let unknown = T.any_naked_immediate ()
+  let unknown (op : op) =
+    match op with
+    | Yielding_bool _ -> T.any_naked_bool ()
+    | Yielding_int_like_compare_functions ->
+      T.these_naked_immediates Target_imm.zero_one_and_minus_one
+
   let these = T.these_naked_immediates
 
   let term imm : Named.t =
@@ -524,13 +529,22 @@ end = struct
 
   module Num = I.Num
 
-  let op (op : P.ordered_comparison) n1 n2 =
-    let bool b = Target_imm.bool b in
+  let op (op : P.ordered_comparison P.comparison_behaviour) n1 n2 =
     match op with
-    | Lt -> Some (bool (Num.compare n1 n2 < 0))
-    | Gt -> Some (bool (Num.compare n1 n2 > 0))
-    | Le -> Some (bool (Num.compare n1 n2 <= 0))
-    | Ge -> Some (bool (Num.compare n1 n2 >= 0))
+    | Yielding_bool op ->
+      let bool b = Target_imm.bool b in
+      begin match op with
+      | Lt -> Some (bool (Num.compare n1 n2 < 0))
+      | Gt -> Some (bool (Num.compare n1 n2 > 0))
+      | Le -> Some (bool (Num.compare n1 n2 <= 0))
+      | Ge -> Some (bool (Num.compare n1 n2 >= 0))
+      end
+    | Yielding_int_like_compare_functions ->
+      let int i = Target_imm.int (Targetint.OCaml.of_int i) in
+      let c = Num.compare n1 n2 in
+      if c < 0 then Some (int (-1))
+      else if c = 0 then Some (int 0)
+      else Some (int 1)
 
   let op_lhs_unknown _op ~rhs:_ = Cannot_simplify
   let op_rhs_unknown _op ~lhs:_ = Cannot_simplify
@@ -558,15 +572,18 @@ module Binary_int_comp_int64 =
 module Binary_int_comp_nativeint =
   Binary_arith_like (Int_ops_for_binary_comp_nativeint)
 
+(* CR mshinwell: This module is rather too similar to
+   [Int_ops_for_binary_comp] (which is the signed case); we should factor
+   out using another functor. *)
 module Int_ops_for_binary_comp_unsigned (I : A.Int_number_kind) : sig
   include Binary_arith_like_sig
-    with type op = P.ordered_comparison
+    with type op = P.ordered_comparison P.comparison_behaviour
 end = struct
   module Lhs = I.Num
   module Rhs = I.Num
   module Result = Target_imm
 
-  type op = P.ordered_comparison
+  type op = P.ordered_comparison P.comparison_behaviour
 
   let kind = I.kind
   let result_kind = K.naked_immediate
@@ -576,7 +593,12 @@ end = struct
   let prover_lhs = I.unboxed_prover
   let prover_rhs = I.unboxed_prover
 
-  let unknown = T.any_naked_immediate ()
+  let unknown (op : op) =
+    match op with
+    | Yielding_bool _ -> T.any_naked_bool ()
+    | Yielding_int_like_compare_functions ->
+      T.these_naked_immediates Target_imm.zero_one_and_minus_one
+
   let these = T.these_naked_immediates
 
   let term imm : Named.t =
@@ -587,13 +609,22 @@ end = struct
 
   module Num = I.Num
 
-  let op (op : P.ordered_comparison) n1 n2 =
-    let bool b = Target_imm.bool b in
+  let op (op : P.ordered_comparison P.comparison_behaviour) n1 n2 =
     match op with
-    | Lt -> Some (bool (Num.compare_unsigned n1 n2 < 0))
-    | Gt -> Some (bool (Num.compare_unsigned n1 n2 > 0))
-    | Le -> Some (bool (Num.compare_unsigned n1 n2 <= 0))
-    | Ge -> Some (bool (Num.compare_unsigned n1 n2 >= 0))
+    | Yielding_bool op ->
+      let bool b = Target_imm.bool b in
+      begin match op with
+      | Lt -> Some (bool (Num.compare_unsigned n1 n2 < 0))
+      | Gt -> Some (bool (Num.compare_unsigned n1 n2 > 0))
+      | Le -> Some (bool (Num.compare_unsigned n1 n2 <= 0))
+      | Ge -> Some (bool (Num.compare_unsigned n1 n2 >= 0))
+      end
+    | Yielding_int_like_compare_functions ->
+      let int i = Target_imm.int (Targetint.OCaml.of_int i) in
+      let c = Num.compare_unsigned n1 n2 in
+      if c < 0 then Some (int (-1))
+      else if c = 0 then Some (int 0)
+      else Some (int 1)
 
   let op_lhs_unknown _op ~rhs:_ = Cannot_simplify
   let op_rhs_unknown _op ~lhs:_ = Cannot_simplify
@@ -641,7 +672,7 @@ end = struct
   let prover_lhs = T.prove_naked_floats
   let prover_rhs = T.prove_naked_floats
 
-  let unknown = T.any_naked_float ()
+  let unknown _ = T.any_naked_float ()
   let these = T.these_naked_floats
 
   let term f =
@@ -715,7 +746,7 @@ module Binary_float_arith = Binary_arith_like (Float_ops_for_binary_arith)
 
 module Float_ops_for_binary_comp : sig
   include Binary_arith_like_sig
-    with type op = P.comparison
+    with type op = P.comparison P.comparison_behaviour
 end = struct
   module F = Float_by_bit_pattern
 
@@ -723,7 +754,7 @@ end = struct
   module Rhs = F
   module Result = Target_imm
 
-  type op = P.comparison
+  type op = P.comparison P.comparison_behaviour
 
   let kind = K.Standard_int_or_float.Naked_float
   let result_kind = K.naked_immediate
@@ -733,7 +764,12 @@ end = struct
   let prover_lhs = T.prove_naked_floats
   let prover_rhs = T.prove_naked_floats
 
-  let unknown = T.any_naked_immediate ()
+  let unknown (op : op) =
+    match op with
+    | Yielding_bool _ -> T.any_naked_bool ()
+    | Yielding_int_like_compare_functions ->
+      T.these_naked_immediates Target_imm.zero_one_and_minus_one
+
   let these = T.these_naked_immediates
 
   let term imm : Named.t =
@@ -742,28 +778,43 @@ end = struct
   module Pair = F.Pair
   let cross_product = F.cross_product
 
-  let op (op : op) n1 n2 =
-    let bool b = Target_imm.bool b in
+  let op (op : P.comparison P.comparison_behaviour) n1 n2 =
     match op with
-    | Eq -> Some (bool (F.IEEE_semantics.equal n1 n2))
-    | Neq -> Some (bool (not (F.IEEE_semantics.equal n1 n2)))
-    | Lt -> Some (bool (F.IEEE_semantics.compare n1 n2 < 0))
-    | Gt -> Some (bool (F.IEEE_semantics.compare n1 n2 > 0))
-    | Le -> Some (bool (F.IEEE_semantics.compare n1 n2 <= 0))
-    | Ge -> Some (bool (F.IEEE_semantics.compare n1 n2 >= 0))
+    | Yielding_bool op ->
+      let bool b = Target_imm.bool b in
+      begin match op with
+      | Eq -> Some (bool (F.IEEE_semantics.equal n1 n2))
+      | Neq -> Some (bool (not (F.IEEE_semantics.equal n1 n2)))
+      | Lt -> Some (bool (F.IEEE_semantics.compare n1 n2 < 0))
+      | Gt -> Some (bool (F.IEEE_semantics.compare n1 n2 > 0))
+      | Le -> Some (bool (F.IEEE_semantics.compare n1 n2 <= 0))
+      | Ge -> Some (bool (F.IEEE_semantics.compare n1 n2 >= 0))
+      end
+    | Yielding_int_like_compare_functions ->
+      let int i = Target_imm.int (Targetint.OCaml.of_int i) in
+      let c = F.IEEE_semantics.compare n1 n2 in
+      if c < 0 then Some (int (-1))
+      else if c = 0 then Some (int 0)
+      else Some (int 1)
 
-  let result_of_comparison_with_nan (op : op) =
+  let result_of_comparison_with_nan (op : P.comparison) =
     match op with
     | Neq -> Exactly Target_imm.bool_true
     | Eq | Lt | Gt | Le | Ge -> Exactly Target_imm.bool_false
 
-  let op_lhs_unknown op ~rhs : _ binary_arith_outcome_for_one_side_only =
-    if F.is_any_nan rhs then result_of_comparison_with_nan op
-    else Cannot_simplify
+  let op_lhs_unknown (op : op) ~rhs : _ binary_arith_outcome_for_one_side_only =
+    match op with
+    | Yielding_bool op ->
+      if F.is_any_nan rhs then result_of_comparison_with_nan op
+      else Cannot_simplify
+    | Yielding_int_like_compare_functions -> Cannot_simplify
 
-  let op_rhs_unknown op ~lhs : _ binary_arith_outcome_for_one_side_only =
-    if F.is_any_nan lhs then result_of_comparison_with_nan op
-    else Cannot_simplify
+  let op_rhs_unknown (op : op) ~lhs : _ binary_arith_outcome_for_one_side_only =
+    match op with
+    | Yielding_bool op ->
+      if F.is_any_nan lhs then result_of_comparison_with_nan op
+      else Cannot_simplify
+    | Yielding_int_like_compare_functions -> Cannot_simplify
 end
 
 module Binary_float_comp = Binary_arith_like (Float_ops_for_binary_comp)
@@ -786,7 +837,7 @@ end = struct
   let prover_lhs = I.unboxed_prover
   let prover_rhs = I.unboxed_prover
 
-  let unknown = T.any_naked_immediate ()
+  let unknown _ = T.any_naked_immediate ()
   let these = T.these_naked_immediates
 
   let term imm : Named.t =
@@ -959,7 +1010,7 @@ let simplify_phys_equal (op : P.equality_comparison)
         | Eq -> Eq
         | Neq -> Neq
       in
-      Binary_float_comp.simplify op dacc ~original_term dbg
+      Binary_float_comp.simplify (Yielding_bool op) dacc ~original_term dbg
         ~arg1 ~arg1_ty ~arg2 ~arg2_ty ~result_var
     | Naked_number Naked_int32 ->
       Binary_int_eq_comp_int32.simplify op dacc ~original_term dbg

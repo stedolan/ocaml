@@ -366,9 +366,10 @@ MIDDLE_END_FLAMBDA_SIMPLIFY=\
   middle_end/flambda/simplify/simplify_common.cmo \
   middle_end/flambda/simplify/simplify_variadic_primitive.cmo \
   middle_end/flambda/simplify/typing_helpers/number_adjuncts.cmo \
+  middle_end/flambda/simplify/simplify_nullary_primitive.cmo \
   middle_end/flambda/simplify/simplify_unary_primitive.cmo \
-  middle_end/flambda/simplify/simplify_ternary_primitive.cmo \
   middle_end/flambda/simplify/simplify_binary_primitive.cmo \
+  middle_end/flambda/simplify/simplify_ternary_primitive.cmo \
   middle_end/flambda/simplify/simplify_primitive.cmo \
   middle_end/flambda/simplify/typing_helpers/continuation_handler_like_intf.cmo \
   middle_end/flambda/simplify/simplify.cmo

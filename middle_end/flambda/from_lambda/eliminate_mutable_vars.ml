@@ -326,7 +326,7 @@ and transform_let_cont env
 
 and transform_apply env
       ({ kind; func; args; continuation; exn_continuation;
-         loc; should_be_tailcall; inlined; specialised;
+         loc; should_be_tailcall; inlined; specialised; probe_name;
        } : Ilambda.apply) : Ilambda.apply =
   let kind : Ilambda.apply_kind =
     match kind with
@@ -346,6 +346,7 @@ and transform_apply env
     should_be_tailcall;
     inlined;
     specialised;
+    probe_name;
   }
 
 and transform_function_declaration _env

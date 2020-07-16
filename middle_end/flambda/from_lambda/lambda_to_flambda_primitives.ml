@@ -91,7 +91,7 @@ let max_with_zero ~size_int x =
   ret
 
 let array_access_validity_condition array array_kind index =
-  [ H.Binary (Int_comp (Tagged_immediate, Unsigned, Lt), index,
+  [ H.Binary (Int_comp (Tagged_immediate, Unsigned, Yielding_bool Lt), index,
               Prim (Unary (Array_length array_kind, array))); ]
 
 (* actual (strict) upper bound for an index in a string read/write *)
@@ -117,7 +117,7 @@ let actual_max_length ~size_int ~access_size length =
 
 let string_or_bytes_access_validity_condition
     ~size_int str kind access_size index : H.expr_primitive =
-  Binary (Int_comp (I.Naked_immediate, Unsigned, Lt),
+  Binary (Int_comp (I.Naked_immediate, Unsigned, Yielding_bool Lt),
           untag_int index,
           actual_max_length ~size_int ~access_size (Prim (Unary (String_length kind, str))))
 
@@ -133,7 +133,7 @@ let string_or_bytes_ref ~size_int kind arg1 arg2 dbg : H.expr_primitive =
   }
 
 let bigstring_access_validity_condition ~size_int bstr access_size index : H.expr_primitive =
-  Binary (Int_comp (I.Naked_immediate, Unsigned, Lt),
+  Binary (Int_comp (I.Naked_immediate, Unsigned, Yielding_bool Lt),
           untag_int index,
           actual_max_length ~size_int ~access_size
             (Prim (Unary (Bigarray_length { dimension = 1; }, bstr))))
@@ -182,7 +182,8 @@ let bigarray_dim_bound b dimension =
   H.Prim (Unary (Bigarray_length { dimension }, b))
 
 let bigarray_check_bound idx bound =
-  H.Binary (Int_comp (I.Naked_immediate, Unsigned, Lt), idx, bound)
+  H.Binary (Int_comp (I.Naked_immediate, Unsigned, Yielding_bool Lt),
+    idx, bound)
 
 (* CR Gbury: this function in effect duplicates the bigarray_length access:
              one is done in the validity check, and one in the final offset
@@ -360,7 +361,8 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
   | Pdivfloat, [arg1; arg2] ->
     box_float (Binary (Float_arith Div, unbox_float arg1, unbox_float arg2))
   | Pfloatcomp comp, [arg1; arg2] ->
-    tag_int (Binary (Float_comp (C.convert_float_comparison comp),
+    tag_int
+      (Binary (Float_comp (Yielding_bool (C.convert_float_comparison comp)),
       unbox_float arg1, unbox_float arg2))
   | Pfield_computed sem, [obj; field] ->
     let block_access : P.Block_access_kind.t =
@@ -552,7 +554,7 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
     tag_int (Unary (Get_tag, arg))
   | Pisout, [arg1; arg2] ->
     tag_int (
-      Binary (Int_comp (I.Tagged_immediate, Unsigned, Lt),
+      Binary (Int_comp (I.Tagged_immediate, Unsigned, Yielding_bool Lt),
               tagged_immediate_as_naked_nativeint arg1,
               tagged_immediate_as_naked_nativeint arg2))
   | Pbintofint bi, [arg] ->
@@ -997,6 +999,17 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
       failure = Index_out_of_bounds;
       dbg;
     }
+  | Pcompare_ints, [i1; i2] ->
+    Binary (Int_comp (Tagged_immediate, Signed,
+        Yielding_int_like_compare_functions),
+      i1, i2)
+  | Pcompare_floats, [f1; f2] ->
+    Binary (Float_comp Yielding_int_like_compare_functions, f1, f2)
+  | Pcompare_bints int_kind, [i1; i2] ->
+    Binary (Int_comp (C.standard_int_of_boxed_integer int_kind, Signed,
+        Yielding_int_like_compare_functions),
+      i1, i2)
+  | Pprobe_is_enabled { name; }, [] -> Nullary (Probe_is_enabled { name; })
   | ( Pmodint Unsafe
     | Pdivbint { is_safe = Unsafe; size = _; }
     | Pmodbint { is_safe = Unsafe; size = _; }
@@ -1007,6 +1020,10 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
         or [Closure_conversion] or the wrong number of arguments"
       Printlambda.primitive prim
       H.print_list_of_simple_or_prim args
+  | Pprobe_is_enabled _, (_ :: _) ->
+    Misc.fatal_errorf "Closure_conversion.convert_primitive: \
+        Wrong arity for nullary primitive %a"
+      Printlambda.primitive prim
   | ( Pfield _ | Pnegint | Pnot | Poffsetint _ | Pintoffloat | Pfloatofint
     | Pnegfloat | Pabsfloat | Pstringlength | Pbyteslength | Pgettag
     | Pbintofint _ | Pintofbint _ | Pnegbint _ | Popaque | Pduprecord _
@@ -1031,6 +1048,7 @@ let convert_lprim ~backend (prim : L.primitive) (args : Simple.t list)
     | Pbigstring_load_16 _ | Pbigstring_load_32 _ | Pbigstring_load_64 _
     | Parrayrefu (Pgenarray | Paddrarray | Pintarray | Pfloatarray)
     | Parrayrefs (Pgenarray | Paddrarray | Pintarray | Pfloatarray)
+    | Pcompare_ints | Pcompare_floats | Pcompare_bints _
     ),
     ([] | [_] | _ :: _ :: _ :: _) ->
     Misc.fatal_errorf "Closure_conversion.convert_primitive: \

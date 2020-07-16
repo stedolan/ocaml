@@ -214,6 +214,7 @@ let simplify_primitive (prim : L.primitive) args loc =
            operators. *)
         ap_inlined = Default_inline;
         ap_specialised = Default_specialise;
+        ap_probe = None;
       }
     in
     L.Lapply apply
@@ -259,16 +260,17 @@ let rec prepare env (lam : L.lambda) (k : L.lambda -> L.lambda) =
   match lam with
   | Lvar _ | Lconst _ -> k lam
   | Lapply { ap_func; ap_args; ap_loc; ap_should_be_tailcall; ap_inlined;
-      ap_specialised; } ->
+      ap_specialised; ap_probe; } ->
     prepare env ap_func (fun ap_func ->
       prepare_list env ap_args (fun ap_args ->
         k (L.Lapply {
           ap_func;
           ap_args;
           ap_loc = ap_loc;
-          ap_should_be_tailcall = ap_should_be_tailcall;
-          ap_inlined = ap_inlined;
-          ap_specialised = ap_specialised;
+          ap_should_be_tailcall;
+          ap_inlined;
+          ap_specialised;
+          ap_probe;
         })))
   | Lfunction { kind; params; return; body; attr; loc; } ->
     prepare env body (fun body ->

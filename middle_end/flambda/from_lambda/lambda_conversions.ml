@@ -41,6 +41,7 @@ let inline_attribute (attr : L.inline_attribute) : Inline_attribute.t =
   | Never_inline -> Never_inline
   | Unroll i -> Unroll i
   | Default_inline -> Default_inline
+  | Hint_inline -> Hint_inline
 
 let kind_of_primitive_native_repr (repr : Primitive.native_repr) =
   match repr with
@@ -99,10 +100,10 @@ let convert_integer_comparison_prim (comp : L.integer_comparison)
   match comp with
   | Ceq -> Phys_equal (K.value, Eq)
   | Cne -> Phys_equal (K.value, Neq)
-  | Clt -> Int_comp (Tagged_immediate, Signed, Lt)
-  | Cgt -> Int_comp (Tagged_immediate, Signed, Gt)
-  | Cle -> Int_comp (Tagged_immediate, Signed, Le)
-  | Cge -> Int_comp (Tagged_immediate, Signed, Ge)
+  | Clt -> Int_comp (Tagged_immediate, Signed, Yielding_bool Lt)
+  | Cgt -> Int_comp (Tagged_immediate, Signed, Yielding_bool Gt)
+  | Cle -> Int_comp (Tagged_immediate, Signed, Yielding_bool Le)
+  | Cge -> Int_comp (Tagged_immediate, Signed, Yielding_bool Ge)
 
 let convert_boxed_integer_comparison_prim
       (kind : L.boxed_integer) (comp : L.integer_comparison)
@@ -110,22 +111,22 @@ let convert_boxed_integer_comparison_prim
   match kind, comp with
   | Pint32, Ceq -> Phys_equal (K.naked_int32, Eq)
   | Pint32, Cne -> Phys_equal (K.naked_int32, Neq)
-  | Pint32, Clt -> Int_comp (Naked_int32, Signed, Lt)
-  | Pint32, Cgt -> Int_comp (Naked_int32, Signed, Gt)
-  | Pint32, Cle -> Int_comp (Naked_int32, Signed, Le)
-  | Pint32, Cge -> Int_comp (Naked_int32, Signed, Ge)
+  | Pint32, Clt -> Int_comp (Naked_int32, Signed, Yielding_bool Lt)
+  | Pint32, Cgt -> Int_comp (Naked_int32, Signed, Yielding_bool Gt)
+  | Pint32, Cle -> Int_comp (Naked_int32, Signed, Yielding_bool Le)
+  | Pint32, Cge -> Int_comp (Naked_int32, Signed, Yielding_bool Ge)
   | Pint64, Ceq -> Phys_equal (K.naked_int64, Eq)
   | Pint64, Cne -> Phys_equal (K.naked_int64, Neq)
-  | Pint64, Clt -> Int_comp (Naked_int64, Signed, Lt)
-  | Pint64, Cgt -> Int_comp (Naked_int64, Signed, Gt)
-  | Pint64, Cle -> Int_comp (Naked_int64, Signed, Le)
-  | Pint64, Cge -> Int_comp (Naked_int64, Signed, Ge)
+  | Pint64, Clt -> Int_comp (Naked_int64, Signed, Yielding_bool Lt)
+  | Pint64, Cgt -> Int_comp (Naked_int64, Signed, Yielding_bool Gt)
+  | Pint64, Cle -> Int_comp (Naked_int64, Signed, Yielding_bool Le)
+  | Pint64, Cge -> Int_comp (Naked_int64, Signed, Yielding_bool Ge)
   | Pnativeint, Ceq -> Phys_equal (K.naked_nativeint, Eq)
   | Pnativeint, Cne -> Phys_equal (K.naked_nativeint, Neq)
-  | Pnativeint, Clt -> Int_comp (Naked_nativeint, Signed, Lt)
-  | Pnativeint, Cgt -> Int_comp (Naked_nativeint, Signed, Gt)
-  | Pnativeint, Cle -> Int_comp (Naked_nativeint, Signed, Le)
-  | Pnativeint, Cge -> Int_comp (Naked_nativeint, Signed, Ge)
+  | Pnativeint, Clt -> Int_comp (Naked_nativeint, Signed, Yielding_bool Lt)
+  | Pnativeint, Cgt -> Int_comp (Naked_nativeint, Signed, Yielding_bool Gt)
+  | Pnativeint, Cle -> Int_comp (Naked_nativeint, Signed, Yielding_bool Le)
+  | Pnativeint, Cge -> Int_comp (Naked_nativeint, Signed, Yielding_bool Ge)
 
 let convert_float_comparison (comp : L.float_comparison) : P.comparison =
   match comp with

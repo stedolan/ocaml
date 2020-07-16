@@ -48,6 +48,7 @@ val create
   -> Debuginfo.t
   -> inline:Inline_attribute.t
   -> inlining_depth:int
+  -> probe_name:string option
   -> t
 
 (** The function or method being applied. *)
@@ -72,6 +73,9 @@ val dbg : t -> Debuginfo.t
 (** Instructions from the source code as to whether the callee should be
     inlined. *)
 val inline : t -> Inline_attribute.t
+
+(** The name of any tracing probe for which this is a call to. *)
+val probe_name : t -> string option
 
 (** Change the return continuation of an application. *)
 val with_continuation : t -> Result_continuation.t -> t

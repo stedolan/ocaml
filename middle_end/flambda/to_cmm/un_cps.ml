@@ -382,6 +382,14 @@ let binary_int_comp_primitive _env dbg kind signed cmp x y =
   | (Naked_int32|Naked_int64|Naked_nativeint|Naked_immediate), Unsigned, Ge ->
     C.uge ~dbg x y
 
+let binary_int_comp_primitive_yielding_int _env dbg _kind
+      (signed : Flambda_primitive.signed_or_unsigned) x y =
+  match signed with
+  | Signed -> C.mk_compare_ints dbg x y
+  | Unsigned ->
+    Misc.fatal_error "Translation of [Int_comp] yielding an integer -1, 0 or 1 \
+      in unsigned mode is not yet implemented"
+
 let binary_float_arith_primitive _env dbg op x y =
   match (op : Flambda_primitive.binary_float_arith_op) with
   | Add -> C.float_add ~dbg x y
@@ -398,7 +406,14 @@ let binary_float_comp_primitive _env dbg op x y =
   | Le -> C.float_le ~dbg x y
   | Ge -> C.float_ge ~dbg x y
 
+let binary_float_comp_primitive_yielding_int _env dbg x y =
+  C.mk_compare_floats dbg x y
+
 (* Primitives *)
+
+let nullary_primitive _env dbg f =
+  match (f : Flambda_primitive.nullary_primitive) with
+  | Probe_is_enabled { name; } -> None, C.probe_is_enabled ~name dbg
 
 let unary_primitive env dbg f arg =
   match (f : Flambda_primitive.unary_primitive) with
@@ -469,12 +484,16 @@ let binary_primitive env dbg f x y =
     binary_int_arith_primitive env dbg kind op x y
   | Int_shift (kind, op) ->
     binary_int_shift_primitive env dbg kind op x y
-  | Int_comp (kind, signed, cmp) ->
+  | Int_comp (kind, signed, Yielding_bool cmp) ->
     binary_int_comp_primitive env dbg kind signed cmp x y
+  | Int_comp (kind, signed, Yielding_int_like_compare_functions) ->
+    binary_int_comp_primitive_yielding_int env dbg kind signed x y
   | Float_arith op ->
     binary_float_arith_primitive env dbg op x y
-  | Float_comp cmp ->
+  | Float_comp (Yielding_bool cmp) ->
     binary_float_comp_primitive env dbg cmp x y
+  | Float_comp Yielding_int_like_compare_functions ->
+    binary_float_comp_primitive_yielding_int env dbg x y
 
 let ternary_primitive _env dbg f x y z =
   match (f : Flambda_primitive.ternary_primitive) with
@@ -506,6 +525,9 @@ let arg_list env l =
    given to [Env.inline_variable]. *)
 let prim env dbg p =
   match (p : Flambda_primitive.t) with
+  | Nullary f ->
+    let extra, res = nullary_primitive env dbg f in
+    res, extra, env, Ece.pure
   | Unary (f, x) ->
     let x, env, eff = simple env x in
     let extra, res = unary_primitive env dbg f x in
@@ -918,7 +940,15 @@ and apply_call env e =
         args, env
     in
     let f_code = symbol (Code_id.code_symbol code_id) in
-    C.direct_call ~dbg ty (C.symbol f_code) args, env, effs
+    begin match Apply_expr.probe_name e with
+    | None -> C.direct_call ~dbg ty (C.symbol f_code) args, env, effs
+    | Some name ->
+      let cmm =
+        Cmm.Cop (Cprobe { name; handler_code_sym = f_code; }, args, dbg)
+        |> C.return_unit dbg
+      in
+      cmm, env, effs
+    end
   | Call_kind.Function
       Call_kind.Function_call.Indirect_unknown_arity ->
     let f, env, _ = simple env f in

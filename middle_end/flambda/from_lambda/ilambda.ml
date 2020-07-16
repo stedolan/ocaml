@@ -98,6 +98,7 @@ and apply = {
   should_be_tailcall : bool;
   inlined : Lambda.inline_attribute;
   specialised : Lambda.specialise_attribute;
+  probe_name : string option;
 }
 
 and apply_kind =
@@ -196,13 +197,14 @@ and print ppf (t : t) =
           print_simple obj
           Ident.print func
     in
-    fprintf ppf "@[<2>(apply@ %a<%a> %a%a%a%a)@]"
+    fprintf ppf "@[<2>(apply@ %a<%a> %a%a%a%a@ %a)@]"
       print_func_and_kind ap.func
       Continuation.print ap.continuation
       (Format.pp_print_list ~pp_sep:Format.pp_print_space print_simple) ap.args
       Printlambda.apply_tailcall_attribute ap.should_be_tailcall
       Printlambda.apply_inlined_attribute ap.inlined
       Printlambda.apply_specialised_attribute ap.specialised
+      (Misc.Stdlib.Option.print Format.pp_print_string) ap.probe_name
   | Let (id, _user_visible, kind, arg, body) ->
     let rec let_body = function
       | Let (id, _user_visible, kind, arg, body) ->

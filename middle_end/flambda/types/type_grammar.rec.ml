@@ -274,6 +274,9 @@ let bottom_like t = bottom (kind t)
 
 let any_value () = Value (T_V.unknown ())
 let any_naked_immediate () = Naked_immediate (T_NI.unknown ())
+let any_naked_bool () =
+  let is = Target_imm.all_bools in
+  Naked_immediate (T_NI.create_no_alias (Ok (Naked_immediates is)))
 let any_naked_float () = Naked_float (T_Nf.unknown ())
 let any_naked_int32 () = Naked_int32 (T_N32.unknown ())
 let any_naked_int64 () = Naked_int64 (T_N64.unknown ())
