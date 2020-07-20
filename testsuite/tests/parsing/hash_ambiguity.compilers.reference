@@ -33,6 +33,7 @@
           []
         ptype_kind =
           Ptype_abstract
+        ptype_layout =
         ptype_private = Public
         ptype_manifest =
           Some
@@ -74,6 +75,7 @@
                 ]
                 None
             ]
+        ptype_layout =
         ptype_private = Public
         ptype_manifest =
           None
@@ -109,6 +111,7 @@
                 ]
                 None
             ]
+        ptype_layout =
         ptype_private = Public
         ptype_manifest =
           None

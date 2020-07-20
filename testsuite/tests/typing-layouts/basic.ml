@@ -6,12 +6,22 @@ type 'a t = T of 'a
 type ('a : immediate) t_imm = Timm of 'a
 type 'a id = 'a
 type ('a : immediate) id_imm = 'a
+type ('a : float) id_float : float = 'a
 
 [%%expect{|
 type 'a t = T of 'a
 type ('a : immediate) t_imm = Timm of 'a
 type 'a id = 'a
 type ('a : immediate) id_imm = 'a
+type ('a : float) id_float : float = 'a
+|}]
+
+type ('a : float) bad_float = Tfloat of 'a
+[%%expect{|
+Line 1, characters 40-42:
+1 | type ('a : float) bad_float = Tfloat of 'a
+                                            ^^
+Error: This type does not have layout value
 |}]
 
 let f1 x = T x
@@ -68,6 +78,10 @@ Line 1, characters 25-48:
                              ^^^^^^^^^^^^^^^^^^^^^^^
 Error: The universal type variable 'a cannot be generalized:
        it has layout immediate, but should have value.
+|}]
+type p_float = { foo_1 : ('a : float) . 'a id_float }
+[%%expect{|
+type p_float = { foo_1 : ('a : float). 'a id_float; }
 |}]
 
 (* Newtypes *)

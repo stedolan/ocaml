@@ -85,6 +85,7 @@
                 ]
                 None
             ]
+        ptype_layout =
         ptype_private = Public
         ptype_manifest =
           None
@@ -127,6 +128,7 @@
                           Ptyp_constr "t" (attributes.ml[26,344+9]..[26,344+10])
                           []
                     ]
+                ptype_layout =
                 ptype_private = Public
                 ptype_manifest =
                   None
@@ -187,6 +189,7 @@
                       []
                     ptype_kind =
                       Ptype_abstract
+                    ptype_layout =
                     ptype_private = Public
                     ptype_manifest =
                       Some

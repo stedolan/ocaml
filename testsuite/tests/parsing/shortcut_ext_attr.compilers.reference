@@ -496,6 +496,7 @@
           []
         ptype_kind =
           Ptype_abstract
+        ptype_layout =
         ptype_private = Public
         ptype_manifest =
           Some
@@ -587,6 +588,7 @@
               []
             ptype_kind =
               Ptype_abstract
+            ptype_layout =
             ptype_private = Public
             ptype_manifest =
               Some
@@ -602,6 +604,7 @@
               []
             ptype_kind =
               Ptype_abstract
+            ptype_layout =
             ptype_private = Public
             ptype_manifest =
               Some
@@ -814,6 +817,7 @@
                       []
                     ptype_kind =
                       Ptype_abstract
+                    ptype_layout =
                     ptype_private = Public
                     ptype_manifest =
                       Some
@@ -829,6 +833,7 @@
                       []
                     ptype_kind =
                       Ptype_abstract
+                    ptype_layout =
                     ptype_private = Public
                     ptype_manifest =
                       Some
