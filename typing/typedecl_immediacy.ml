@@ -49,7 +49,13 @@ let property : (Type_immediacy.t, unit) Typedecl_properties.property =
   let merge ~prop:_ ~new_prop = new_prop in
   let default _decl = Type_immediacy.Unknown in
   let compute env decl () = compute_decl env decl in
-  let update_decl decl immediacy = { decl with type_immediate = immediacy } in
+  let update_decl decl (immediacy : Type_immediacy.t) = 
+    let layout = match immediacy with
+      | Always ->
+         assert (Layout.subset decl.type_layout Layout.value);
+         Layout.immediate
+      | _ -> decl.type_layout in
+    { decl with type_immediate = immediacy; type_layout = layout } in
   let check _env _id decl () =
     let written_by_user = Type_immediacy.of_attributes decl.type_attributes in
     match Type_immediacy.coerce decl.type_immediate ~as_:written_by_user with
