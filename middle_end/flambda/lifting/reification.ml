@@ -42,7 +42,16 @@ let create_static_const (to_lift : T.to_lift) : Static_const.t =
 let lift dacc ty ~bound_to static_const =
   let dacc, symbol =
     match R.find_shareable_constant (DA.r dacc) static_const with
-    | Some symbol -> dacc, symbol
+    | Some symbol ->
+      if !Clflags.flambda_invariant_checks
+        && not (DE.mem_symbol (DA.denv dacc) symbol)
+      then begin
+        Misc.fatal_errorf "Constant with symbol %a is shareable but not in \
+            the environment:@ %a"
+          Symbol.print symbol
+          DA.print dacc
+      end;
+      dacc, symbol
     | None ->
       let symbol =
         Symbol.create (Compilation_unit.get_current_exn ())
@@ -53,17 +62,15 @@ let lift dacc ty ~bound_to static_const =
           Variable.print bound_to
       end;
       let dacc =
-        DA.map_r dacc ~f:(fun r ->
-          let r =
-            Lifted_constant.create (DA.denv dacc)
-              (Singleton symbol) static_const
-              ~types_of_symbols:(Symbol.Map.singleton symbol ty)
-            |> R.new_lifted_constant r
-          in
-          R.consider_constant_for_sharing r symbol static_const)
+        let denv = DA.denv dacc in
+        Lifted_constant.create_singleton symbol static_const denv ty
+        |> DA.add_lifted_constant dacc
       in
       let dacc =
-        DA.map_denv dacc ~f:(fun denv -> DE.add_symbol denv symbol ty)
+        dacc
+        |> DA.map_r ~f:(fun r ->
+          R.consider_constant_for_sharing r symbol static_const)
+        |> DA.map_denv ~f:(fun denv -> DE.add_symbol denv symbol ty)
       in
       dacc, symbol
   in

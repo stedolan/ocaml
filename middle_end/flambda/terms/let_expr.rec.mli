@@ -31,7 +31,7 @@ val defining_expr : t -> Named.t
     class. *)
 val pattern_match
    : t
-  -> f:(bound_vars:Bindable_let_bound.t -> body:Expr.t -> 'a)
+  -> f:(Bindable_let_bound.t -> body:Expr.t -> 'a)
   -> 'a
 
 (** Look inside two [Let]s by choosing members of their alpha-equivalence
@@ -39,11 +39,7 @@ val pattern_match
 val pattern_match_pair
    : t
   -> t
-  -> f:(bound_vars:Bindable_let_bound.t -> body1:Expr.t -> body2:Expr.t -> 'a)
+  -> f:(Bindable_let_bound.t -> body1:Expr.t -> body2:Expr.t -> 'a)
   -> 'a
 
-val create
-   : bound_vars:Bindable_let_bound.t
-  -> defining_expr:Named.t
-  -> body:Expr.t
-  -> t
+val create : Bindable_let_bound.t -> defining_expr:Named.t -> body:Expr.t -> t

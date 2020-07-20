@@ -198,11 +198,22 @@ let bind_let_bound ~bindings ~body =
       | Reachable defining_expr ->
         match bound with
         | Singleton var -> Expr.bind ~bindings:[var, defining_expr] ~body:expr
-        | Set_of_closures _ -> Expr.create_pattern_let bound defining_expr expr)
+        | Set_of_closures _ -> Expr.create_pattern_let bound defining_expr expr
+        | Symbols { bound_symbols; scoping_rule; } ->
+          begin match defining_expr with
+          | Static_const s ->
+            Expr.create_let_symbol bound_symbols scoping_rule s expr
+          | Simple _ | Prim _ | Set_of_closures _ ->
+            Misc.fatal_errorf "Cannot bind [Symbols] to anything other than \
+                a [Static_const]:@ %a@=@ %a"
+              Bindable_let_bound.print bound
+              Named.print defining_expr
+          end
+    )
     body
     (List.rev bindings)
 
-let create_let_symbol0 r code_age_relation (bound_symbols : Bound_symbols.t)
+let create_let_symbol0 uacc code_age_relation (bound_symbols : Bound_symbols.t)
       (static_const : Static_const.t) body =
 (*
   Format.eprintf "create_let_symbol %a\n%!" Bound_symbols.print bound_symbols;
@@ -210,13 +221,12 @@ let create_let_symbol0 r code_age_relation (bound_symbols : Bound_symbols.t)
   let free_names_after = Expr.free_names body in
   match bound_symbols with
   | Singleton sym ->
-    if not (Name_occurrences.mem_symbol free_names_after sym) then body, r
+    if not (Name_occurrences.mem_symbol free_names_after sym) then body, uacc
     else
       let expr =
-        Let_symbol.create Syntactic bound_symbols static_const body
-        |> Expr.create_let_symbol
+        Expr.create_let_symbol bound_symbols Syntactic static_const body
       in
-      expr, r
+      expr, uacc
   | Sets_of_closures _ ->
     let bound_names_unused =
       let being_defined =
@@ -251,7 +261,7 @@ let create_let_symbol0 r code_age_relation (bound_symbols : Bound_symbols.t)
     if bound_names_unused
       && Code_id.Set.is_empty (Code_id.Set.inter
         all_code_ids_bound_names all_code_ids_free_names_after)
-    then body, r
+    then body, uacc
     else
       (* Turn pieces of code that are only referenced in [newer_version_of]
          fields into [Deleted]. *)
@@ -292,16 +302,15 @@ let create_let_symbol0 r code_age_relation (bound_symbols : Bound_symbols.t)
       in
       let static_const = Static_const.Sets_of_closures sets in
       let expr =
-        Let_symbol.create Syntactic bound_symbols static_const body
-        |> Expr.create_let_symbol
+        Expr.create_let_symbol bound_symbols Syntactic static_const body
       in
-      let r =
-        R.remember_code_for_cmx r
+      let uacc =
+        UA.remember_code_for_cmx uacc
           (Static_const.get_pieces_of_code' static_const
            |> Code_id.Lmap.bindings
            |> Code_id.Map.of_list)
       in
-      expr, r
+      expr, uacc
 
 let remove_unused_closure_vars0 r
       ({ code; set_of_closures; } : Static_const.Code_and_set_of_closures.t)
@@ -337,21 +346,24 @@ let remove_unused_closure_vars r (static_const : Static_const.t)
   | Mutable_string _
   | Immutable_string _ -> static_const
 
-let create_let_symbol r (scoping_rule : Let_symbol.Scoping_rule.t)
-      code_age_relation bound_symbols static_const body =
-  let static_const = remove_unused_closure_vars r static_const in
+let _ = ignore create_let_symbol0
+
+let create_let_symbol uacc (scoping_rule : Symbol_scoping_rule.t)
+      code_age_relation lifted_constant body =
+  let bound_symbols = LC.bound_symbols lifted_constant in
+  let defining_expr = LC.defining_expr lifted_constant in
+  let static_const = remove_unused_closure_vars (UA.r uacc) defining_expr in
   match scoping_rule with
   | Syntactic ->
-    create_let_symbol0 r code_age_relation bound_symbols static_const body
+    create_let_symbol0 uacc code_age_relation bound_symbols static_const body
   | Dominator ->
     let expr =
-      Let_symbol.create Dominator bound_symbols static_const body
-      |> Expr.create_let_symbol
+      Expr.create_let_symbol bound_symbols scoping_rule static_const body
     in
-    let r =
-      R.remember_code_for_cmx r
+    let uacc =
+      UA.remember_code_for_cmx uacc
         (Static_const.get_pieces_of_code' static_const
          |> Code_id.Lmap.bindings
          |> Code_id.Map.of_list)
     in
-    expr, r
+    expr, uacc

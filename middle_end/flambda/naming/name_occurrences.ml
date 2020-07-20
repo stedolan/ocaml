@@ -848,19 +848,6 @@ let remove_var t var =
       names;
     }
 
-let remove_vars t vars =
-  if For_names.is_empty t.names then t
-  else
-    let names =
-      Variable.Set.fold (fun var names ->
-          For_names.remove names (Name.var var))
-        vars
-        t.names
-    in
-    { t with
-      names;
-    }
-
 let remove_continuation t k =
   if For_continuations.is_empty t.continuations
     && For_continuations.is_empty t.continuations_in_trap_actions

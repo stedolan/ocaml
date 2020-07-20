@@ -24,7 +24,6 @@ module C = struct
   include Un_cps_helper
 end
 
-module Bound_symbols = Let_symbol.Bound_symbols
 module Env = Un_cps_env
 module SC = Flambda.Static_const
 module R = Un_cps_result
@@ -417,13 +416,13 @@ let static_const
          print the ound symbols and static const. *)
       let dummy_body = Expr.create_invalid () in
       let tmp_let_symbol =
-        Let_symbol.create Syntactic bound_symbols static_const dummy_body
+        Expr.create_let_symbol bound_symbols Syntactic static_const dummy_body
       in
       Format.eprintf
-        "\n@[<v 0>%sContext is:%s translating let_symbol to Cmm:@ %a@."
+        "\n@[<v 0>%sContext is:%s translating `let symbol' to Cmm:@ %a@."
         (Flambda_colours.error ())
         (Flambda_colours.normal ())
-        Let_symbol.print tmp_let_symbol
+        Expr.print tmp_let_symbol
     end;
     raise e
 

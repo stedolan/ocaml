@@ -29,11 +29,11 @@ val lift_via_reification_of_continuation_param_types
 
 type reify_primitive_at_toplevel_result =
   | Lift of {
-    dacc : Downwards_acc.t;
+    r : Simplify_env_and_result.Result.t;
     symbol : Symbol.t;
     static_const : Flambda.Static_const.t;
   }
-  | Shared of { symbol : Symbol.t; }
+  | Shared of Symbol.t
   | Cannot_reify
 
 val reify_primitive_at_toplevel

@@ -44,14 +44,9 @@ module rec Expr : sig
 
   type descr = private
     | Let of Let_expr.t
-    (** Bind a variable.  There can be no effect on control flow (save for
-        asynchronous operations such as the invocation of finalisers or
-        signal handlers as a result of reaching a safe point). *)
-    | Let_symbol of Let_symbol_expr.t
-    (** Bind code and/or data symbol(s).  This form of expression is only
-        allowed in certain "toplevel" contexts.  The bound symbols are not
-        treated up to alpha conversion; each such bound symbol must be
-        unique across the whole program being compiled. *)
+    (** Bind variable(s) or symbol(s).  There can be no effect on control flow
+        (save for asynchronous operations such as the invocation of finalisers
+        or signal handlers as a result of reaching a safe point). *)
     | Let_cont of Let_cont_expr.t
     (** Define one or more continuations. *)
     | Apply of Apply.t
@@ -90,9 +85,14 @@ module rec Expr : sig
       (such as is required to bind a [Set_of_closures]). *)
   val create_pattern_let : Bindable_let_bound.t -> Named.t -> t -> t
 
-  (** Create a [Let_symbol] expression that binds a statically-allocated
-      value to a symbol. *)
-  val create_let_symbol : Let_symbol_expr.t -> t
+  (** Create a [Let] expression that binds a statically-allocated
+      value to one or more symbol(s). *)
+  val create_let_symbol
+     : Bound_symbols.t
+    -> Symbol_scoping_rule.t
+    -> Static_const.t
+    -> t
+    -> t
 
   (** Create an application expression. *)
   val create_apply : Apply.t -> t
@@ -162,7 +162,11 @@ end and Named : sig
     | Prim of Flambda_primitive.t * Debuginfo.t
       (** Primitive operations (arithmetic, memory access, allocation, etc). *)
     | Set_of_closures of Set_of_closures.t
-      (** Definition of a set of possibly mutually-recursive closures. *)
+      (** Definition of a set of (dynamically allocated) possibly
+          mutually-recursive closures. *)
+    | Static_const of Static_const.t
+      (** Definition of one or more symbols representing statically-allocated
+          constants (including sets of closures). *)
 
   (** Printing, invariant checks, name manipulation, etc. *)
   include Expr_std.S with type t := t
@@ -176,6 +180,10 @@ end and Named : sig
 
   (** Convert a set of closures into the defining expression of a [Let]. *)
   val create_set_of_closures : Set_of_closures.t -> t
+
+  (** Convert a statically-allocated constant into the defining expression of
+      a [Let]. *)
+  val create_static_const : Static_const.t -> t
 
   (** Build an expression boxing the name.  The returned kind is the
       one of the unboxed version. *)
@@ -197,10 +205,20 @@ end and Named : sig
       necessarily type-correct, at the given kind. *)
   val dummy_value : Flambda_kind.t -> t
 
-  (** Returns [true] iff the given expression is a set of closures. *)
-  val is_set_of_closures : t -> bool
+  (** Returns [true] iff the given expression is a set of closures that will
+      be allocated on the OCaml heap during execution (i.e. not a
+      statically-allocated set of closures). *)
+  val is_dynamically_allocated_set_of_closures : t -> bool
+
+  (** Returns [true] iff the given expression is a statically-allocated
+      constant. *)
+  val is_static_const : t -> bool
+
+  val must_be_static_const : t -> Static_const.t
 end and Let_expr : sig
-  (** The alpha-equivalence classes of expressions that bind variables. *)
+  (** The alpha-equivalence classes of expressions that bind variables; and
+      the expressions that bind symbols (which are not treated up to
+      alpha equivalence). *)
   type t
 
   (** Printing, invariant checks, name manipulation, etc. *)
@@ -213,7 +231,7 @@ end and Let_expr : sig
       class. *)
   val pattern_match
      : t
-    -> f:(bound_vars:Bindable_let_bound.t -> body:Expr.t -> 'a)
+    -> f:(Bindable_let_bound.t -> body:Expr.t -> 'a)
     -> 'a
 
   (** Look inside two [Let]s by choosing members of their alpha-equivalence
@@ -221,81 +239,8 @@ end and Let_expr : sig
   val pattern_match_pair
      : t
     -> t
-    -> f:(bound_vars:Bindable_let_bound.t -> body1:Expr.t -> body2:Expr.t -> 'a)
+    -> f:(Bindable_let_bound.t -> body1:Expr.t -> body2:Expr.t -> 'a)
     -> 'a
-end and Let_symbol_expr : sig
-  module Bound_symbols : sig
-    module Code_and_set_of_closures : sig
-      type t = {
-        code_ids : Code_id.Set.t;
-        closure_symbols : Symbol.t Closure_id.Lmap.t
-      }
-
-      val print : Format.formatter -> t -> unit
-    end
-
-    type t =
-      | Singleton of Symbol.t
-        (** A binding of a single symbol of kind [Value]. *)
-      | Sets_of_closures of Code_and_set_of_closures.t list
-        (** A recursive binding of possibly multiple sets of closures with
-            associated code. All code IDs and symbols named in the
-            [Code_and_set_of_closures.t list] are in scope for _all_ associated
-            [Static_const.code_and_set_of_closures list] values on the
-            right-hand side of the corresponding [Let_symbol] expression.
-            Despite the recursive nature of the binding, the elements in the
-            [Code_and_set_of_closures.t list] must correspond elementwise to the
-            elements in the corresponding [Static_const.code_and_set_of_closures
-            list]. *)
-
-    val being_defined : t -> Symbol.Set.t
-
-    val code_being_defined : t -> Code_id.Set.t
-
-    val closure_symbols_being_defined : t -> Symbol.Set.t
-
-    val everything_being_defined : t -> Code_id_or_symbol.Set.t
-
-    include Expr_std.S with type t := t
-  end
-
-  module Scoping_rule : sig
-    type t =
-      | Syntactic
-      | Dominator
-  end
-
-  type t
-
-  val create
-     : Scoping_rule.t
-    -> Bound_symbols.t
-    -> Static_const.t
-    -> Expr.t
-    -> t
-
-  val scoping_rule : t -> Scoping_rule.t
-
-  val bound_symbols : t -> Bound_symbols.t
-
-  val defining_expr : t -> Static_const.t
-
-  val body : t -> Expr.t
-
-  include Expr_std.S with type t := t
-
-  (** If [newer_versions_of] maps [id1] to [id2] then [id1] is a newer
-      version of [id2]. *)
-  val pieces_of_code
-     : ?newer_versions_of:Code_id.t Code_id.Map.t
-    -> ?set_of_closures:(Symbol.t Closure_id.Lmap.t * Set_of_closures.t)
-    -> Function_params_and_body.t Code_id.Lmap.t
-    -> Bound_symbols.t * Static_const.t
-
-  val deleted_pieces_of_code
-     : ?newer_versions_of:Code_id.t Code_id.Map.t
-    -> Code_id.Set.t
-    -> Bound_symbols.t * Static_const.t
 end and Let_cont_expr : sig
   (** Values of type [t] represent alpha-equivalence classes of the definitions
       of continuations:
@@ -619,6 +564,8 @@ end and Static_const : sig
       set_of_closures : Set_of_closures.t;
     }
 
+    val free_names : t -> Name_occurrences.t
+
     val map_code : t -> f:(Code_id.t -> Code.t -> Code.t) -> t
   end
 
@@ -677,7 +624,6 @@ module Import : sig
   module Function_params_and_body = Function_params_and_body
   module Let = Let
   module Let_cont = Let_cont
-  module Let_symbol = Let_symbol_expr
   module Named = Named
   module Non_recursive_let_cont_handler = Non_recursive_let_cont_handler
   module Recursive_let_cont_handlers = Recursive_let_cont_handlers
@@ -685,3 +631,16 @@ module Import : sig
   module Static_const = Static_const
   module Switch = Switch
 end
+
+(** If [newer_versions_of] maps [id1] to [id2] then [id1] is a newer
+    version of [id2]. *)
+val pieces_of_code
+   : ?newer_versions_of:Code_id.t Code_id.Map.t
+  -> ?set_of_closures:(Symbol.t Closure_id.Lmap.t * Set_of_closures.t)
+  -> Function_params_and_body.t Code_id.Lmap.t
+  -> Bound_symbols.t * Static_const.t
+
+val deleted_pieces_of_code
+   : ?newer_versions_of:Code_id.t Code_id.Map.t
+  -> Code_id.Set.t
+  -> Bound_symbols.t * Static_const.t

@@ -22,7 +22,6 @@ open! Flambda
 module Env = Closure_conversion_aux.Env
 module Function_decls = Closure_conversion_aux.Function_decls
 module Function_decl = Function_decls.Function_decl
-module Let_symbol = Flambda.Let_symbol_expr
 
 module K = Flambda_kind
 module LC = Lambda_conversions
@@ -565,7 +564,7 @@ let rec close t env (ilam : Ilambda.t) : Expr.t * _ =
     let body, delayed_handlers_body = close t env body in
     (* If we are still at toplevel, don't un-nest handlers, otherwise we
        may produce situations where reification of continuation parameters'
-       types (yielding new [Let_symbol] bindings) cause code IDs or symbols to
+       types (yielding new "let symbol" bindings) cause code IDs or symbols to
        go out of syntactic scope (but not out of dominator scope). *)
     let still_at_toplevel =
       (* Same calculation as in [Simplify_expr]. *)
@@ -1110,15 +1109,15 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
       let return =
         (* Module initialisers return unit, but since that is taken care of
            during Cmm generation, we can instead "return" [module_symbol]
-           here to ensure that its associated [Let_symbol] doesn't get
+           here to ensure that its associated "let symbol" doesn't get
            deleted. *)
         Flambda.Apply_cont.create return_cont
           ~args:[Simple.symbol module_symbol]
           ~dbg:Debuginfo.none
         |> Expr.create_apply_cont
       in
-      Let_symbol.create Syntactic (Singleton module_symbol) static_const return
-      |> Flambda.Expr.create_let_symbol
+      Flambda.Expr.create_let_symbol (Singleton module_symbol)
+        Syntactic static_const return
     in
     let block_access : P.Block_access_kind.t =
       Values {
@@ -1171,7 +1170,7 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
   let exn_continuation = ilam.exn_continuation.exn_handler in
   let body =
     List.fold_left (fun body (code_id, params_and_body) ->
-        let bound_symbols : Let_symbol.Bound_symbols.t =
+        let bound_symbols : Bound_symbols.t =
           Sets_of_closures [{
             code_ids = Code_id.Set.singleton code_id;
             closure_symbols = Closure_id.Lmap.empty;
@@ -1188,8 +1187,8 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
             set_of_closures = Set_of_closures.empty;
           }]
         in
-        Let_symbol.create Syntactic bound_symbols static_const body
-        |> Flambda.Expr.create_let_symbol)
+        Flambda.Expr.create_let_symbol bound_symbols Syntactic static_const
+          body)
       body
       t.code
   in
@@ -1209,8 +1208,8 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
   end;
   let body =
     List.fold_left (fun body (symbol, static_const) ->
-        Let_symbol.create Syntactic (Singleton symbol) static_const body
-        |> Flambda.Expr.create_let_symbol)
+        Flambda.Expr.create_let_symbol (Singleton symbol) Syntactic
+          static_const body)
       body
       t.declared_symbols
   in

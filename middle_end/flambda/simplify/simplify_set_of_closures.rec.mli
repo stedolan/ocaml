@@ -24,7 +24,7 @@ open! Simplify_import
     right-hand side of a [Let] binding. *)
 val simplify_non_lifted_set_of_closures
    : Downwards_acc.t
-  -> bound_vars:Bindable_let_bound.t
+  -> Bindable_let_bound.t
   -> Set_of_closures.t
   -> (Bindable_let_bound.t * Reachable.t) list * Downwards_acc.t
 

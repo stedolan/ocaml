@@ -62,30 +62,30 @@ module Iter_sets_of_closures = struct
   let rec expr f e =
     match (Expr.descr e : Expr.descr) with
     | Let e' -> let_expr f e'
-    | Let_symbol e' -> let_symbol f e'
     | Let_cont e' -> let_cont f e'
     | Apply e' -> apply_expr f e'
     | Apply_cont e' -> apply_cont f e'
     | Switch e' -> switch f e'
     | Invalid e' -> invalid f e'
 
-  and named f n =
+  and named let_expr (bindable_let_bound : Bindable_let_bound.t) f n =
     match (n : Named.t) with
     | Simple _ | Prim _ -> ()
     | Set_of_closures s ->
         f ~closure_symbols:None s
+    | Static_const const ->
+      match bindable_let_bound with
+      | Symbols { bound_symbols; _ } -> static_const f bound_symbols const
+      | Singleton _ | Set_of_closures _ ->
+        Misc.fatal_errorf "[Static_const] can only be bound to [Symbols]:@ %a"
+          Let.print let_expr
 
   and let_expr f t =
-    Let.pattern_match t ~f:(fun ~bound_vars:_ ~body ->
+    Let.pattern_match t ~f:(fun bindable_let_bound ~body ->
         let e = Let.defining_expr t in
-        named f e;
+        named t bindable_let_bound f e;
         expr f body
       )
-
-  and let_symbol f let_sym =
-    static_const f (Let_symbol.bound_symbols let_sym)
-      (Let_symbol.defining_expr let_sym);
-    expr f (Let_symbol.body let_sym)
 
   and let_cont f = function
     | Let_cont.Non_recursive { handler; _ } ->
@@ -135,7 +135,7 @@ module Iter_sets_of_closures = struct
 *)
 
   and static_const f
-        (bound_symbols : Let_symbol.Bound_symbols.t)
+        (bound_symbols : Bound_symbols.t)
         (static_const : Static_const.t) =
     match bound_symbols, static_const with
     | Sets_of_closures bound_symbol_components,
@@ -145,7 +145,7 @@ module Iter_sets_of_closures = struct
         code_and_sets_of_closures = 0);
       List.iter2
         (fun ({ code_ids = _; closure_symbols; }
-              : Let_symbol.Bound_symbols.Code_and_set_of_closures.t)
+              : Bound_symbols.Code_and_set_of_closures.t)
              ({ code; set_of_closures; }
               : Static_const.Code_and_set_of_closures.t) ->
             f ~closure_symbols:(Some closure_symbols) set_of_closures;

@@ -222,7 +222,7 @@ module Block_access_kind = struct
     | Naked_floats { size; } ->
       Format.fprintf ppf
         "@[<hov 1>(Naked_floats@ \
-          @[<hov 1>(size@ %a)@]@\
+          @[<hov 1>(size@ %a)@]\
           )@]"
         (Or_unknown.print Targetint.OCaml.print) size
 

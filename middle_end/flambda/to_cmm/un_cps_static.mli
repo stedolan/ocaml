@@ -34,6 +34,6 @@ val static_const
      -> string
      -> Flambda.Function_params_and_body.t
      -> Cmm.fundecl * Un_cps_result.t)
-  -> Let_symbol.Bound_symbols.t
+  -> Bound_symbols.t
   -> Static_const.t
   -> Un_cps_env.t * Un_cps_result.t * Cmm.expression option

@@ -20,6 +20,6 @@
 
 val simplify_static_const
    : Downwards_acc.t
-  -> Flambda.Let_symbol_expr.Bound_symbols.t
+  -> Bound_symbols.t
   -> Static_const.t
-  -> Flambda.Let_symbol_expr.Bound_symbols.t * Static_const.t * Downwards_acc.t
+  -> Bound_symbols.t * Static_const.t * Downwards_acc.t

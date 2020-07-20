@@ -65,6 +65,8 @@ module Code_and_set_of_closures : sig
   }
 
   val map_code : t -> f:(Code_id.t -> Code.t -> Code.t) -> t
+
+  val free_names : t -> Name_occurrences.t
 end
 
 (** The static structure of a symbol, possibly with holes, ready to be filled

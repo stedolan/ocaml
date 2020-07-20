@@ -44,11 +44,12 @@ let lift_non_closure_discovered_via_reified_continuation_param_types dacc
       DA.map_r dacc ~f:(fun r ->
         R.consider_constant_for_sharing r symbol static_const)
     in
-    let reified_definitions =
-      (Let_symbol.Bound_symbols.Singleton symbol, static_const,
-        Name_occurrences.empty)
-      :: reified_definitions
+    let lifted_constant =
+      (* The environment here may be used by [Sort_lifted_constants], but the
+         type will not be. *)
+      LC.create_singleton symbol static_const (DA.denv dacc) (T.any_value ())
     in
+    let reified_definitions = (lifted_constant, None) :: reified_definitions in
     let reified_continuation_params_to_symbols =
       Variable.Map.add var symbol reified_continuation_params_to_symbols
     in
@@ -119,20 +120,6 @@ let lift_set_of_closures_discovered_via_reified_continuation_param_types dacc
           closure_symbols
           denv)
     in
-    let definition =
-      (* We don't need to assign new code IDs, since we're not changing the
-         code. The code will actually be re-simplified (when we reach the new
-         [Let_symbol] bindings)---at that point, new code IDs may well be
-         assigned. (That is also the point at which references to the closures
-         being lifted, via the continuation's parameters, will be changed to go
-         via symbols.)  See long comment above concerning subtle point
-         relating to dependencies that might be exposed during such
-         simplification. *)
-      Let_symbol.pieces_of_code
-        ~newer_versions_of:Code_id.Map.empty
-        ~set_of_closures:(closure_symbols, set_of_closures)
-        Code_id.Lmap.empty
-    in
     (* This reification process will result in [Let_symbol] bindings containing
        closure symbol definitions but no code.  The code will be simplified
        when each such [Let_symbol] binding (occurring around the handler of the
@@ -170,8 +157,30 @@ let lift_set_of_closures_discovered_via_reified_continuation_param_types dacc
         closure_vars
         Name_occurrences.empty
     in
+    let closure_symbols_with_types =
+      (* The environments in this mapping may be used by
+         [Sort_lifted_constants], but the types will not be. *)
+      Closure_id.Lmap.map (fun closure_symbol -> closure_symbol, T.any_value ())
+        closure_symbols
+    in
+    let lifted_constant =
+      (* We don't need to assign new code IDs, since we're not changing the
+         code. The code will actually be re-simplified (when we reach the new
+         [Let_symbol] bindings)---at that point, new code IDs may well be
+         assigned. (That is also the point at which references to the closures
+         being lifted, via the continuation's parameters, will be changed to go
+         via symbols.)  See long comment above concerning subtle point
+         relating to dependencies that might be exposed during such
+         simplification. *)
+      LC.create_set_of_closures Code_id.Set.empty (DA.denv dacc)
+        ~closure_symbols_with_types
+        (Sets_of_closures [{
+          code = Code_id.Lmap.empty;
+          set_of_closures;
+        }])
+    in
     let reified_definitions =
-      (fst definition, snd definition, extra_deps) :: reified_definitions
+      (lifted_constant, Some (DA.denv dacc, extra_deps)) :: reified_definitions
     in
     let closure_symbol_map =
       Closure_id.Lmap.bindings closure_symbols
@@ -297,16 +306,15 @@ let lift_via_reification_of_continuation_param_types0 dacc ~params
      Cmm translation phase). (Any SCC class containing >1 set of closures is
      maybe a bug?) *)
   let reified_definitions =
-    Sort_lifted_constants.sort dacc reified_definitions
+    Sort_lifted_constants.sort
+      ~fold_over_lifted_constants:(fun ~init ~f ->
+        ListLabels.fold_left reified_definitions ~init ~f)
   in
   let handler =
-    List.fold_left (fun handler (bound_symbols, defining_expr) ->
-        (*
-        Format.eprintf "Creating Let_symbol for:@ %a\n%!"
-          Bound_symbols.print bound_symbols;
-        *)
-        Let_symbol.create Dominator bound_symbols defining_expr handler
-        |> Expr.create_let_symbol)
+    List.fold_left (fun handler lifted_constant ->
+        let bound_symbols = LC.bound_symbols lifted_constant in
+        let defining_expr = LC.defining_expr lifted_constant in
+        Expr.create_let_symbol bound_symbols Dominator defining_expr handler)
       handler
       reified_definitions.bindings_outermost_last
   in
@@ -344,11 +352,11 @@ let allowed_for_toplevel_lifting static_const =
 
 type reify_primitive_at_toplevel_result =
   | Lift of {
-    dacc : Downwards_acc.t;
+    r : R.t;
     symbol : Symbol.t;
     static_const : Flambda.Static_const.t;
   }
-  | Shared of { symbol : Symbol.t; }
+  | Shared of Symbol.t
   | Cannot_reify
 
 let reify_primitive_at_toplevel dacc bound_var ty =
@@ -367,26 +375,24 @@ let reify_primitive_at_toplevel dacc bound_var ty =
        already have been lifted. *)
     let static_const = Reification.create_static_const to_lift in
     if Static_const.is_fully_static static_const
-    || not (allowed_for_toplevel_lifting static_const)
+      || not (allowed_for_toplevel_lifting static_const)
     then
       Cannot_reify
     else begin
       (* CR mshinwell: This should attempt to share the constant (see
          first function in this file for the code). *)
       match R.find_shareable_constant (DA.r dacc) static_const with
-      | Some symbol ->
-        Shared { symbol; }
+      | Some symbol -> Shared symbol
       | None ->
         let symbol =
           Symbol.create (Compilation_unit.get_current_exn ())
             (Linkage_name.create
                (Variable.unique_name (Var_in_binding_pos.var bound_var)))
         in
-        let dacc =
-          DA.map_r dacc ~f:(fun r ->
-            R.consider_constant_for_sharing r symbol static_const)
+        let r =
+          R.consider_constant_for_sharing (DA.r dacc) symbol static_const
         in
-        Lift { dacc; symbol; static_const; }
+        Lift { r; symbol; static_const; }
     end
   | Lift_set_of_closures _ | Simple _ | Cannot_reify | Invalid ->
     Cannot_reify

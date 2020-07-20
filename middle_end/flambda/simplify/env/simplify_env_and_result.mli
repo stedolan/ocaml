@@ -23,10 +23,12 @@
 
 module rec Downwards_env : (Simplify_env_and_result_intf.Downwards_env
   with type result := Result.t
-  with type lifted_constant := Lifted_constant.t)
+  with type lifted_constant := Lifted_constant.t
+  with type lifted_constant_state := Lifted_constant_state.t)
 and Upwards_env : (Simplify_env_and_result_intf.Upwards_env
   with type downwards_env := Downwards_env.t)
-and Result : (Simplify_env_and_result_intf.Result
-  with type lifted_constant := Lifted_constant.t)
+and Result : Simplify_env_and_result_intf.Result
 and Lifted_constant : (Simplify_env_and_result_intf.Lifted_constant
   with type downwards_env := Downwards_env.t)
+and Lifted_constant_state : (Simplify_env_and_result_intf.Lifted_constant_state
+  with type lifted_constant := Lifted_constant.t)

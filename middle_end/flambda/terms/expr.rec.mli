@@ -26,13 +26,9 @@ include Contains_ids.S with type t := t
 
 type descr = private
   | Let of Let_expr.t
-  (** Bind variable(s).  There can be no effect on control flow (save for
-      asynchronous operations such as the invocation of finalisers or
-      signal handlers as a result of reaching a safe point). *)
-  | Let_symbol of Let_symbol_expr.t
-  (** Bind code and/or data symbol(s).  This form of expression is only
-      allowed in certain "toplevel" contexts.  The bound symbols are not
-      treated up to alpha conversion. *)
+  (** Bind variable(s) or symbol(s).  There can be no effect on control flow
+      (save for asynchronous operations such as the invocation of finalisers
+      or signal handlers as a result of reaching a safe point). *)
   | Let_cont of Let_cont_expr.t
   (** Define one or more continuations. *)
   | Apply of Apply.t
@@ -66,8 +62,14 @@ val create_pattern_let0
     whether something got deleted. *)
 val create_let : Var_in_binding_pos.t -> Named.t -> t -> t
 
-(** Bind a symbol to a statically-allocated constant. *)
-val create_let_symbol : Let_symbol_expr.t -> t
+(** Create a [Let] expression that binds a statically-allocated
+    value to one or more symbol(s). *)
+val create_let_symbol
+   : Bound_symbols.t
+  -> Symbol_scoping_rule.t
+  -> Static_const.t
+  -> t
+  -> t
 
 (** Create a [Let]-expression that may bind more than a single [Variable]
     (such as is required to bind a [Set_of_closures]). *)

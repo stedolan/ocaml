@@ -31,6 +31,7 @@ module rec Downwards_env : sig
   include I.Downwards_env
     with type result := Result.t
     with type lifted_constant := Lifted_constant.t
+    with type lifted_constant_state := Lifted_constant_state.t
 end = struct
   type t = {
     backend : (module Flambda_backend_intf.S);
@@ -410,51 +411,39 @@ end = struct
       code = from.code;
     }
 
-  let add_lifted_constants t ~lifted =
-    (*
-    let num_lifted_constants = List.length lifted in
-    if num_lifted_constants > 0 then begin
-      Format.eprintf "Adding %d lifted constants\n%!" (List.length lifted)
-    end;
-    Format.eprintf "Adding lifted:@ %a\n%!"
-      (Format.pp_print_list ~pp_sep:Format.pp_print_space
-        Lifted_constant.print) lifted;
-    *)
+  let add_lifted_constants t lifted =
     let module LC = Lifted_constant in
+    let module LCS = Lifted_constant_state in
     let t =
-      List.fold_left (fun t lifted_constant ->
-          let types_of_symbols = LC.types_of_symbols lifted_constant in
-          Symbol.Map.fold (fun sym typ t ->
-              define_symbol t sym (T.kind typ))
-            types_of_symbols
-            t)
-        t
-        lifted
+      LCS.fold lifted ~init:t ~f:(fun t lifted_constant ->
+        let types_of_symbols = LC.types_of_symbols lifted_constant in
+        Symbol.Map.fold (fun sym (_denv, typ) t ->
+            define_symbol t sym (T.kind typ))
+          types_of_symbols
+          t)
     in
     let typing_env =
-      List.fold_left (fun typing_env lifted_constant ->
-          let denv_at_definition = LC.denv_at_definition lifted_constant in
-          let types_of_symbols = LC.types_of_symbols lifted_constant in
-          Symbol.Map.fold (fun sym typ typing_env ->
-              let sym = Name.symbol sym in
-              let env_extension =
-                (* CR mshinwell: Sometimes we might already have the types
-                   "made suitable" in the [closure_env] field of the typing
-                   environment, perhaps?  For example when lifted constants'
-                   types are coming out of a closure into the enclosing
-                   scope. *)
-                T.make_suitable_for_environment typ
-                  denv_at_definition.typing_env
-                  ~suitable_for:typing_env
-                  ~bind_to:sym
-              in
-              TE.add_env_extension typing_env env_extension)
-            types_of_symbols
-            typing_env)
-        t.typing_env
-        lifted
+      LCS.fold lifted ~init:t.typing_env ~f:(fun typing_env lifted_constant ->
+        let types_of_symbols = LC.types_of_symbols lifted_constant in
+        Symbol.Map.fold (fun sym (denv_at_definition, typ) typing_env ->
+            let sym = Name.symbol sym in
+            let env_extension =
+              (* CR mshinwell: Sometimes we might already have the types
+                 "made suitable" in the [closure_env] field of the typing
+                 environment, perhaps?  For example when lifted constants'
+                 types are coming out of a closure into the enclosing
+                 scope. *)
+              T.make_suitable_for_environment typ
+                denv_at_definition.typing_env
+                ~suitable_for:typing_env
+                ~bind_to:sym
+            in
+            TE.add_env_extension typing_env env_extension)
+          types_of_symbols
+          typing_env)
     in
-    List.fold_left (fun denv lifted_constant ->
+    LCS.fold lifted ~init:(with_typing_env t typing_env)
+      ~f:(fun denv lifted_constant ->
         let defining_expr = LC.defining_expr lifted_constant in
         Code_id.Lmap.fold
           (fun code_id
@@ -466,8 +455,9 @@ end = struct
             | Deleted -> denv)
           (Static_const.get_pieces_of_code defining_expr)
           denv)
-      (with_typing_env t typing_env)
-      lifted
+
+  let add_lifted_constant t const =
+    add_lifted_constants t (Lifted_constant_state.singleton const)
 
   let set_inlined_debuginfo t dbg =
     { t with inlined_debuginfo = dbg; }
@@ -664,67 +654,30 @@ end = struct
     | rewrite -> Some rewrite
 end and Result : sig
   include I.Result
-    with type lifted_constant := Lifted_constant.t
 end = struct
   type t =
     { resolver : I.resolver;
       get_imported_names : I.get_imported_names;
-      lifted_constants_innermost_last : Lifted_constant.t list;
       shareable_constants : Symbol.t Static_const.Map.t;
       used_closure_vars : Var_within_closure.Set.t;
-      all_code : Exported_code.t;
     }
 
   let print ppf { resolver = _; get_imported_names = _;
-                  lifted_constants_innermost_last;
                   shareable_constants; used_closure_vars;
-                  all_code = _;
                 } =
     Format.fprintf ppf "@[<hov 1>(\
-        @[<hov 1>(lifted_constants_innermost_last@ %a)@]@ \
         @[<hov 1>(shareable_constants@ %a)@]@ \
         @[<hov 1>(used_closure_vars@ %a)@]\
         )@]"
-      (Format.pp_print_list ~pp_sep:Format.pp_print_space Lifted_constant.print)
-        lifted_constants_innermost_last
       (Static_const.Map.print Symbol.print) shareable_constants
       Var_within_closure.Set.print used_closure_vars
 
   let create ~resolver ~get_imported_names =
     { resolver;
       get_imported_names;
-      lifted_constants_innermost_last = [];
       shareable_constants = Static_const.Map.empty;
       used_closure_vars = Var_within_closure.Set.empty;
-      all_code = Exported_code.empty;
     }
-
-  let new_lifted_constant t lifted_constant =
-    { t with
-      lifted_constants_innermost_last =
-        lifted_constant :: t.lifted_constants_innermost_last;
-    }
-
-  let get_lifted_constants t = t.lifted_constants_innermost_last
-
-  let clear_lifted_constants t =
-    { t with
-      lifted_constants_innermost_last = [];
-    }
-
-  let add_prior_lifted_constants t constants =
-    { t with
-      lifted_constants_innermost_last =
-        t.lifted_constants_innermost_last @ constants;
-    }
-
-  let get_and_clear_lifted_constants t =
-    let constants = t.lifted_constants_innermost_last in
-    let t = clear_lifted_constants t in
-    t, constants
-
-  let set_lifted_constants t consts =
-    { t with lifted_constants_innermost_last = consts; }
 
   let find_shareable_constant t static_const =
     Static_const.Map.find_opt static_const t.shareable_constants
@@ -744,80 +697,190 @@ end = struct
     }
 
   let used_closure_vars t = t.used_closure_vars
-
-  let remember_code_for_cmx t code =
-    let all_code = Exported_code.add_code code t.all_code in
-    { t with all_code; }
-
-  let all_code t = t.all_code
 end and Lifted_constant : sig
   include I.Lifted_constant
     with type downwards_env := Downwards_env.t
 end = struct
-  type t = {
-    denv : Downwards_env.t;
-    bound_symbols : Let_symbol.Bound_symbols.t;
-    defining_expr : Static_const.t;
-    types_of_symbols : Flambda_type.t Symbol.Map.t;
+  type for_one_set_of_closures = {
+    code_ids : Code_id.Set.t;
+    denv : Downwards_env.t option;
+    closure_symbols_with_types : (Symbol.t * Flambda_type.t) Closure_id.Lmap.t;
   }
 
-  let print ppf
-        { denv = _ ; bound_symbols; defining_expr; types_of_symbols = _; } =
+  type descr =
+    | Singleton of {
+        denv : Downwards_env.t;
+        symbol : Symbol.t;
+        ty : Flambda_type.t;
+        defining_expr : Flambda.Static_const.t;
+      }
+    | Sets_of_closures of {
+        sets : for_one_set_of_closures list;
+        defining_expr : Flambda.Static_const.t;
+      }
+
+  type t = descr
+
+  let descr t = t
+
+  let bound_symbols t : Bound_symbols.t =
+    match t with
+    | Singleton { symbol; _ } -> Singleton symbol
+    | Sets_of_closures { sets; _ } ->
+      let sets =
+        ListLabels.map sets
+          ~f:(fun for_one_set : Bound_symbols.Code_and_set_of_closures.t ->
+            { code_ids = for_one_set.code_ids;
+              closure_symbols =
+                Closure_id.Lmap.map fst for_one_set.closure_symbols_with_types;
+            })
+      in
+      Sets_of_closures sets
+
+  let defining_expr t =
+    match t with
+    | Singleton { defining_expr; _ }
+    | Sets_of_closures { defining_expr; _ } -> defining_expr
+
+  (* CR-soon mshinwell: Update this to print everything *)
+  let print ppf t =
     Format.fprintf ppf "@[<hov 1>(\
         @[<hov 1>(bound_symbols@ %a)@]@ \
         @[<hov 1>(static_const@ %a)@]\
         )@]"
-      Let_symbol.Bound_symbols.print bound_symbols
-      Static_const.print defining_expr
+      Bound_symbols.print (bound_symbols t)
+      Static_const.print (defining_expr t)
 
-  let create denv bound_symbols defining_expr ~types_of_symbols =
-    let being_defined = Let_symbol.Bound_symbols.being_defined bound_symbols in
-    if not (Symbol.Set.equal (Symbol.Map.keys types_of_symbols) being_defined)
-    then begin
-      Misc.fatal_errorf "[types_of_symbols]:@ %a@ does not cover all symbols \
-          in the definition:@ %a"
-        (Symbol.Map.print T.print) types_of_symbols
-        Let_symbol.Bound_symbols.print bound_symbols
-    end;
-    (* CR mshinwell: This should check that [defining_expr] matches
-       [bound_symbols] in the code/set-of-closures case *)
-    { denv;
-      bound_symbols;
+  let types_of_symbols t =
+    match t with
+    | Singleton { symbol; denv; ty; _ } ->
+      Symbol.Map.singleton symbol (denv, ty)
+    | Sets_of_closures { sets; _ } ->
+      ListLabels.fold_left sets ~init:Symbol.Map.empty
+        ~f:(fun types_of_symbols for_one_set ->
+          let denv = for_one_set.denv in
+          Closure_id.Lmap.fold (fun _closure_id (symbol, ty) types_of_symbols ->
+              match denv with
+              | Some denv -> Symbol.Map.add symbol (denv, ty) types_of_symbols
+              | None ->
+                Misc.fatal_errorf "Missing denv:@ %a" print t)
+            for_one_set.closure_symbols_with_types
+            types_of_symbols)
+
+  let create_singleton symbol defining_expr denv ty =
+    (* CR mshinwell: check that [defining_expr] is not a set of closures *)
+    Singleton {
+      symbol;
+      denv;
+      ty;
       defining_expr;
-      types_of_symbols;
     }
 
-  let create_pieces_of_code denv ?newer_versions_of code =
+  let create_multiple_sets_of_closures sets defining_expr =
+    (* CR mshinwell: Check that [sets] matches [defining_expr] and
+       that [defining_expr] is a set of closures *)
+    Sets_of_closures {
+      sets;
+      defining_expr;
+    }
+
+  let create_set_of_closures code_ids denv ~closure_symbols_with_types
+        defining_expr =
+    create_multiple_sets_of_closures
+      [{ code_ids; denv = Some denv; closure_symbols_with_types; }]
+      defining_expr
+
+  let create_pieces_of_code ?newer_versions_of code =
+    (* CR mshinwell: Avoid going via [pieces_of_code]? *)
     let bound_symbols, defining_expr =
-      Let_symbol.pieces_of_code ?newer_versions_of code
+      Flambda.pieces_of_code ?newer_versions_of code
     in
-    { denv;
-      bound_symbols;
-      defining_expr;
-      types_of_symbols = Symbol.Map.empty;
-    }
+    match bound_symbols with
+    | Sets_of_closures [{ code_ids; closure_symbols; }] ->
+      assert (Closure_id.Lmap.is_empty closure_symbols);
+      create_multiple_sets_of_closures
+        [{ code_ids;
+           denv = None;
+           closure_symbols_with_types = Closure_id.Lmap.empty;
+         }]
+        defining_expr
+    | Sets_of_closures _
+    | Singleton _ -> Misc.fatal_error "Expected singleton [Sets_of_closures]"
 
-  let create_piece_of_code denv ?newer_version_of code_id params_and_body =
+  let create_piece_of_code ?newer_version_of code_id params_and_body =
     let newer_versions_of =
       match newer_version_of with
       | None -> None
       | Some older -> Some (Code_id.Map.singleton code_id older)
     in
-    create_pieces_of_code denv ?newer_versions_of
+    create_pieces_of_code ?newer_versions_of
       (Code_id.Lmap.singleton code_id params_and_body)
 
-  let create_deleted_piece_of_code denv ?newer_versions_of code_id =
+  let create_deleted_piece_of_code ?newer_versions_of code_id =
+    (* CR mshinwell: Avoid going via [deleted_pieces_of_code]? *)
     let bound_symbols, defining_expr =
-      Let_symbol.deleted_pieces_of_code ?newer_versions_of
+      Flambda.deleted_pieces_of_code ?newer_versions_of
         (Code_id.Set.singleton code_id)
     in
-    { denv;
-      bound_symbols;
-      defining_expr;
-      types_of_symbols = Symbol.Map.empty;
-    }
-  let denv_at_definition t = t.denv
-  let bound_symbols t = t.bound_symbols
-  let defining_expr t = t.defining_expr
-  let types_of_symbols t = t.types_of_symbols
+    match bound_symbols with
+    | Sets_of_closures [{ code_ids; closure_symbols; }] ->
+      assert (Closure_id.Lmap.is_empty closure_symbols);
+      create_multiple_sets_of_closures
+        [{ code_ids;
+           denv = None;
+           closure_symbols_with_types = Closure_id.Lmap.empty;
+         }]
+        defining_expr
+    | Sets_of_closures _
+    | Singleton _ -> Misc.fatal_error "Expected singleton [Sets_of_closures]"
+end and Lifted_constant_state : sig
+  include I.Lifted_constant_state
+    with type lifted_constant := Lifted_constant.t
+end = struct
+  type t =
+    | Empty
+    | Leaf of Lifted_constant.t
+    | Union of t * t
+    | Union_leaf of t * Lifted_constant.t
+
+  let to_list t =
+    let rec to_list t acc =
+      match t with
+      | Empty -> acc
+      | Leaf const -> const :: acc
+      | Union (t1, t2) -> to_list t1 (to_list t2 acc)
+      | Union_leaf (t, const) -> to_list t (const :: acc)
+    in
+    to_list t []
+
+  let print ppf t =
+    Format.fprintf ppf "@[<hov 1>(%a)@]"
+      (Format.pp_print_list ~pp_sep:Format.pp_print_space Lifted_constant.print)
+      (to_list t)
+
+  let empty = Empty
+
+  let union t1 t2 =
+    match t1, t2 with
+    | Empty, _ -> t2
+    | _, Empty -> t1
+    | Leaf const, (Union _ | Union_leaf _) -> Union_leaf (t2, const)
+    | (Union _ | Union_leaf _), Leaf const -> Union_leaf (t1, const)
+    | (Leaf _ | Union _ | Union_leaf _), _ -> Union (t1, t2)
+
+  let is_empty t =
+    match t with
+    | Empty -> true
+    | Leaf _ | Union _ | Union_leaf _ -> false
+
+  let singleton const = Leaf const
+
+  let add t const = Union (t, Leaf const)
+
+  let rec fold t ~init ~f =
+    match t with
+    | Empty -> init
+    | Leaf const -> f init const
+    | Union (t1, t2) -> fold t2 ~init:(fold t1 ~init ~f) ~f
+    | Union_leaf (t, const) -> f (fold t ~init ~f) const
 end

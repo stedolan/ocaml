@@ -14,7 +14,7 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(** Sort a list of lifted constants into an order suitable for binding by
+(** Sort a group of lifted constants into an order suitable for binding by
     one or more [Let_symbol] bindings.  This includes grouping together sets
     of closures with recursion between them (c.f. the
     [Let_symbol_expr.Bound_symbol.Sets_of_closures] constructor). *)
@@ -24,12 +24,21 @@
 open! Simplify_import
 
 type result = private {
-  bindings_outermost_last : (Bound_symbols.t * Static_const.t) list;
+  bindings_outermost_last : LC.t list;
 }
 
+val empty_result : result
+
 (** The [Name_occurrences.t] values specify extra "hidden" dependencies of the
-    associated constant that must be taken into account. *)
+    associated constant that must be taken into account.  The corresponding
+    environment must be provided for lookup of such names, since [LC.t]
+    values may contain multiple environments, so it wouldn't be clear which
+    one to choose. *)
 val sort
-   : DA.t
-  -> (Bound_symbols.t * Static_const.t * Name_occurrences.t) list
+   : fold_over_lifted_constants:(
+          init:(CIS.Set.t CIS.Map.t * LC.t CIS.Map.t)
+       -> f:(CIS.Set.t CIS.Map.t * LC.t CIS.Map.t
+         -> LC.t * (DE.t * Name_occurrences.t) option
+         -> CIS.Set.t CIS.Map.t * LC.t CIS.Map.t)
+       -> CIS.Set.t CIS.Map.t * LC.t CIS.Map.t)
   -> result

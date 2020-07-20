@@ -17,8 +17,6 @@
     let_cont_expr.rec.mli
     let_expr.rec.ml
     let_expr.rec.mli
-    let_symbol_expr.rec.ml
-    let_symbol_expr.rec.mli
     named.rec.ml
     named.rec.mli
     non_recursive_let_cont_handler.rec.ml

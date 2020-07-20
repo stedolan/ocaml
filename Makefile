@@ -276,13 +276,15 @@ MIDDLE_END_FLAMBDA_BASIC=\
   middle_end/flambda/basic/continuation_counts.cmo \
   middle_end/flambda/basic/closure_origin.cmo \
   middle_end/flambda/basic/apply_cont_rewrite_id.cmo \
-  middle_end/flambda/basic/continuation_extra_params_and_args.cmo
+  middle_end/flambda/basic/continuation_extra_params_and_args.cmo \
+  middle_end/flambda/basic/symbol_scoping_rule.cmo
 
 MIDDLE_END_FLAMBDA_NAMING=\
   middle_end/flambda/naming/contains_names.cmo \
   middle_end/flambda/naming/with_delayed_permutation.cmo \
   middle_end/flambda/naming/var_in_binding_pos.cmo \
   middle_end/flambda/naming/bindable.cmo \
+  middle_end/flambda/terms/bound_symbols.cmo \
   middle_end/flambda/naming/bindable_let_bound.cmo \
   middle_end/flambda/naming/bindable_continuation.cmo \
   middle_end/flambda/naming/bindable_exn_continuation.cmo \

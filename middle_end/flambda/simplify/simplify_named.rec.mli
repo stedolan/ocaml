@@ -25,14 +25,14 @@ type simplify_named_result = private
     }
   | Reified of {
       definition : Named.t;
-      bound_symbol : Let_symbol.Bound_symbols.t;
+      bound_symbol : Bound_symbols.t;
       static_const :  Static_const.t;
-      dacc : Downwards_acc.t;
+      r : R.t;
     }
-  | Shared of { symbol : Symbol.t; kind : Flambda_kind.t; }
+  | Shared of Symbol.t
 
 val simplify_named
    : Downwards_acc.t
-  -> bound_vars:Bindable_let_bound.t
+  -> Bindable_let_bound.t
   -> Flambda.Named.t
   -> simplify_named_result

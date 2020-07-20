@@ -5,7 +5,6 @@ expr.rec.ml
 function_params_and_body.rec.ml
 let_cont_expr.rec.ml
 let_expr.rec.ml
-let_symbol_expr.rec.ml
 named.rec.ml
 non_recursive_let_cont_handler.rec.ml
 recursive_let_cont_handlers.rec.ml

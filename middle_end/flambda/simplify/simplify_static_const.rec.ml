@@ -18,7 +18,6 @@
 
 open! Simplify_import
 
-module Bound_symbols = Let_symbol.Bound_symbols
 module Field_of_block = Static_const.Field_of_block
 
 (* CR-someday mshinwell: Finish improved simplification using types *)

@@ -18,6 +18,7 @@
 
 module DE = Simplify_env_and_result.Downwards_env
 module LC = Simplify_env_and_result.Lifted_constant
+module LCS = Simplify_env_and_result.Lifted_constant_state
 module T = Flambda_type
 module TE = Flambda_type.Typing_env
 module U = One_continuation_use
@@ -140,7 +141,8 @@ Format.eprintf "Unknown at or later than %a\n%!"
         (* CR mshinwell: The following should be factored out as much as
            possible from here and [DE.add_lifted_constants]. *)
         let use_env =
-          List.fold_left (fun use_env const ->
+          LCS.fold consts_lifted_during_body ~init:use_env
+            ~f:(fun use_env const ->
               Symbol.Map.fold (fun symbol _ty use_env ->
                   let symbol' = Name.symbol symbol in
                   (* CR mshinwell: Add a function in [TE] to do this.  That
@@ -149,14 +151,12 @@ Format.eprintf "Unknown at or later than %a\n%!"
                   else TE.add_symbol_definition use_env symbol)
                 (LC.types_of_symbols const)
                 use_env)
-            use_env
-            consts_lifted_during_body
         in
         let use_env =
-          List.fold_left (fun use_env const ->
-              let denv_at_definition = LC.denv_at_definition const in
+          LCS.fold consts_lifted_during_body ~init:use_env
+            ~f:(fun use_env const ->
               let types_of_symbols = LC.types_of_symbols const in
-              Symbol.Map.fold (fun sym typ use_env ->
+              Symbol.Map.fold (fun sym (denv_at_definition, typ) use_env ->
                   let sym = Name.symbol sym in
                   let env_extension =
                     T.make_suitable_for_environment typ
@@ -167,8 +167,6 @@ Format.eprintf "Unknown at or later than %a\n%!"
                   TE.add_env_extension use_env env_extension)
                 types_of_symbols
                 use_env)
-            use_env
-            consts_lifted_during_body
         in
         use_env, Continuation_extra_params_and_args.empty, true, true
       | [] | [_, _, (Inlinable | Non_inlinable)]

@@ -25,7 +25,11 @@ type t = private
   | Prim of Flambda_primitive.t * Debuginfo.t
     (** Primitive operations (arithmetic, memory access, allocation, etc). *)
   | Set_of_closures of Set_of_closures.t
-    (** Definition of a set of possibly mutually-recursive closures. *)
+    (** Definition of a set of (dynamically allocated) possibly
+        mutually-recursive closures. *)
+  | Static_const of Static_const.t
+    (** Definition of one or more symbols representing statically-allocated
+        constants (including sets of closures). *)
 
 (** Printing, invariant checks, name manipulation, etc. *)
 include Expr_std.S with type t := t
@@ -41,6 +45,10 @@ val create_prim : Flambda_primitive.t -> Debuginfo.t -> t
 
 (** Convert a set of closures into the defining expression of a [Let]. *)
 val create_set_of_closures : Set_of_closures.t -> t
+
+(** Convert a statically-allocated constant into the defining expression of
+    a [Let]. *)
+val create_static_const : Static_const.t -> t
 
 (** Build an expression boxing the name.  The returned kind is the
     one of the unboxed version. *)
@@ -69,4 +77,8 @@ val invariant_returning_kind
   -> t
   -> Flambda_primitive.result_kind
 
-val is_set_of_closures : t -> bool
+val is_dynamically_allocated_set_of_closures : t -> bool
+
+val is_static_const : t -> bool
+
+val must_be_static_const : t -> Static_const.t

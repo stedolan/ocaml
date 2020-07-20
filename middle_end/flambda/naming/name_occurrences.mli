@@ -136,8 +136,6 @@ val mem_code_id : t -> Code_id.t -> bool
 
 val remove_var : t -> Variable.t -> t
 
-val remove_vars : t -> Variable.Set.t -> t
-
 val remove_continuation : t -> Continuation.t -> t
 
 val greatest_name_mode_var

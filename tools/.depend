@@ -123,6 +123,7 @@ objinfo.cmo : \
     ../middle_end/printclambda.cmi \
     ../utils/misc.cmi \
     ../typing/ident.cmi \
+    ../middle_end/flambda/cmx/flambda_cmx_format.cmi \
     ../utils/config.cmi \
     ../file_formats/cmxs_format.cmi \
     ../file_formats/cmx_format.cmi \
@@ -135,6 +136,7 @@ objinfo.cmx : \
     ../middle_end/printclambda.cmx \
     ../utils/misc.cmx \
     ../typing/ident.cmx \
+    ../middle_end/flambda/cmx/flambda_cmx_format.cmx \
     ../utils/config.cmx \
     ../file_formats/cmxs_format.cmi \
     ../file_formats/cmx_format.cmi \

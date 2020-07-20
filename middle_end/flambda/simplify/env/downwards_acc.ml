@@ -18,6 +18,7 @@
 
 module CUE = Continuation_uses_env
 module DE = Simplify_env_and_result.Downwards_env
+module LCS = Simplify_env_and_result.Lifted_constant_state
 module R = Simplify_env_and_result.Result
 module TE = Flambda_type.Typing_env
 
@@ -25,22 +26,26 @@ type t = {
   denv : DE.t;
   continuation_uses_env : CUE.t;
   r : R.t;
+  lifted_constants : LCS.t;
 }
 
-let print ppf { denv; continuation_uses_env; r; } =
+let print ppf { denv; continuation_uses_env; r; lifted_constants; } =
   Format.fprintf ppf "@[<hov 1>(\
       @[<hov 1>(denv@ %a)@]@ \
       @[<hov 1>(continuation_uses_env@ %a)@]@ \
-      @[<hov 1>(r@ %a)@]\
+      @[<hov 1>(r@ %a)@]@ \
+      @[<hov 1>(lifted_constant_state@ %a)@]\
       )@]"
     DE.print denv
     CUE.print continuation_uses_env
     R.print r
+    LCS.print lifted_constants
 
 let create denv continuation_uses_env r = {
   denv;
   continuation_uses_env;
   r;
+  lifted_constants = LCS.empty;
 }
 
 let denv t = t.denv
@@ -119,3 +124,31 @@ let extend_typing_environment t env_extension =
 
 let get_typing_env_no_more_than_one_use t k =
   CUE.get_typing_env_no_more_than_one_use t.continuation_uses_env k
+
+let add_lifted_constant t const =
+  { t with
+    lifted_constants = LCS.add t.lifted_constants const;
+  }
+
+let add_lifted_constants t constants =
+  { t with
+    lifted_constants = LCS.union t.lifted_constants constants;
+  }
+
+let get_lifted_constants t = t.lifted_constants
+
+let clear_lifted_constants t =
+  { t with
+    lifted_constants = LCS.empty;
+  }
+
+let no_lifted_constants t =
+  LCS.is_empty t.lifted_constants
+
+let get_and_clear_lifted_constants t =
+  let constants = t.lifted_constants in
+  let t = clear_lifted_constants t in
+  t, constants
+
+let set_lifted_constants t consts =
+  { t with lifted_constants = consts; }
