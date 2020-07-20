@@ -204,8 +204,11 @@ let sort ~fold_over_lifted_constants =
                       | Sets_of_closures { sets; _ } -> sets
                       | Singleton _ ->
                         Misc.fatal_errorf "Code ID or symbol %a was involved@ \
-                            in (non-closure) recursion that cannot be compiled"
+                            in (non-closure) recursion that cannot be \
+                            compiled:@ %a"
                           CIS.print code_id_or_symbol
+                          (CIS.Map.print CIS.Set.print)
+                          lifted_constants_dep_graph
                     in
                     let code_and_set_of_closures =
                       Static_const.must_be_sets_of_closures
