@@ -354,6 +354,7 @@ module Layout : sig
   val of_string : string -> prim_layout option
   val to_string : prim_layout -> string
   val is_compilable : t -> bool
+  val equal_any : t -> bool
   val approx_compilable : t -> t
 end
 

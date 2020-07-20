@@ -260,6 +260,9 @@ module Layout = struct
     | PLfloat -> "float"
   let is_compilable x =
     List.for_all (function PLany -> false | _ -> true) x
+  let equal_any = function
+    | [PLany] -> true
+    | _ -> false
   let approx_compilable x =
     List.map (function PLany -> PLvalue | l -> l) x
 end

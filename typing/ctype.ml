@@ -2551,6 +2551,7 @@ let unify_eq t1 t2 =
       with Not_found -> false
 
 let rec cmp_layout env refine_var fail ok ty layout =
+  if Layout.equal_any layout then ok else
   let ty = repr ty in
   let check_sub l =
     if Layout.subset l layout then ok else
@@ -2566,7 +2567,7 @@ let rec cmp_layout env refine_var fail ok ty layout =
   | Tconstr (path, _tl, _abbrev) ->
     begin match Env.find_type path env with
     | exception Not_found ->
-      failwith ("Unknown type " ^ Format.asprintf "%a" Path.print path)
+      fail Layout.any layout
     | { type_layout; _ } when Layout.subset type_layout layout ->
       ok
     | { type_layout; _ } ->
