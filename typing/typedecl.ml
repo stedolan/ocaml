@@ -116,7 +116,7 @@ let enter_type rec_flag env sdecl (id, uid) =
       type_private = sdecl.ptype_private;
       type_manifest =
         begin match sdecl.ptype_manifest with None -> None
-        | Some _ -> Some(Ctype.newvar ~layout ()) end;
+        | Some _ -> Some(Ctype.newvar ~layout:Layout.any ()) end;
       type_variance = List.map (fun _ -> Variance.full) sdecl.ptype_params;
       type_separability = Types.Separability.default_signature ~arity;
       type_is_newtype = false;
