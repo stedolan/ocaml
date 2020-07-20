@@ -81,7 +81,7 @@ let lift dacc ty ~bound_to static_const =
   in
   Reachable.reachable term, dacc, var_ty
 
-let try_to_reify dacc (term : Reachable.t) ~bound_to =
+let try_to_reify dacc (term : Reachable.t) ~bound_to ~allow_lifting =
   let occ_kind = Var_in_binding_pos.name_mode bound_to in
   let bound_to = Var_in_binding_pos.var bound_to in
   let denv = DA.denv dacc in
@@ -94,7 +94,7 @@ let try_to_reify dacc (term : Reachable.t) ~bound_to =
   | Reachable _ ->
     match T.reify (DE.typing_env denv) ~min_name_mode:occ_kind ty with
     | Lift to_lift ->
-      if Name_mode.is_normal occ_kind then
+      if Name_mode.is_normal occ_kind && allow_lifting then
         let static_const = create_static_const to_lift in
         (* We cannot currently handle the lifting of constants that are
            recursive with a symbol currently being defined, unless the
