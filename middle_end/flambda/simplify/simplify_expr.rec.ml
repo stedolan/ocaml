@@ -31,7 +31,6 @@ let rec simplify_let
   : 'a. DA.t -> Let.t -> 'a k -> Expr.t * 'a * UA.t
 = fun dacc let_expr k ->
   let module L = Flambda.Let in
-  let original_dacc = dacc in
   L.pattern_match let_expr ~f:(fun bindable_let_bound ~body ->
     let defining_expr = L.defining_expr let_expr in
     let place_lifted_constants_immediately =
@@ -214,7 +213,7 @@ let rec simplify_let
         in
         body, user_data, uacc
       end
-    | Reified { definition; bound_symbol; static_const; r; } ->
+    | Reified { definition; bound_symbol; static_const; dacc; } ->
       if place_lifted_constants_immediately then begin
         Misc.fatal_errorf "Did not expect [Simplify_named] to return \
             [Reified] (bound symbol %a)"
@@ -222,9 +221,8 @@ let rec simplify_let
       end;
       (* In this case, the defining expression was found to be constant,
          so we generate a "let symbol" binding.  The constant being bound
-         has not yet been added to either the [denv] or [r] components of
-         [dacc]; that will happen during simplification of the following built
-         [let_symbol_expr]. *)
+         has not yet been added to [dacc]; that will happen during
+         simplification of the following built [let_symbol_expr]. *)
       let let_symbol_expr =
         Expr.create_let_symbol bound_symbol Dominator static_const
           (Expr.create_pattern_let bindable_let_bound definition body)
@@ -232,10 +230,8 @@ let rec simplify_let
       (* We're effectively replacing one expression (the original [Let])
          with another here; the new expression will be completely
          re-simplified.  So we don't have to do anything relating to lifted
-         constants.  We use [original_dacc] to avoid having stale bindings
-         in the environment from the processing of the original [Let] binding.
-      *)
-      simplify_expr (DA.with_r original_dacc r) let_symbol_expr k
+         constants. *)
+      simplify_expr dacc let_symbol_expr k
     | Shared symbol ->
       if place_lifted_constants_immediately then begin
         Misc.fatal_errorf "Did not expect [Simplify_named] to return \
@@ -253,7 +249,7 @@ let rec simplify_let
       in
       (* Same comment as for the [Reified] case with regard to lifted
          constants. *)
-      simplify_expr original_dacc let_expr k)
+      simplify_expr dacc let_expr k)
 
 and simplify_one_continuation_handler :
  'a. DA.t
@@ -619,7 +615,6 @@ and simplify_recursive_let_cont_handlers
         let body, (handlers, user_data), uacc =
           simplify_expr dacc body (fun dacc_after_body ->
             let cont_uses_env = DA.continuation_uses_env dacc_after_body in
-            let r = DA.r dacc_after_body in
             let arg_types =
               (* We can't know a good type from the call types *)
               List.map T.unknown arity
@@ -655,7 +650,10 @@ and simplify_recursive_let_cont_handlers
                 code_age_relation_after_body
             in
             let denv = DE.with_typing_env denv typing_env in
-            let dacc = DA.create denv cont_uses_env r in
+            let dacc =
+              DA.with_denv dacc_after_body denv
+              |> DA.with_continuation_uses_env ~cont_uses_env
+            in
             let dacc = DA.add_lifted_constants dacc prior_lifted_constants in
             let dacc = DA.map_denv dacc ~f:DE.set_not_at_unit_toplevel in
             let handler, user_data, uacc =

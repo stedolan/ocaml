@@ -17,45 +17,44 @@
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
 module DA = Downwards_acc
-module LCS = Simplify_env_and_result.Lifted_constant_state
-module R = Simplify_env_and_result.Result
+module LCS = Simplify_envs.Lifted_constant_state
 module TE = Flambda_type.Typing_env
-module UE = Simplify_env_and_result.Upwards_env
+module UE = Simplify_envs.Upwards_env
+
+module Static_const = Flambda.Static_const
 
 type t = {
   uenv : UE.t;
   code_age_relation : Code_age_relation.t;
   lifted_constants : LCS.t;
   all_code : Exported_code.t;
-  r : R.t;
+  used_closure_vars : Var_within_closure.Set.t;
+  shareable_constants : Symbol.t Static_const.Map.t;
 }
 
-let print ppf { uenv; code_age_relation; lifted_constants; r; all_code = _; } =
+let print ppf
+      { uenv; code_age_relation; lifted_constants; used_closure_vars;
+        all_code = _; shareable_constants; } =
   Format.fprintf ppf "@[<hov 1>(\
       @[(uenv@ %a)@]@ \
       @[(code_age_relation@ %a)@]@ \
       @[(lifted_constants@ %a)@]@ \
-      @[(r@ %a)@]\
+      @[(used_closure_vars@ %a)@]@ \
+      @[(shareable_constants@ %a)@]\
       )@]"
     UE.print uenv
     Code_age_relation.print code_age_relation
     LCS.print lifted_constants
-    R.print r
+    Var_within_closure.Set.print used_closure_vars
+    (Static_const.Map.print Symbol.print) shareable_constants
 
-let create uenv code_age_relation r =
+let create uenv dacc =
   { uenv;
-    code_age_relation;
-    lifted_constants = LCS.empty;
-    r;
-    all_code = Exported_code.empty;
-  }
-
-let of_dacc dacc =
-  { uenv = UE.empty;
     code_age_relation = TE.code_age_relation (DA.typing_env dacc);
     lifted_constants = LCS.empty;
-    r = DA.r dacc;
     all_code = Exported_code.empty;
+    used_closure_vars = DA.used_closure_vars dacc;
+    shareable_constants = DA.shareable_constants dacc;
   }
 
 let uenv t = t.uenv
@@ -82,18 +81,12 @@ let with_uenv t uenv =
     uenv;
   }
 
-let r t = t.r
-
-let with_r t r =
-  { t with
-    r;
-  }
-
-let map_r t ~f =
-  with_r t (f t.r)
-
 let remember_code_for_cmx t code =
   let all_code = Exported_code.add_code code t.all_code in
   { t with all_code; }
 
 let all_code t = t.all_code
+
+let used_closure_vars t = t.used_closure_vars
+
+let shareable_constants t = t.shareable_constants

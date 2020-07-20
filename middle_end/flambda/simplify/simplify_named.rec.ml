@@ -27,7 +27,7 @@ type simplify_named_result =
       definition : Named.t;
       bound_symbol : Bound_symbols.t;
       static_const : Static_const.t;
-      r : R.t;
+      dacc : DA.t;
     }
   | Shared of Symbol.t
 
@@ -87,13 +87,13 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
         | Cannot_reify ->
           bindings_result [bindable_let_bound, defining_expr] dacc
         | Shared symbol -> Shared symbol
-        | Lift { r; symbol; static_const; } ->
+        | Lift { dacc; symbol; static_const; } ->
           let named = Named.create_simple (Simple.symbol symbol) in
           Reified
             { definition = named;
               bound_symbol = Singleton symbol;
               static_const;
-              r;
+              dacc;
             }
       end
       else
@@ -173,8 +173,7 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
     let dacc =
       match bound_symbols with
       | Singleton symbol ->
-        DA.map_r dacc ~f:(fun r ->
-          R.consider_constant_for_sharing r symbol static_const)
+        DA.consider_constant_for_sharing dacc symbol static_const
       | Sets_of_closures _ -> dacc
     in
     let lifted_constant =

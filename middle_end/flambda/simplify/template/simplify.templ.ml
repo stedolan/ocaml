@@ -80,8 +80,7 @@ let run ~backend ~round unit =
   let denv = DE.increment_continuation_scope_level denv in
   let exn_cont_scope = DE.get_continuation_scope_level denv in
   let denv = DE.increment_continuation_scope_level denv in
-  let r = R.create ~resolver ~get_imported_names in
-  let dacc = DA.create denv Continuation_uses_env.empty r in
+  let dacc = DA.create denv Continuation_uses_env.empty in
   let body, dacc, uacc =
     let exn_continuation =
       Exn_continuation.create ~exn_handler:exn_continuation ~extra_args:[]
@@ -95,8 +94,7 @@ let run ~backend ~round unit =
     Exported_code.merge (UA.all_code uacc)
       (Exported_code.mark_as_imported !imported_code)
   in
-  let r = UA.r uacc in
-  let used_closure_vars = R.used_closure_vars r in
+  let used_closure_vars = UA.used_closure_vars uacc in
   let cmx =
     Flambda_cmx.prepare_cmx_file_contents ~return_cont_env
       ~return_continuation ~module_symbol ~used_closure_vars all_code

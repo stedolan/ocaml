@@ -343,8 +343,8 @@ MIDDLE_END_FLAMBDA_SIMPLIFY=\
   middle_end/flambda/simplify/env/continuation_env_and_param_types.cmo \
   middle_end/flambda/simplify/basic/continuation_in_env.cmo \
   middle_end/flambda/simplify/basic/reachable.cmo \
-  middle_end/flambda/simplify/env/simplify_env_and_result_intf.cmo \
-  middle_end/flambda/simplify/env/simplify_env_and_result.cmo \
+  middle_end/flambda/simplify/env/simplify_envs_intf.cmo \
+  middle_end/flambda/simplify/env/simplify_envs.cmo \
   middle_end/flambda/simplify/typing_helpers/one_continuation_use.cmo \
   middle_end/flambda/simplify/typing_helpers/continuation_uses.cmo \
   middle_end/flambda/simplify/env/continuation_uses_env.cmo \

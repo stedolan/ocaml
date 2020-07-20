@@ -312,13 +312,13 @@ let create_let_symbol0 uacc code_age_relation (bound_symbols : Bound_symbols.t)
       in
       expr, uacc
 
-let remove_unused_closure_vars0 r
+let remove_unused_closure_vars0 uacc
       ({ code; set_of_closures; } : Static_const.Code_and_set_of_closures.t)
       : Static_const.Code_and_set_of_closures.t =
   let closure_elements =
     Set_of_closures.closure_elements set_of_closures
     |> Var_within_closure.Map.filter (fun closure_var _ ->
-      Var_within_closure.Set.mem closure_var (R.used_closure_vars r))
+      Var_within_closure.Set.mem closure_var (UA.used_closure_vars uacc))
   in
   let set_of_closures =
     Set_of_closures.create (Set_of_closures.function_decls set_of_closures)
@@ -352,7 +352,7 @@ let create_let_symbol uacc (scoping_rule : Symbol_scoping_rule.t)
       code_age_relation lifted_constant body =
   let bound_symbols = LC.bound_symbols lifted_constant in
   let defining_expr = LC.defining_expr lifted_constant in
-  let static_const = remove_unused_closure_vars (UA.r uacc) defining_expr in
+  let static_const = remove_unused_closure_vars uacc defining_expr in
   match scoping_rule with
   | Syntactic ->
     create_let_symbol0 uacc code_age_relation bound_symbols static_const body

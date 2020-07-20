@@ -112,7 +112,7 @@ let simplify_project_var closure_id closure_element ~min_name_mode dacc
   in
   let dacc =
     if removed_var then dacc
-    else DA.map_r dacc ~f:(fun r -> R.add_use_of_closure_var r closure_element)
+    else DA.add_use_of_closure_var dacc closure_element
   in
   reachable, env_extension, dacc
 

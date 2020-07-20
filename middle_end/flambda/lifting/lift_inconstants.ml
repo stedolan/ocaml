@@ -22,7 +22,7 @@ let lift_non_closure_discovered_via_reified_continuation_param_types dacc
       var to_lift ~reified_continuation_params_to_symbols
       ~reified_definitions ~closure_symbols_by_set =
   let static_const = Reification.create_static_const to_lift in
-  match R.find_shareable_constant (DA.r dacc) static_const with
+  match DA.find_shareable_constant dacc static_const with
   | Some symbol ->
     let reified_continuation_params_to_symbols =
       Variable.Map.add var symbol reified_continuation_params_to_symbols
@@ -40,10 +40,7 @@ let lift_non_closure_discovered_via_reified_continuation_param_types dacc
           (Name.var var)
           (T.alias_type_of K.value (Simple.symbol symbol)))
     in
-    let dacc =
-      DA.map_r dacc ~f:(fun r ->
-        R.consider_constant_for_sharing r symbol static_const)
-    in
+    let dacc = DA.consider_constant_for_sharing dacc symbol static_const in
     let lifted_constant =
       (* The environment here may be used by [Sort_lifted_constants], but the
          type will not be. *)
@@ -352,7 +349,7 @@ let allowed_for_toplevel_lifting static_const =
 
 type reify_primitive_at_toplevel_result =
   | Lift of {
-    r : R.t;
+    dacc : DA.t;
     symbol : Symbol.t;
     static_const : Flambda.Static_const.t;
   }
@@ -381,7 +378,7 @@ let reify_primitive_at_toplevel dacc bound_var ty =
     else begin
       (* CR mshinwell: This should attempt to share the constant (see
          first function in this file for the code). *)
-      match R.find_shareable_constant (DA.r dacc) static_const with
+      match DA.find_shareable_constant dacc static_const with
       | Some symbol -> Shared symbol
       | None ->
         let symbol =
@@ -389,10 +386,8 @@ let reify_primitive_at_toplevel dacc bound_var ty =
             (Linkage_name.create
                (Variable.unique_name (Var_in_binding_pos.var bound_var)))
         in
-        let r =
-          R.consider_constant_for_sharing (DA.r dacc) symbol static_const
-        in
-        Lift { r; symbol; static_const; }
+        let dacc = DA.consider_constant_for_sharing dacc symbol static_const in
+        Lift { dacc; symbol; static_const; }
     end
   | Lift_set_of_closures _ | Simple _ | Cannot_reify | Invalid ->
     Cannot_reify

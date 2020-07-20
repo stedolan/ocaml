@@ -16,9 +16,9 @@
 
 [@@@ocaml.warning "+a-30-40-41-42"]
 
-module DE = Simplify_env_and_result.Downwards_env
-module LC = Simplify_env_and_result.Lifted_constant
-module LCS = Simplify_env_and_result.Lifted_constant_state
+module DE = Simplify_envs.Downwards_env
+module LC = Simplify_envs.Lifted_constant
+module LCS = Simplify_envs.Lifted_constant_state
 module T = Flambda_type
 module TE = Flambda_type.Typing_env
 module U = One_continuation_use

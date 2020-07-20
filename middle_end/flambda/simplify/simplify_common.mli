@@ -81,6 +81,6 @@ val create_let_symbol
    : Upwards_acc.t
   -> Symbol_scoping_rule.t
   -> Code_age_relation.t
-  -> Simplify_env_and_result.Lifted_constant.t
+  -> Simplify_envs.Lifted_constant.t
   -> Flambda.Expr.t
   -> Flambda.Expr.t * Upwards_acc.t

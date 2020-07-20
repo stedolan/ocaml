@@ -37,7 +37,7 @@ end
    cost so as to fit under the given [inlining_threshold].  The [bonus] is
    added to the threshold before evaluation. *)
 val can_inline
-   : Simplify_env_and_result.Downwards_env.t
+   : Simplify_envs.Downwards_env.t
   -> Expr.t
   -> Threshold.t
   -> bonus:int
@@ -67,7 +67,7 @@ module Benefit : sig
   val direct_call_of_indirect_unknown_arity : t -> t
   val direct_call_of_indirect_known_arity : t -> t
   val requested_inline
-     : Simplify_env_and_result.Downwards_env.t
+     : Simplify_envs.Downwards_env.t
     -> t
     -> size_of:Expr.t
     -> t

@@ -21,18 +21,10 @@ type t
 (** Print a upwards accumulator to a formatter. *)
 val print : Format.formatter -> t -> unit
 
-val create
-   : Simplify_env_and_result.Upwards_env.t
-  -> Code_age_relation.t
-  -> Simplify_env_and_result.Result.t
-  -> t
-
-(** Create an upwards accumulator by copying the result structure and
-    code age relation out of the given downwards accumulator. *)
-val of_dacc : Downwards_acc.t -> t
+val create : Simplify_envs.Upwards_env.t -> Downwards_acc.t -> t
 
 (** Extract the environment component of the given upwards accumulator. *)
-val uenv : t -> Simplify_env_and_result.Upwards_env.t
+val uenv : t -> Simplify_envs.Upwards_env.t
 
 val code_age_relation : t -> Code_age_relation.t
 
@@ -40,18 +32,18 @@ val code_age_relation : t -> Code_age_relation.t
     [Let]-expressions made for them) on the upwards traversal. *)
 val lifted_constants_still_to_be_placed
    : t
-  -> Simplify_env_and_result.Lifted_constant_state.t
+  -> Simplify_envs.Lifted_constant_state.t
 
 val add_lifted_constant_still_to_be_placed
    : t
-  -> Simplify_env_and_result.Lifted_constant.t
+  -> Simplify_envs.Lifted_constant.t
   -> t
 
 (** Replace the accumulator of lifted constants returned by
     [lifted_constants_still_to_be_placed]. *)
 val with_lifted_constants_still_to_be_placed
    : t
-  -> Simplify_env_and_result.Lifted_constant_state.t
+  -> Simplify_envs.Lifted_constant_state.t
   -> t
 
 val no_lifted_constants_still_to_be_placed : t -> bool
@@ -59,25 +51,12 @@ val no_lifted_constants_still_to_be_placed : t -> bool
 (** Map the environment component of the given upwards accumulator. *)
 val map_uenv
    : t
-  -> f:(Simplify_env_and_result.Upwards_env.t
-    -> Simplify_env_and_result.Upwards_env.t)
-  -> t
-
-(** Map the result structure of the given upwards accumulator. *)
-val map_r
-   : t
-  -> f:(Simplify_env_and_result.Result.t
-    -> Simplify_env_and_result.Result.t)
+  -> f:(Simplify_envs.Upwards_env.t
+    -> Simplify_envs.Upwards_env.t)
   -> t
 
 (** Replace the environment component of the given upwards accumulator. *)
-val with_uenv : t -> Simplify_env_and_result.Upwards_env.t -> t
-
-(** The result structure of the given upwards accumulator. *)
-val r : t -> Simplify_env_and_result.Result.t
-
-(** Replace the result structure of the given downwards accumulator. *)
-val with_r : t -> Simplify_env_and_result.Result.t -> t
+val with_uenv : t -> Simplify_envs.Upwards_env.t -> t
 
 val remember_code_for_cmx
     : t
@@ -85,3 +64,7 @@ val remember_code_for_cmx
   -> t
 
 val all_code : t -> Exported_code.t
+
+val used_closure_vars : t -> Var_within_closure.Set.t
+
+val shareable_constants : t -> Symbol.t Flambda.Static_const.Map.t

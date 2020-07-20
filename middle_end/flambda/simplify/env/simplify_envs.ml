@@ -18,7 +18,7 @@
 
 open! Flambda.Import
 
-module I = Simplify_env_and_result_intf
+module I = Simplify_envs_intf
 module KP = Kinded_parameter
 module T = Flambda_type
 module TE = Flambda_type.Typing_env
@@ -29,7 +29,6 @@ type get_imported_code = unit -> Exported_code.t
 
 module rec Downwards_env : sig
   include I.Downwards_env
-    with type result := Result.t
     with type lifted_constant := Lifted_constant.t
     with type lifted_constant_state := Lifted_constant_state.t
 end = struct
@@ -652,51 +651,6 @@ end = struct
     match Continuation.Map.find cont t.apply_cont_rewrites with
     | exception Not_found -> None
     | rewrite -> Some rewrite
-end and Result : sig
-  include I.Result
-end = struct
-  type t =
-    { resolver : I.resolver;
-      get_imported_names : I.get_imported_names;
-      shareable_constants : Symbol.t Static_const.Map.t;
-      used_closure_vars : Var_within_closure.Set.t;
-    }
-
-  let print ppf { resolver = _; get_imported_names = _;
-                  shareable_constants; used_closure_vars;
-                } =
-    Format.fprintf ppf "@[<hov 1>(\
-        @[<hov 1>(shareable_constants@ %a)@]@ \
-        @[<hov 1>(used_closure_vars@ %a)@]\
-        )@]"
-      (Static_const.Map.print Symbol.print) shareable_constants
-      Var_within_closure.Set.print used_closure_vars
-
-  let create ~resolver ~get_imported_names =
-    { resolver;
-      get_imported_names;
-      shareable_constants = Static_const.Map.empty;
-      used_closure_vars = Var_within_closure.Set.empty;
-    }
-
-  let find_shareable_constant t static_const =
-    Static_const.Map.find_opt static_const t.shareable_constants
-
-  let consider_constant_for_sharing t symbol static_const =
-    if not (Static_const.can_share static_const) then t
-    else
-      { t with
-        shareable_constants =
-          Static_const.Map.add static_const symbol t.shareable_constants;
-      }
-
-  let add_use_of_closure_var t closure_var =
-    { t with
-      used_closure_vars =
-        Var_within_closure.Set.add closure_var t.used_closure_vars;
-    }
-
-  let used_closure_vars t = t.used_closure_vars
 end and Lifted_constant : sig
   include I.Lifted_constant
     with type downwards_env := Downwards_env.t

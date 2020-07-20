@@ -41,7 +41,7 @@ let create_static_const (to_lift : T.to_lift) : Static_const.t =
 
 let lift dacc ty ~bound_to static_const =
   let dacc, symbol =
-    match R.find_shareable_constant (DA.r dacc) static_const with
+    match DA.find_shareable_constant dacc static_const with
     | Some symbol ->
       if !Clflags.flambda_invariant_checks
         && not (DE.mem_symbol (DA.denv dacc) symbol)
@@ -67,9 +67,7 @@ let lift dacc ty ~bound_to static_const =
         |> DA.add_lifted_constant dacc
       in
       let dacc =
-        dacc
-        |> DA.map_r ~f:(fun r ->
-          R.consider_constant_for_sharing r symbol static_const)
+        DA.consider_constant_for_sharing dacc symbol static_const
         |> DA.map_denv ~f:(fun denv -> DE.add_symbol denv symbol ty)
       in
       dacc, symbol

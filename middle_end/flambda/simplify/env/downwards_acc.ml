@@ -17,36 +17,43 @@
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
 module CUE = Continuation_uses_env
-module DE = Simplify_env_and_result.Downwards_env
-module LCS = Simplify_env_and_result.Lifted_constant_state
-module R = Simplify_env_and_result.Result
+module DE = Simplify_envs.Downwards_env
+module LCS = Simplify_envs.Lifted_constant_state
 module TE = Flambda_type.Typing_env
+
+module Static_const = Flambda.Static_const
 
 type t = {
   denv : DE.t;
   continuation_uses_env : CUE.t;
-  r : R.t;
+  shareable_constants : Symbol.t Static_const.Map.t;
+  used_closure_vars : Var_within_closure.Set.t;
   lifted_constants : LCS.t;
 }
 
-let print ppf { denv; continuation_uses_env; r; lifted_constants; } =
+let print ppf
+      { denv; continuation_uses_env; shareable_constants; used_closure_vars;
+        lifted_constants; } =
   Format.fprintf ppf "@[<hov 1>(\
       @[<hov 1>(denv@ %a)@]@ \
       @[<hov 1>(continuation_uses_env@ %a)@]@ \
-      @[<hov 1>(r@ %a)@]@ \
+      @[<hov 1>(shareable_constants@ %a)@]@ \
+      @[<hov 1>(used_closure_vars@ %a)@]@ \
       @[<hov 1>(lifted_constant_state@ %a)@]\
       )@]"
     DE.print denv
     CUE.print continuation_uses_env
-    R.print r
+    (Static_const.Map.print Symbol.print) shareable_constants
+    Var_within_closure.Set.print used_closure_vars
     LCS.print lifted_constants
 
-let create denv continuation_uses_env r = {
-  denv;
-  continuation_uses_env;
-  r;
-  lifted_constants = LCS.empty;
-}
+let create denv continuation_uses_env =
+  { denv;
+    continuation_uses_env;
+    shareable_constants = Static_const.Map.empty;
+    used_closure_vars = Var_within_closure.Set.empty;
+    lifted_constants = LCS.empty;
+  }
 
 let denv t = t.denv
 
@@ -69,21 +76,9 @@ let [@inline always] with_denv t denv =
     denv;
   }
 
-let r t = t.r
-
-let [@inline always] map_r t ~f =
+let with_continuation_uses_env t ~cont_uses_env =
   { t with
-    r = f t.r;
-  }
-
-let [@inline always] with_r t r =
-  { t with
-    r;
-  }
-
-let with_continuation_uses_env t continuation_uses_env =
-  { t with
-    continuation_uses_env;
+    continuation_uses_env = cont_uses_env;
   }
 
 let record_continuation_use t cont use_kind ~typing_env_at_use
@@ -92,7 +87,7 @@ let record_continuation_use t cont use_kind ~typing_env_at_use
     CUE.record_continuation_use t.continuation_uses_env cont use_kind
       ~typing_env_at_use ~arg_types
   in
-  with_continuation_uses_env t cont_uses_env, id
+  with_continuation_uses_env t ~cont_uses_env, id
 
 let compute_handler_env t ~env_at_fork_plus_params_and_consts
       ~consts_lifted_during_body cont ~params =
@@ -152,3 +147,30 @@ let get_and_clear_lifted_constants t =
 
 let set_lifted_constants t consts =
   { t with lifted_constants = consts; }
+
+let find_shareable_constant t static_const =
+  Static_const.Map.find_opt static_const t.shareable_constants
+
+let consider_constant_for_sharing t symbol static_const =
+  if not (Static_const.can_share static_const) then t
+  else
+    { t with
+      shareable_constants =
+        Static_const.Map.add static_const symbol t.shareable_constants;
+    }
+
+let with_shareable_constants t ~shareable_constants =
+  { t with shareable_constants; }
+
+let shareable_constants t = t.shareable_constants
+
+let add_use_of_closure_var t closure_var =
+  { t with
+    used_closure_vars =
+      Var_within_closure.Set.add closure_var t.used_closure_vars;
+  }
+
+let used_closure_vars t = t.used_closure_vars
+
+let with_used_closure_vars t ~used_closure_vars =
+  { t with used_closure_vars; }

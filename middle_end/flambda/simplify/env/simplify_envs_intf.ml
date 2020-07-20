@@ -26,7 +26,6 @@ type get_imported_code =
 module type Downwards_env = sig
   type t
 
-  type result
   type lifted_constant
   type lifted_constant_state
 
@@ -263,25 +262,6 @@ module type Upwards_env = sig
      : t
     -> Continuation.t
     -> Apply_cont_rewrite.t option
-end
-
-module type Result = sig
-  type t
-
-  val print : Format.formatter -> t -> unit
-
-  val create
-     : resolver:resolver
-    -> get_imported_names:get_imported_names
-    -> t
-
-  val find_shareable_constant : t -> Static_const.t -> Symbol.t option
-
-  val consider_constant_for_sharing : t -> Symbol.t -> Static_const.t -> t
-
-  val add_use_of_closure_var : t -> Var_within_closure.t -> t
-
-  val used_closure_vars : t -> Var_within_closure.Set.t
 end
 
 module type Lifted_constant = sig

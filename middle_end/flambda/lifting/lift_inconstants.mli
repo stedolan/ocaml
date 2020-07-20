@@ -29,7 +29,7 @@ val lift_via_reification_of_continuation_param_types
 
 type reify_primitive_at_toplevel_result =
   | Lift of {
-    r : Simplify_env_and_result.Result.t;
+    dacc : Downwards_acc.t;
     symbol : Symbol.t;
     static_const : Flambda.Static_const.t;
   }
