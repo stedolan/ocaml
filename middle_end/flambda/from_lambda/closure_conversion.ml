@@ -812,10 +812,16 @@ and close_let_rec t env ~defs ~body =
       generated_closures
       closure_vars
   in
+  let closure_vars =
+    List.map (fun (closure_id, _) ->
+        Closure_id.Map.find closure_id closure_vars)
+      (Flambda.Function_declarations.funs_in_order (
+          Flambda.Set_of_closures.function_decls set_of_closures)
+        |> Closure_id.Lmap.bindings)
+  in
   let body, handlers = close t env body in
   let leaving_scope_of =
-    Closure_id.Map.data closure_vars
-    |> List.map VB.var
+    List.map VB.var closure_vars
     |> Variable.Set.of_list
     |> Name_occurrences.create_variables' Name_mode.normal
   in

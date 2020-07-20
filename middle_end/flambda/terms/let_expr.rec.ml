@@ -280,11 +280,11 @@ let invariant env t =
     let env =
       match t.defining_expr, bindable_let_bound with
       | Set_of_closures _, Set_of_closures { closure_vars; _ } ->
-        Closure_id.Map.fold (fun _closure_id closure_var env ->
+        List.fold_left (fun env closure_var ->
             let closure_var = VB.var closure_var in
             E.add_variable env closure_var K.value)
-          closure_vars
           env
+          closure_vars
       | Set_of_closures _, Singleton _ ->
         Misc.fatal_errorf "Cannot bind a [Set_of_closures] to a \
             [Singleton]:@ %a"

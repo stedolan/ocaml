@@ -26,7 +26,7 @@ type t = private
     (** The binding of a single variable, which is statically scoped. *)
   | Set_of_closures of {
       name_mode : Name_mode.t;
-      closure_vars : Var_in_binding_pos.t Closure_id.Map.t;
+      closure_vars : Var_in_binding_pos.t list;
     }
     (** The binding of one or more variables to the individual closures in a
         set of closures.  The variables are statically scoped. *)
@@ -41,13 +41,13 @@ include Contains_ids.S with type t := t
 
 val singleton : Var_in_binding_pos.t -> t
 
-val set_of_closures : closure_vars:Var_in_binding_pos.t Closure_id.Map.t -> t
+val set_of_closures : closure_vars:Var_in_binding_pos.t list -> t
 
 val symbols : Bound_symbols.t -> Symbol_scoping_rule.t -> t
 
 val must_be_singleton : t -> Var_in_binding_pos.t
 
-val must_be_set_of_closures : t -> Var_in_binding_pos.t Closure_id.Map.t
+val must_be_set_of_closures : t -> Var_in_binding_pos.t list
 
 val must_be_symbols : t -> symbols
 
