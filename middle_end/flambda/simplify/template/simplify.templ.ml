@@ -95,9 +95,10 @@ let run ~backend ~round unit =
     Exported_code.merge (R.all_code r)
       (Exported_code.mark_as_imported !imported_code)
   in
+  let used_closure_vars = R.used_closure_vars r in
   let cmx =
     Flambda_cmx.prepare_cmx_file_contents ~return_cont_env
-      ~return_continuation ~module_symbol all_code
+      ~return_continuation ~module_symbol ~used_closure_vars all_code
   in
   let unit =
     FU.create ~return_continuation ~exn_continuation ~module_symbol ~body

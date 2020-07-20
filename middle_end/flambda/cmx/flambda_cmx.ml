@@ -108,7 +108,7 @@ let compute_reachable_names_and_code ~module_symbol typing_env code =
   fixpoint init_names Name_occurrences.empty
 
 let prepare_cmx_file_contents ~return_cont_env:cont_uses_env
-      ~return_continuation ~module_symbol all_code =
+      ~return_continuation ~module_symbol ~used_closure_vars all_code =
   match
     Continuation_uses_env.get_typing_env_no_more_than_one_use
       cont_uses_env return_continuation
@@ -134,4 +134,4 @@ let prepare_cmx_file_contents ~return_cont_env:cont_uses_env
       Exported_offsets.imported_offsets ()
     in
     Some (Flambda_cmx_format.create
-            ~final_typing_env ~all_code ~exported_offsets)
+            ~final_typing_env ~all_code ~exported_offsets ~used_closure_vars)

@@ -57,6 +57,7 @@ module Import_map : sig
     -> simples : Simple.t Simple.Map.t
     -> consts : Reg_width_things.Const.t Reg_width_things.Const.Map.t
     -> code_ids : Code_id.t Code_id.Map.t
+    -> used_closure_vars : Var_within_closure.Set.t
     -> t
 
   val const : t -> Reg_width_things.Const.t -> Reg_width_things.Const.t
@@ -65,5 +66,6 @@ module Import_map : sig
   val name : t -> Name.t -> Name.t
   val simple : t -> Simple.t -> Simple.t
   val code_id : t -> Code_id.t -> Code_id.t
+  val closure_var_is_used : t -> Var_within_closure.t -> bool
 end
 

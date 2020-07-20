@@ -75,6 +75,14 @@ let inter
   let closure_vars = Var_within_closure.Set.inter closure_vars1 closure_vars2 in
   { closures; closure_vars }
 
+let import import_map { closures; closure_vars; } =
+  let closure_vars =
+    Var_within_closure.Set.filter (fun var ->
+        Ids_for_export.Import_map.closure_var_is_used import_map var)
+      closure_vars
+  in
+  { closures; closure_vars; }
+
 module With_closure_id = struct
   type nonrec t = Closure_id.t * t
 

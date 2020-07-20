@@ -27,6 +27,10 @@ module Make
      val inter : t -> t -> t
      val subset : t -> t -> bool
      (** [subset a b] is true if [a] is a subset of [b] *)
+
+     val import : Ids_for_export.Import_map.t -> t -> t
+     (** [Index.t] values do not contain ids (so far), but they can contain
+         closure vars that may need removing on import *)
   end)
   (Maps_to : Row_like_maps_to_intf.S
     with type flambda_type := Type_grammar.t
@@ -358,9 +362,14 @@ struct
           from_known_tags
 
     let import import_map { known_tags; other_tags; } =
+      let import_index = function
+        | Known index -> Known (Index.import import_map index)
+        | At_least index -> At_least (Index.import import_map index)
+      in
       let known_tags =
         Tag.Map.map (fun { maps_to; index; } ->
             let maps_to = Maps_to.import import_map maps_to in
+            let index = import_index index in
             { maps_to; index; })
           known_tags
       in
@@ -369,6 +378,7 @@ struct
         | Bottom -> Bottom
         | Ok { maps_to; index; } ->
           let maps_to = Maps_to.import import_map maps_to in
+          let index = import_index index in
           Ok { maps_to; index; }
       in
       { known_tags; other_tags; }
@@ -425,6 +435,7 @@ struct
       a smaller number is included in a bigger *)
     let union t1 t2 = Targetint.OCaml.max t1 t2
     let inter t1 t2 = Targetint.OCaml.min t1 t2
+    let import _ t = t
   end
 
   module For_blocks = struct

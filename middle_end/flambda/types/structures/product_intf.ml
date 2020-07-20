@@ -51,3 +51,9 @@ module type S = sig
 
   val to_map : t -> flambda_type Index.Map.t
 end
+
+module type Index = sig
+  include Identifiable.S
+
+  val remove_on_import : t -> Ids_for_export.Import_map.t -> bool
+end

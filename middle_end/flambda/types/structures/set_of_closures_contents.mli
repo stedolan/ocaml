@@ -35,6 +35,8 @@ val union : t -> t -> t
 val closures : t -> Closure_id.Set.t
 val closure_vars : t -> Var_within_closure.Set.t
 
+val import : Ids_for_export.Import_map.t -> t -> t
+
 module With_closure_id : sig
   type nonrec t = Closure_id.t * t
 

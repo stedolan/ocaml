@@ -137,7 +137,16 @@ let find_code t code_id =
 let find_code_if_not_imported t code_id =
   match Code_id.Map.find code_id t with
   | exception Not_found ->
-    Misc.fatal_errorf "Code ID %a not bound" Code_id.print code_id
+    (* In some cases a code ID is created, the corresponding closure
+       stored into another closure, but the corresponding closure variable
+       ends up never being used and so the initial code ID and closure are
+       removed, but the type of the second closure still mentions its closure
+       variable and its contents (eventually pointing to the code ID).
+       Ideally the type should be patched to remove the unused closure variable
+       before computing reachability, but for now this is done during import
+       instead so we can end up with missing code IDs during the reachability
+       computation, and have to assume that it fits the above case. *)
+    None
   | Present { params_and_body; calling_convention = _; } -> Some params_and_body
   | Imported _ ->
     None

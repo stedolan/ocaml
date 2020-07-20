@@ -31,5 +31,6 @@ val prepare_cmx_file_contents
    : return_cont_env:Continuation_uses_env.t
   -> return_continuation:Continuation.t
   -> module_symbol:Symbol.t
+  -> used_closure_vars:Var_within_closure.Set.t
   -> Exported_code.t
   -> Flambda_cmx_format.t option

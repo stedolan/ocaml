@@ -157,7 +157,10 @@ let import import_map { function_decls; closure_elements; } =
     Function_declarations.import import_map function_decls
   in
   let closure_elements =
-    Var_within_closure.Map.map (Ids_for_export.Import_map.simple import_map)
+    Var_within_closure.Map.filter_map ~f:(fun var simple ->
+        if Ids_for_export.Import_map.closure_var_is_used import_map var
+        then Some (Ids_for_export.Import_map.simple import_map simple)
+        else None)
       closure_elements
   in
   { function_decls; closure_elements; }

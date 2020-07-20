@@ -112,14 +112,26 @@ module Import_map = struct
     simples : Simple.t Simple.Map.t;
     consts : Const.t Const.Map.t;
     code_ids : Code_id.t Code_id.Map.t;
+    used_closure_vars : Var_within_closure.Set.t;
+    (* CR vlaviron: [used_closure_vars] is here because we need to rewrite the
+       types to remove occurrences of unused closure variables, as otherwise
+       the types can contain references to code that is neither exported nor
+       present in the actual object file. But this means rewriting types, and
+       the only place a rewriting traversal is done at the moment is during
+       import. This solution is not ideal because the missing code IDs will
+       still be present in the emitted cmx files, and during the traversal
+       in [Flambda_cmx.compute_reachable_names_and_code] we have to assume
+       that code IDs can be missing (and so we cannot detect code IDs that
+       are really missing at this point). *)
   }
 
-  let create ~symbols ~variables ~simples ~consts ~code_ids =
+  let create ~symbols ~variables ~simples ~consts ~code_ids ~used_closure_vars =
     { symbols;
       variables;
       simples;
       consts;
       code_ids;
+      used_closure_vars;
     }
 
   let symbol t orig =
@@ -158,4 +170,7 @@ module Import_map = struct
           ~const:(fun c -> Simple.const (const t c))
       | Some _rec_info -> simple
       end
+
+  let closure_var_is_used t var =
+    Var_within_closure.Set.mem var t.used_closure_vars
 end

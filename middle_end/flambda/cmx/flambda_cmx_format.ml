@@ -34,12 +34,13 @@ type t0 = {
   final_typing_env : Flambda_type.Typing_env.Serializable.t;
   all_code : Exported_code.t;
   exported_offsets : Exported_offsets.t;
+  used_closure_vars : Var_within_closure.Set.t;
   table_data : table_data;
 }
 
 type t = t0 list
 
-let create ~final_typing_env ~all_code ~exported_offsets =
+let create ~final_typing_env ~all_code ~exported_offsets ~used_closure_vars =
   let typing_env_exported_ids =
     Flambda_type.Typing_env.Serializable.all_ids_for_export final_typing_env
   in
@@ -89,6 +90,7 @@ let create ~final_typing_env ~all_code ~exported_offsets =
     final_typing_env;
     all_code;
     exported_offsets;
+     used_closure_vars;
     table_data;
    }]
 
@@ -99,6 +101,7 @@ let import_typing_env_and_code0 t =
   let variables = Variable.Map.map Variable.import t.table_data.variables in
   let consts = Const.Map.map Const.import t.table_data.consts in
   let code_ids = Code_id.Map.map Code_id.import t.table_data.code_ids in
+  let used_closure_vars = t.used_closure_vars in
   (* Build a simple to simple converter from this *)
   let import_map =
     Ids_for_export.Import_map.create
@@ -107,6 +110,7 @@ let import_typing_env_and_code0 t =
       ~simples:Simple.Map.empty
       ~consts
       ~code_ids
+      ~used_closure_vars
   in
   let map_simple = Ids_for_export.Import_map.simple import_map in
   (* Then convert the simples *)
@@ -120,6 +124,7 @@ let import_typing_env_and_code0 t =
       ~simples
       ~consts
       ~code_ids
+      ~used_closure_vars
   in
   let typing_env =
     Flambda_type.Typing_env.Serializable.import import_map t.final_typing_env

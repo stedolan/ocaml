@@ -14,7 +14,7 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-module Make (Index : Identifiable.S)
+module Make (Index : Product_intf.Index)
   : Product_intf.S
     with module Index := Index
     with type flambda_type := Type_grammar.t

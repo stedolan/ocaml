@@ -18,7 +18,7 @@ module K = Flambda_kind
 module T = Type_grammar
 module TEE = Typing_env_extension
 
-module Make (Index : Identifiable.S) = struct
+module Make (Index : Product_intf.Index) = struct
 
   (* Product are a set of constraints: each new field reduces the
      concrete set. The empty product is Top. There is no bottom. All
@@ -116,7 +116,9 @@ module Make (Index : Identifiable.S) = struct
 
   let import import_map { components_by_index; kind; } =
     let components_by_index =
-      Index.Map.map (fun ty -> Type_grammar.import import_map ty)
+      Index.Map.filter_map ~f:(fun index ty ->
+          if Index.remove_on_import index import_map then None
+          else Some (Type_grammar.import import_map ty))
         components_by_index
     in
     { components_by_index; kind; }
@@ -141,9 +143,22 @@ module Make (Index : Identifiable.S) = struct
   let to_map t = t.components_by_index
 end
 
-module Closure_id_indexed = Make (Closure_id)
+module Closure_id_index = struct
+  include Closure_id
 
-module Var_within_closure_indexed = Make (Var_within_closure)
+  let remove_on_import _ _ = false
+end
+
+module Closure_id_indexed = Make (Closure_id_index)
+
+module Var_within_closure_index = struct
+  include Var_within_closure
+
+  let remove_on_import var import_map =
+    not (Ids_for_export.Import_map.closure_var_is_used import_map var)
+end
+
+module Var_within_closure_indexed = Make (Var_within_closure_index)
 
 module Int_indexed = struct
   (* CR mshinwell: Add [Or_bottom].  However what should [width] return for
