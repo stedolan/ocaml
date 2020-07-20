@@ -145,14 +145,20 @@ let add_to_name_permutation t1 ~guaranteed_fresh:t2 perm =
   | Set_of_closures { name_mode = _; closure_vars = closure_vars1; },
       Set_of_closures { name_mode = _;
         closure_vars = closure_vars2; } ->
-    List.fold_left2
-      (fun perm var1 var2 ->
-        Name_permutation.add_fresh_variable perm
-          (Var_in_binding_pos.var var1)
-          ~guaranteed_fresh:(Var_in_binding_pos.var var2))
-      perm
-      closure_vars1
-      closure_vars2
+    if List.compare_lengths closure_vars1 closure_vars2 = 0
+    then
+      List.fold_left2
+        (fun perm var1 var2 ->
+          Name_permutation.add_fresh_variable perm
+            (Var_in_binding_pos.var var1)
+            ~guaranteed_fresh:(Var_in_binding_pos.var var2))
+        perm
+        closure_vars1
+        closure_vars2
+    else
+      Misc.fatal_errorf "Mismatching closure vars:@ %a@ and@ %a"
+        print t1
+        print t2
   | Symbols _, Symbols _ -> perm
   | (Singleton _ | Set_of_closures _ | Symbols _), _ ->
     Misc.fatal_errorf "Kind mismatch:@ %a@ and@ %a"
