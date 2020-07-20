@@ -80,6 +80,9 @@ val with_continuations : t -> Result_continuation.t -> Exn_continuation.t -> t
 
 val with_exn_continuation : t -> Exn_continuation.t -> t
 
+(** Change the arguments of an application *)
+val with_args : t -> Simple.t list -> t
+
 (** Change the call kind of an application. *)
 val with_call_kind : t -> Call_kind.t -> t
 

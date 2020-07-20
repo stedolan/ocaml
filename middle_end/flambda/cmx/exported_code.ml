@@ -19,25 +19,33 @@ module P = Flambda.Function_params_and_body
 module Calling_convention = struct
   type t = {
     needs_closure_arg : bool;
+    params_arity : Flambda_arity.t;
   }
 
   let needs_closure_arg t = t.needs_closure_arg
+  let params_arity t = t.params_arity
 
-  let print ppf { needs_closure_arg; } =
+  let print ppf { needs_closure_arg; params_arity } =
     Format.fprintf ppf
-      "@[<hov 1>(needs_closure_arg@ %b)@]"
+      "@[<hov 1>(needs_closure_arg@ %b)@] \
+       @[<hov 1>(params_arity@ %a)@]"
       needs_closure_arg
+      Flambda_arity.print params_arity
 
   let equal
-        { needs_closure_arg = needs_closure_arg1; }
-        { needs_closure_arg = needs_closure_arg2; } =
-    Bool.equal needs_closure_arg1 needs_closure_arg2
+        { needs_closure_arg = needs_closure_arg1;
+          params_arity = params_arity1; }
+        { needs_closure_arg = needs_closure_arg2;
+          params_arity = params_arity2; } =
+    Bool.equal needs_closure_arg1 needs_closure_arg2 &&
+    Flambda_arity.equal params_arity1 params_arity2
 
   let compute ~params_and_body =
-    let f ~return_continuation:_ _exn_continuation _params ~body ~my_closure =
+    let f ~return_continuation:_ _exn_continuation params ~body ~my_closure =
       let free_vars = Flambda.Expr.free_names body in
       let needs_closure_arg = Name_occurrences.mem_var free_vars my_closure in
-      { needs_closure_arg; }
+      let params_arity = List.map Kinded_parameter.kind params in
+      { needs_closure_arg; params_arity; }
     in
     P.pattern_match params_and_body ~f
 end

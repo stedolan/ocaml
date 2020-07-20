@@ -25,13 +25,21 @@ type t = {
   inline : Inline_attribute.t;
   is_a_functor : bool;
   recursive : Recursive.t;
+  is_tupled : bool;
 }
 
-let invariant _env _t = ()
+let invariant _env t =
+  (* check arity of tupled functions *)
+  if t.is_tupled then begin
+    match t.params_arity with
+    | [Value] -> ()
+    | _ ->
+      Misc.fatal_errorf "tupled functions must take a single value as argument"
+  end
 
 let create ~code_id ~params_arity ~result_arity ~stub ~dbg
       ~(inline : Inline_attribute.t)
-      ~is_a_functor ~recursive : t =
+      ~is_a_functor ~recursive ~is_tupled : t =
   begin match stub, inline with
   | true, (Never_inline | Default_inline)
   | false, (Never_inline | Default_inline | Always_inline | Unroll _) -> ()
@@ -46,6 +54,7 @@ let create ~code_id ~params_arity ~result_arity ~stub ~dbg
     inline;
     is_a_functor;
     recursive;
+    is_tupled;
   }
 
 let print_with_cache ~cache:_ ppf
@@ -57,6 +66,7 @@ let print_with_cache ~cache:_ ppf
         inline;
         is_a_functor;
         recursive;
+        is_tupled;
       } =
   let module C = Flambda_colours in
   Format.fprintf ppf "@[<hov 1>(\
@@ -67,7 +77,8 @@ let print_with_cache ~cache:_ ppf
       @[<hov 1>@<0>%s(is_a_functor@ %b)@<0>%s@]@ \
       @[<hov 1>@<0>%s(params_arity@ @<0>%s%a@<0>%s)@<0>%s@]@ \
       @[<hov 1>@<0>%s(result_arity@ @<0>%s%a@<0>%s)@<0>%s@]@ \
-      @[<hov 1>@<0>%s(recursive@ %a)@<0>%s@])@]"
+      @[<hov 1>@<0>%s(recursive@ %a)@<0>%s@] \
+      @[<hov 1>@<0>%s(is_tupled@ %b)@<0>%s@])"
     Code_id.print code_id
     (if not stub then Flambda_colours.elide () else C.normal ())
     stub
@@ -106,6 +117,11 @@ let print_with_cache ~cache:_ ppf
      | Recursive -> Flambda_colours.normal ())
     Recursive.print recursive
     (Flambda_colours.normal ())
+    (if is_tupled
+     then Flambda_colours.normal ()
+     else Flambda_colours.elide ())
+    is_tupled
+    (Flambda_colours.normal ())
 
 let print ppf t = print_with_cache ~cache:(Printing_cache.create ()) ppf t
 
@@ -117,6 +133,7 @@ let dbg t = t.dbg
 let inline t = t.inline
 let is_a_functor t = t.is_a_functor
 let recursive t = t.recursive
+let is_tupled t = t.is_tupled
 
 let free_names
       { code_id;
@@ -127,6 +144,7 @@ let free_names
         inline = _;
         is_a_functor = _;
         recursive = _;
+        is_tupled = _;
       } =
   Name_occurrences.add_code_id Name_occurrences.empty code_id Name_mode.normal
 
@@ -141,6 +159,7 @@ let all_ids_for_export
         inline = _;
         is_a_functor = _;
         recursive = _;
+        is_tupled = _;
       } =
   Ids_for_export.add_code_id Ids_for_export.empty code_id
 
@@ -153,6 +172,7 @@ let import import_map
         inline;
         is_a_functor;
         recursive;
+        is_tupled;
       } =
   let code_id = Ids_for_export.Import_map.code_id import_map code_id in
   { code_id;
@@ -163,6 +183,7 @@ let import import_map
     inline;
     is_a_functor;
     recursive;
+    is_tupled;
   }
 
 

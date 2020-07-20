@@ -90,6 +90,8 @@ type t = {
   used_closure_vars : Var_within_closure.Set.t;
   (* Closure variables that are used by the context begin translated.
      (used to remove unused closure variables). *)
+  functions_info: Exported_code.t;
+  (* Information about known functions *)
 
 
   (* Semi-global information.
@@ -99,8 +101,6 @@ type t = {
 
   names_in_scope : Code_id_or_symbol.Set.t;
   (* Code ids and symbols bound in this scope, for invariant checking *)
-  functions_info: Exported_code.t;
-  (* Information about known functions *)
   deleted : Code_id.Set.t;
   used_code_ids : Code_id.Set.t;
   (* Code ids marked as deleted are only allowed in the newer_version_of

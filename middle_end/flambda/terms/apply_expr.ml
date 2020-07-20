@@ -350,6 +350,9 @@ let with_exn_continuation t exn_continuation =
 let with_call_kind t call_kind =
   { t with call_kind; }
 
+let with_args t args =
+  { t with args; }
+
 let with_continuation_callee_and_args t continuation ~callee ~args =
   { t with
     continuation;

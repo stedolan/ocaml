@@ -367,3 +367,57 @@ let create_let_symbol uacc (scoping_rule : Symbol_scoping_rule.t)
          |> Code_id.Map.of_list)
     in
     expr, uacc
+
+(* generate the projection of the i-th field of a n-tuple *)
+let project_tuple ~dbg ~size ~field tuple =
+  let module BAK = P.Block_access_kind in
+  let bak : BAK.t = Values {
+    field_kind = Any_value;
+    tag = Tag.Scannable.zero;
+    size = Known (Targetint.OCaml.of_int size);
+  } in
+  let mutability : Mutability.t = Immutable in
+  let index = Simple.const_int (Targetint.OCaml.of_int field) in
+  let prim = P.Binary (Block_load (bak, mutability), tuple, index) in
+  Named.create_prim prim dbg
+
+let split_direct_over_application apply ~param_arity =
+  let arity = List.length param_arity in
+  let args = Apply.args apply in
+  assert (arity < List.length args);
+  let full_app_args, remaining_args = Misc.Stdlib.List.split_at arity args in
+  let func_var = Variable.create "full_apply" in
+  let perform_over_application =
+    Apply.create ~callee:(Simple.var func_var)
+      ~continuation:(Apply.continuation apply)
+      (Apply.exn_continuation apply)
+      ~args:remaining_args
+      ~call_kind:(Call_kind.indirect_function_call_unknown_arity ())
+      (Apply.dbg apply)
+      ~inline:(Apply.inline apply)
+      ~inlining_depth:(Apply.inlining_depth apply)
+  in
+  let after_full_application = Continuation.create () in
+  let after_full_application_handler =
+    let params_and_handler =
+      let func_param = KP.create func_var K.value in
+      Continuation_params_and_handler.create [func_param]
+        ~handler:(Expr.create_apply perform_over_application)
+    in
+    Continuation_handler.create ~params_and_handler
+      ~stub:false
+      ~is_exn_handler:false
+  in
+  let full_apply =
+    Apply.with_continuation_callee_and_args apply
+      (Return after_full_application)
+      ~callee:(Apply.callee apply)
+      ~args:full_app_args
+  in
+  let expr =
+    Let_cont.create_non_recursive after_full_application
+      after_full_application_handler
+      ~body:(Expr.create_apply full_apply)
+  in
+  expr
+

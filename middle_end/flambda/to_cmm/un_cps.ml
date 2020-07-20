@@ -530,6 +530,9 @@ let prim env dbg p =
 
 (* Kinds and types *)
 
+let check_arity arity args =
+  List.compare_lengths arity args = 0
+
 let machtype_of_kind k =
   match (k  : Flambda_kind.t) with
   | Value -> typ_val
@@ -887,6 +890,7 @@ and apply_expr env res e =
 (* Bare function calls *)
 and apply_call env e =
   let f = Apply_expr.callee e in
+  let args = Apply_expr.args e in
   let dbg = Apply_expr.dbg e in
   let effs = Ece.all in
   match Apply_expr.call_kind e with
@@ -899,8 +903,11 @@ and apply_call env e =
         (Code_id_or_symbol.Code_id code_id)
     in
     let info = Env.get_function_info env code_id in
+    let params_arity = Exported_code.Calling_convention.params_arity info in
+    if not (check_arity params_arity args) then
+      Misc.fatal_errorf "Wrong arity for direct call";
     let ty = machtype_of_return_arity return_arity in
-    let args, env, _ = arg_list env (Apply_expr.args e) in
+    let args, env, _ = arg_list env args in
     let args, env =
       if Exported_code.Calling_convention.needs_closure_arg info
       then
@@ -914,14 +921,20 @@ and apply_call env e =
   | Call_kind.Function
       Call_kind.Function_call.Indirect_unknown_arity ->
     let f, env, _ = simple env f in
-    let args, env, _ = arg_list env (Apply_expr.args e) in
+    let args, env, _ = arg_list env args in
     C.indirect_call ~dbg typ_val f args, env, effs
   | Call_kind.Function
-      Call_kind.Function_call.Indirect_known_arity { return_arity; _ } ->
-    let f, env, _ = simple env f in
-    let args, env, _ = arg_list env (Apply_expr.args e) in
-    let ty = machtype_of_return_arity return_arity in
-    C.indirect_call ~dbg ty f args, env, effs
+      Call_kind.Function_call.Indirect_known_arity
+      { return_arity; param_arity; } ->
+    if not (check_arity param_arity args) then
+      Misc.fatal_errorf "Un_cps expects indirect_known_arity calls to be \
+                         full applications in order to translate it"
+    else begin
+      let f, env, _ = simple env f in
+      let args, env, _ = arg_list env args in
+      let ty = machtype_of_return_arity return_arity in
+      C.indirect_full_call ~dbg ty f args, env, effs
+    end
   | Call_kind.C_call { alloc; return_arity; _ } ->
     let f = function_name f in
     (* CR vlaviron: temporary hack to recover the right symbol *)
@@ -930,7 +943,7 @@ and apply_call env e =
     assert (String.sub f 0 9 = ".extern__");
     let f = String.sub f 9 (len - 9) in
     let returns = apply_returns e in
-    let args, env, _ = arg_list env (Apply_expr.args e) in
+    let args, env, _ = arg_list env args in
     let ty = machtype_of_return_arity return_arity in
     let wrap = wrap_extcall_result return_arity in
     wrap dbg (C.extcall ~dbg ~alloc ~returns f ty args), env, effs
@@ -938,7 +951,7 @@ and apply_call env e =
     let obj, env, _ = simple env obj in
     let meth, env, _ = simple env f in
     let kind = meth_kind kind in
-    let args, env, _ = arg_list env (Apply_expr.args e) in
+    let args, env, _ = arg_list env args in
     C.send kind meth obj args dbg, env, effs
 
 (* function calls that have an exn continuation with extra arguments
@@ -1328,10 +1341,18 @@ and fill_slot decls elts env acc offset slot =
     let c : Closure_id.t = c in
     let decl = Closure_id.Map.find c decls in
     let dbg = Function_declaration.dbg decl in
-    let arity = List.length (Function_declaration.params_arity decl) in
     let code_id = Function_declaration.code_id decl in
     let code_symbol = Code_id.code_symbol code_id in
     let code_name = Linkage_name.to_string (Symbol.linkage_name code_symbol) in
+    let arity =
+      if Function_declaration.is_tupled decl then begin
+        let info = Env.get_function_info env code_id in
+        let l = Exported_code.Calling_convention.params_arity info in
+        ~- (List.length l)
+      end else begin
+        List.length (Function_declaration.params_arity decl)
+      end
+    in
     (* We build here the **reverse** list of fields for the closure *)
     if arity = 1 || arity = 0 then begin
       let acc =
@@ -1351,7 +1372,8 @@ and fill_slot decls elts env acc offset slot =
     end
 
 and fill_up_to j acc i =
-  assert (i <= j);
+  if i > j then
+    Misc.fatal_errorf "Problem while filling up a closure in un_cps";
   if i = j then acc
   else fill_up_to j (C.int 1 :: acc) (i + 1)
 

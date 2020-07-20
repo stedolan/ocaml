@@ -84,3 +84,20 @@ val create_let_symbol
   -> Simplify_envs.Lifted_constant.t
   -> Flambda.Expr.t
   -> Flambda.Expr.t * Upwards_acc.t
+
+(** Create the projection of a tuple (assumed to be a size-tuple of
+   ocaml values. *)
+val project_tuple
+  : dbg:Debuginfo.t
+  -> size:int
+  -> field:int
+  -> Simple.t
+  -> Flambda.Named.t
+
+(** Split a direct over-application into a full application followed by
+    the application of the leftover arguments. *)
+val split_direct_over_application
+  : Apply_expr.t
+ -> param_arity:Flambda_arity.t
+ -> Flambda.Expr.t
+

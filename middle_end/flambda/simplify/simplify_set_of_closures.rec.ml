@@ -38,6 +38,7 @@ let function_decl_type denv function_decl ?code_id ?params_and_body rec_info =
       ~inline:(FD.inline function_decl)
       ~is_a_functor:(FD.is_a_functor function_decl)
       ~recursive:(FD.recursive function_decl)
+      ~is_tupled:(FD.is_tupled function_decl)
       ~rec_info
   else
     T.create_non_inlinable_function_declaration
@@ -45,6 +46,7 @@ let function_decl_type denv function_decl ?code_id ?params_and_body rec_info =
       ~param_arity:(FD.params_arity function_decl)
       ~result_arity:(FD.result_arity function_decl)
       ~recursive:(FD.recursive function_decl)
+      ~is_tupled:(FD.is_tupled function_decl)
 
 module Context_for_multiple_sets_of_closures : sig
   (* This module deals with a sub-problem of the problem of simplifying multiple

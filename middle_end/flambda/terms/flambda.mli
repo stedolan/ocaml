@@ -517,6 +517,9 @@ end and Function_params_and_body : sig
    (** Return the debuginfo associated *)
    val debuginfo : t -> Debuginfo.t
 
+  (** Return the arity of the function body *)
+  val params_arity : t -> Flambda_arity.t
+
 end and Static_const : sig
   (** Language terms that represent statically-allocated values, bound to
       symbols. *)

@@ -145,11 +145,9 @@ module Greedy = struct
       because of constraints read from a cmx.
 
       This strategy should be able to correctly compute offsets for all legitimate
-      situations, with no expected blowup of computation time. However the generated
-      offsets can be far from optimal (i.e. leave more holes than necessary).
-
-      CR Gbury: when do we import info from a cmx ? When creating new slots (check for
-      info in external compunits ?).
+      situations, with no expected blowup of computation time. However the
+      generated offsets can be far from optimal (i.e. leave more holes than
+      necessary).
   *)
 
   (* Internal types *)
@@ -348,9 +346,10 @@ module Greedy = struct
           match find_closure_slot state c with
           | Some s -> s, state
           | None ->
+              let is_tupled = Function_declaration.is_tupled def in
               let parity = Function_declaration.params_arity def in
               let arity = List.length parity in
-              let size = if arity = 1 then 2 else 3 in
+              let size = if arity = 1 && not is_tupled then 2 else 3 in
               let s = create_slot size (Closure c) in
               s, add_closure_slot state c s
         in

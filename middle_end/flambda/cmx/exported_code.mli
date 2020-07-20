@@ -18,6 +18,7 @@ module Calling_convention : sig
   val print : Format.formatter -> t -> unit
 
   val needs_closure_arg : t -> bool
+  val params_arity : t -> Flambda_arity.t
 end
 
 type t

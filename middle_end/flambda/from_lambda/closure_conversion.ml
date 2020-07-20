@@ -96,108 +96,6 @@ let symbol_for_ident t id =
   t.imported_symbols <- Symbol.Set.add symbol t.imported_symbols;
   Simple.symbol symbol
 
-(* Generate a wrapper ("stub") function that accepts a tuple argument and calls
-   another function with arguments extracted in the obvious manner from the
-   tuple. *)
-let tupled_function_call_stub
-      (original_params : (Variable.t * Lambda.value_kind) list)
-      (unboxed_version : Closure_id.t)
-      code_id ~(closure_id : Closure_id.t)
-      recursive =
-  let dbg = Debuginfo.none in
-  let return_continuation = Continuation.create ~sort:Return () in
-  let exn_continuation =
-    let exn_handler = Continuation.create ~sort:Exn () in
-    Exn_continuation.create ~exn_handler ~extra_args:[]
-  in
-  let tuple_param_var =
-    Variable.rename ~append:"tupled_stub_param"
-      (Closure_id.unwrap unboxed_version)
-  in
-  let my_closure = Variable.create "my_closure" in
-  let params = List.map (fun (var, _) -> Variable.rename var) original_params in
-  let unboxed_version_var = Variable.create "unboxed_version" in
-  let call =
-    let call_kind =
-      Call_kind.direct_function_call code_id unboxed_version
-        ~return_arity:[K.value]
-    in
-    let apply =
-      Flambda.Apply.create ~callee:(Simple.var unboxed_version_var)
-        ~continuation:(Return return_continuation)
-        exn_continuation
-        ~args:(Simple.vars params)
-        ~call_kind
-        Debuginfo.none
-        ~inline:Default_inline
-        ~inlining_depth:0
-    in
-    Expr.create_apply apply
-  in
-  let body_with_closure_bound =
-    let move : Flambda_primitive.unary_primitive =
-      Select_closure {
-        move_from = closure_id;
-        move_to = unboxed_version;
-      }
-    in
-    let unboxed_version_var =
-      Var_in_binding_pos.create unboxed_version_var Name_mode.normal
-    in
-    Expr.create_let unboxed_version_var
-      (Named.create_prim (Unary (move, Simple.var my_closure)) dbg)
-      call
-  in
-  let _, body =
-    List.fold_left (fun (pos, body) param ->
-        let defining_expr =
-          let pos = Target_imm.int (Targetint.OCaml.of_int pos) in
-          let block_access : P.Block_access_kind.t =
-            Values {
-              tag = Tag.Scannable.zero;
-              size = Known (Targetint.OCaml.of_int (List.length params));
-              field_kind = Any_value;
-            }
-          in
-          Named.create_prim
-            (Binary (
-              Block_load (block_access, Immutable),
-              Simple.var tuple_param_var,
-              Simple.const (Reg_width_const.tagged_immediate pos)))
-            dbg
-        in
-        let param = VB.create param Name_mode.normal in
-        let expr = Expr.create_let param defining_expr body in
-        pos + 1, expr)
-      (0, body_with_closure_bound)
-      params
-  in
-  let tuple_param = Kinded_parameter.create tuple_param_var K.value in
-  let params_and_body =
-    Flambda.Function_params_and_body.create
-      ~return_continuation
-      exn_continuation
-      [tuple_param]
-      ~dbg
-      ~body
-      ~my_closure
-  in
-  let code_id =
-    Code_id.create ~name:((Closure_id.to_string closure_id) ^ "_tuple_stub")
-      (Compilation_unit.get_current_exn ())
-  in
-  let func_decl =
-    Flambda.Function_declaration.create ~code_id
-      ~params_arity:[K.value]
-      ~result_arity:[K.value]
-      ~stub:true
-      ~dbg
-      ~inline:Default_inline
-      ~is_a_functor:false
-      ~recursive
-  in
-  func_decl, code_id, params_and_body
-
 let register_const0 t constant name =
   match Static_const.Map.find constant t.shareable_constants with
   | exception Not_found ->
@@ -892,20 +790,17 @@ and close_one_function t ~external_env ~by_closure_id decl
   let recursive = Function_decl.recursive decl in
   let my_closure = Variable.create "my_closure" in
   let closure_id = Function_decl.closure_id decl in
+  let my_closure_id = closure_id in
   let our_let_rec_ident = Function_decl.let_rec_ident decl in
   let contains_closures = Function_decl.contains_closures decl in
   let compilation_unit = Compilation_unit.get_current_exn () in
   let code_id =
     Code_id.create ~name:(Closure_id.to_string closure_id) compilation_unit
   in
-  let unboxed_version =
-    Closure_id.wrap compilation_unit (Variable.create (
-      Ident.name (Function_decl.let_rec_ident decl)))
-  in
-  let my_closure_id, is_curried =
+  let is_curried =
     match Function_decl.kind decl with
-    | Curried -> closure_id, true
-    | Tupled -> unboxed_version, false
+    | Curried -> true
+    | Tupled -> false
   in
   (* The free variables are:
      - The parameters: direct substitution by [Variable]s
@@ -1047,27 +942,24 @@ and close_one_function t ~external_env ~by_closure_id decl
       ~return_continuation:(Function_decl.return_continuation decl)
       exn_continuation params ~dbg ~body ~my_closure
   in
+  t.code <- (code_id, params_and_body) :: t.code;
+  let is_tupled, params_arity =
+    match Function_decl.kind decl with
+    | Curried -> false, Kinded_parameter.List.arity params
+    | Tupled -> true, [K.value]
+  in
   let fun_decl =
     Flambda.Function_declaration.create ~code_id
-      ~params_arity:(Kinded_parameter.List.arity params)
+      ~params_arity
       ~result_arity:[LC.value_kind return]
       ~stub
       ~dbg
       ~inline
       ~is_a_functor:(Function_decl.is_a_functor decl)
       ~recursive
+      ~is_tupled
   in
-  t.code <- (code_id, params_and_body) :: t.code;
-  match Function_decl.kind decl with
-  | Curried -> Closure_id.Map.add my_closure_id fun_decl by_closure_id
-  | Tupled ->
-    let generic_function_stub, code_id, params_and_body =
-      tupled_function_call_stub param_vars unboxed_version code_id ~closure_id
-        recursive
-    in
-    t.code <- (code_id, params_and_body) :: t.code;
-    Closure_id.Map.add unboxed_version fun_decl
-      (Closure_id.Map.add closure_id generic_function_stub by_closure_id)
+  Closure_id.Map.add my_closure_id fun_decl by_closure_id
 
 let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
       ~filename (ilam : Ilambda.program) =

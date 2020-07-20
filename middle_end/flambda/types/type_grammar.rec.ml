@@ -576,17 +576,17 @@ let any_boxed_int64 () = box_int64 (any_naked_int64 ())
 let any_boxed_nativeint () = box_nativeint (any_naked_nativeint ())
 
 let create_inlinable_function_declaration ~code_id ~param_arity ~result_arity
-      ~stub ~dbg ~inline ~is_a_functor ~recursive ~rec_info
+      ~stub ~dbg ~inline ~is_a_functor ~recursive ~rec_info ~is_tupled
       : Function_declaration_type.t =
   Ok (Inlinable (
     Function_declaration_type.Inlinable.create ~code_id ~param_arity
-      ~result_arity ~stub ~dbg ~inline ~is_a_functor ~recursive ~rec_info))
+      ~result_arity ~stub ~dbg ~inline ~is_a_functor ~recursive ~rec_info ~is_tupled))
 
 let create_non_inlinable_function_declaration ~code_id ~param_arity
-      ~result_arity ~recursive : Function_declaration_type.t =
+      ~result_arity ~recursive ~is_tupled : Function_declaration_type.t =
   Ok (Non_inlinable (
     Function_declaration_type.Non_inlinable.create ~code_id ~param_arity
-      ~result_arity ~recursive))
+      ~result_arity ~recursive ~is_tupled))
 
 let exactly_this_closure closure_id ~all_function_decls_in_set:function_decls
       ~all_closures_in_set:closure_types

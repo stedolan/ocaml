@@ -388,6 +388,12 @@ val indirect_call :
   Cmm.machtype -> Cmm.expression -> Cmm.expression list -> Cmm.expression
 (** Same as {!direct_call} but for an indirect call. *)
 
+val indirect_full_call :
+  ?dbg:Debuginfo.t ->
+  Cmm.machtype -> Cmm.expression -> Cmm.expression list -> Cmm.expression
+(** Same as {!direct_call} but for an indirect call that is know to be
+    a full application (since this enables a few optimisations). *)
+
 val extcall :
   ?dbg:Debuginfo.t -> ?label:int ->
   returns:bool -> alloc:bool ->

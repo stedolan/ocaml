@@ -33,6 +33,7 @@ val create
   -> inline:Inline_attribute.t
   -> is_a_functor:bool
   -> recursive:Recursive.t
+  -> is_tupled:bool
   -> t
 
 (** The identifier of the code of the function (which must be bound using
@@ -62,6 +63,9 @@ val inline : t -> Inline_attribute.t
 
 (** Whether the function is known definitively to be a functor. *)
 val is_a_functor : t -> bool
+
+(** Whether the function is a tuplified function *)
+val is_tupled : t -> bool
 
 (** Return a function declaration that is like the supplied one except
     that it has a new code ID. *)

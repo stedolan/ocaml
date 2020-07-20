@@ -211,6 +211,7 @@ module Function_declaration_type : sig
     val is_a_functor : t -> bool
     val recursive : t -> Recursive.t
     val rec_info : t -> Rec_info.t
+    val is_tupled : t -> bool
   end
 
   module Non_inlinable : sig
@@ -220,6 +221,7 @@ module Function_declaration_type : sig
     val param_arity : t -> Flambda_arity.t
     val result_arity : t -> Flambda_arity.t
     val recursive : t -> Recursive.t
+    val is_tupled : t -> bool
   end
 
   type t0 = private
@@ -377,6 +379,7 @@ val create_inlinable_function_declaration
   -> is_a_functor:bool
   -> recursive:Recursive.t
   -> rec_info:Rec_info.t
+  -> is_tupled:bool
   -> Function_declaration_type.t
 
 (** Create a description of a function declaration whose code is unknown.
@@ -386,6 +389,7 @@ val create_non_inlinable_function_declaration
   -> param_arity:Flambda_arity.t
   -> result_arity:Flambda_arity.t
   -> recursive:Recursive.t
+  -> is_tupled:bool
   -> Function_declaration_type.t
 
 val exactly_this_closure

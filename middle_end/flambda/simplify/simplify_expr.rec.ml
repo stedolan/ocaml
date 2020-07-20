@@ -692,6 +692,52 @@ and simplify_let_cont
   | Recursive handlers ->
     simplify_recursive_let_cont_handlers dacc handlers k
 
+and simplify_direct_tuple_application
+  : 'a. DA.t -> Apply.t -> Code_id.t
+    -> 'a k -> Expr.t * 'a * UA.t
+= fun dacc apply code_id k ->
+  let dbg = Apply.dbg apply in
+  let callee's_params_and_body = DE.find_code (DA.denv dacc) code_id in
+  let param_arity =
+    Function_params_and_body.params_arity callee's_params_and_body
+  in
+  let n = List.length param_arity in
+  (* Split the tuple argument from other potential
+     over application arguments *)
+  let tuple, over_application_args =
+    match Apply.args apply with
+    | tuple :: others -> tuple, others
+    | _ ->
+      Misc.fatal_errorf "Empty argument list for direct application"
+  in
+  (* create the list of variables and projections *)
+  let vars_and_fields = List.init n (fun i ->
+    let var = Variable.create "tuple_field" in
+    let e = Simplify_common.project_tuple ~dbg ~size:n ~field:i tuple in
+    var, e)
+  in
+  (* Change the application to operate on the fields of the tuple *)
+  let apply = Apply.with_args apply @@ (
+    List.map (fun (v, _) -> Simple.var v) vars_and_fields
+    @ over_application_args)
+  in
+  (* Immediately simplify over_applications to avoid having direct
+     applications with the wrong arity. *)
+  let apply_expr =
+    match over_application_args with
+    | [] -> Expr.create_apply apply
+    | _ -> Simplify_common.split_direct_over_application apply ~param_arity
+  in
+  (* Insert the projections and simplify the new expression,
+     to allow field projections to be simplified, and
+     over-application/full_application optimizations *)
+  let expr = List.fold_right (fun (v, defining_expr) body ->
+    let var_bind = Var_in_binding_pos.create v Name_mode.normal in
+    Expr.create_let var_bind defining_expr body
+  ) vars_and_fields apply_expr
+  in
+  simplify_expr dacc expr k
+
 and simplify_direct_full_application
   : 'a. DA.t -> Apply.t
     -> (T.Function_declaration_type.Inlinable.t * Rec_info.t) option
@@ -907,6 +953,7 @@ and simplify_direct_partial_application
         ~inline:Default_inline
         ~is_a_functor:false
         ~recursive
+        ~is_tupled:false
     in
     let function_decls =
       Function_declarations.create
@@ -956,56 +1003,21 @@ and simplify_direct_over_application
     -> result_arity:Flambda_arity.t -> 'a k
     -> Expr.t * 'a * UA.t
 = fun dacc apply ~param_arity ~result_arity:_ k ->
-  let arity = List.length param_arity in
-  let args = Apply.args apply in
-  assert (arity < List.length args);
-  let full_app_args, remaining_args = Misc.Stdlib.List.split_at arity args in
-  let func_var = Variable.create "full_apply" in
-  let perform_over_application =
-    Apply.create ~callee:(Simple.var func_var)
-      ~continuation:(Apply.continuation apply)
-      (Apply.exn_continuation apply)
-      ~args:remaining_args
-      ~call_kind:(Call_kind.indirect_function_call_unknown_arity ())
-      (Apply.dbg apply)
-      ~inline:(Apply.inline apply)
-      ~inlining_depth:(Apply.inlining_depth apply)
-  in
-  let after_full_application = Continuation.create () in
-  let after_full_application_handler =
-    let params_and_handler =
-      let func_param = KP.create func_var K.value in
-      Continuation_params_and_handler.create [func_param]
-        ~handler:(Expr.create_apply perform_over_application)
-    in
-    Continuation_handler.create ~params_and_handler
-      ~stub:false
-      ~is_exn_handler:false
-  in
-  let full_apply =
-    Apply.with_continuation_callee_and_args apply
-      (Return after_full_application)
-      ~callee:(Apply.callee apply)
-      ~args:full_app_args
-  in
-  let expr =
-    Let_cont.create_non_recursive after_full_application
-      after_full_application_handler
-      ~body:(Expr.create_apply full_apply)
-  in
+  let expr = Simplify_common.split_direct_over_application apply ~param_arity in
   simplify_expr dacc expr k
 
 and simplify_direct_function_call
   : 'a. DA.t -> Apply.t -> callee's_code_id_from_type:Code_id.t
     -> callee's_code_id_from_call_kind:Code_id.t option
     -> callee's_closure_id:Closure_id.t
-    -> param_arity:Flambda_arity.t -> result_arity:Flambda_arity.t
+    -> result_arity:Flambda_arity.t
     -> recursive:Recursive.t -> arg_types:T.t list
+    -> must_be_detupled:bool
     -> (T.Function_declaration_type.Inlinable.t * Rec_info.t) option
     -> 'a k -> Expr.t * 'a * UA.t
 = fun dacc apply ~callee's_code_id_from_type ~callee's_code_id_from_call_kind
-      ~callee's_closure_id ~param_arity ~result_arity ~recursive ~arg_types:_
-      function_decl_opt k ->
+      ~callee's_closure_id ~result_arity ~recursive ~arg_types:_
+      ~must_be_detupled function_decl_opt k ->
   let result_arity_of_application =
     Call_kind.return_arity (Apply.call_kind apply)
   in
@@ -1036,23 +1048,34 @@ and simplify_direct_function_call
         ~return_arity:result_arity
     in
     let apply = Apply.with_call_kind apply call_kind in
-    let args = Apply.args apply in
-    let provided_num_args = List.length args in
-    let num_params = List.length param_arity in
-    if provided_num_args = num_params then
-      simplify_direct_full_application dacc apply function_decl_opt
-        ~result_arity k
-    else if provided_num_args > num_params then
-      simplify_direct_over_application dacc apply ~param_arity ~result_arity k
-    else if provided_num_args > 0 && provided_num_args < num_params then
-      simplify_direct_partial_application dacc apply ~callee's_code_id
-        ~callee's_closure_id ~param_arity ~result_arity ~recursive k
-    else
-      Misc.fatal_errorf "Function with %d params when simplifying \
-          direct OCaml function call with %d arguments: %a"
-        num_params
-        provided_num_args
-        Apply.print apply
+    if must_be_detupled then
+      simplify_direct_tuple_application dacc apply callee's_code_id k
+    else begin
+      let args = Apply.args apply in
+      let provided_num_args = List.length args in
+      let callee's_code = DE.find_code (DA.denv dacc) callee's_code_id in
+      (* Because of tupled functions, a function declaration's params_arity
+         may not match that of the underlying function_params_and_body.
+         Since direct calls adopt the calling convention of the code's body
+         (whereas indirect_unknown_arity calls use the convention of the
+         function_declaration), we here need the arity of the callee's body *)
+      let param_arity = Function_params_and_body.params_arity callee's_code in
+      let num_params = List.length param_arity in
+      if provided_num_args = num_params then
+        simplify_direct_full_application dacc apply function_decl_opt
+          ~result_arity k
+      else if provided_num_args > num_params then
+        simplify_direct_over_application dacc apply ~param_arity ~result_arity k
+      else if provided_num_args > 0 && provided_num_args < num_params then
+        simplify_direct_partial_application dacc apply ~callee's_code_id
+          ~callee's_closure_id ~param_arity ~result_arity ~recursive k
+      else
+        Misc.fatal_errorf "Function with %d params when simplifying \
+                           direct OCaml function call with %d arguments: %a"
+          num_params
+          provided_num_args
+          Apply.print apply
+    end
 
 and simplify_function_call_where_callee's_type_unavailable
   : 'a. DA.t -> Apply.t -> Call_kind.Function_call.t
@@ -1150,6 +1173,29 @@ and simplify_function_call
     -> Expr.t * 'a * UA.t
 = fun dacc apply ~callee_ty (call : Call_kind.Function_call.t) ~arg_types k ->
   let args = Apply.args apply in
+  (* Function declarations and params and body might not have the same calling
+     convention. Currently the only case when it happens is for tupled functions.
+     For such functions, the function_declaration declares a param_arity with a
+     single argument (which is the tuple), whereas the code body takes an argument
+     for each field of the tuple (the body is currified).
+     When simplifying a function call, it can happen that we need to change the
+     calling convention. Currently this only happens when we have a generic call
+     (indirect_unknown_arity), which uses the generic/function_declaration calling
+     convention, but se simplify it into a direct call, which uses the callee's code
+     calling convention. In this case, we need to "detuple" the call in order to
+     correctly adopt to the change in calling convention. *)
+  let call_must_be_detupled is_function_decl_tupled =
+    match call with
+    (* In these cases, the calling convention already used in the
+       application begin simplified is that of the code actually
+       called. Thus we must not detuple the function *)
+    | Direct _
+    | Indirect_known_arity _ -> false
+    (* In the indirect case, the calling convention used currently is
+       the generic one. Thus we need to detuple the call iff the function
+       declaration is tupled. *)
+    | Indirect_unknown_arity -> is_function_decl_tupled
+  in
   let type_unavailable () =
     simplify_function_call_where_callee's_type_unavailable dacc apply call
       ~args ~arg_types k
@@ -1187,11 +1233,12 @@ and simplify_function_call
         | Some newer -> Rec_info.merge rec_info ~newer
       in
       let callee's_code_id_from_type = I.code_id inlinable in
+      let must_be_detupled = call_must_be_detupled (I.is_tupled inlinable) in
       simplify_direct_function_call dacc apply ~callee's_code_id_from_type
         ~callee's_code_id_from_call_kind ~callee's_closure_id ~arg_types
-        ~param_arity:(I.param_arity inlinable)
         ~result_arity:(I.result_arity inlinable)
         ~recursive:(I.recursive inlinable)
+        ~must_be_detupled
         (Some (inlinable, function_decl_rec_info)) k
     | Ok (Non_inlinable non_inlinable) ->
       let module N = T.Function_declaration_type.Non_inlinable in
@@ -1202,12 +1249,13 @@ and simplify_function_call
         | Indirect_unknown_arity
         | Indirect_known_arity _ -> None
       in
+      let must_be_detupled = call_must_be_detupled (N.is_tupled non_inlinable) in
       simplify_direct_function_call dacc apply ~callee's_code_id_from_type
         ~callee's_code_id_from_call_kind
         ~callee's_closure_id ~arg_types
-        ~param_arity:(N.param_arity non_inlinable)
         ~result_arity:(N.result_arity non_inlinable)
         ~recursive:(N.recursive non_inlinable)
+        ~must_be_detupled
         None k
     | Bottom ->
       let user_data, uacc = k dacc in

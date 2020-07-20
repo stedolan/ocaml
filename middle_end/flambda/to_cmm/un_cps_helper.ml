@@ -511,17 +511,33 @@ let direct_call ?(dbg=Debuginfo.none) ty f_code_sym args =
 
 let indirect_call ?(dbg=Debuginfo.none) ty f = function
   | [arg] ->
-      (* Use a variable to avoid duplicating the cmm code of the closure [f]. *)
-      let v = Backend_var.create_local "*closure*" in
-      let v' = Backend_var.With_provenance.create v in
-      letin v' f @@
-      Cmm.Cop (Cmm.Capply ty,
-               [load Cmm.Word_int Asttypes.Mutable (var v); arg; (var v)],
-               dbg)
+    (* Use a variable to avoid duplicating the cmm code of the closure [f]. *)
+    let v = Backend_var.create_local "*closure*" in
+    let v' = Backend_var.With_provenance.create v in
+    letin v' f @@
+    Cmm.Cop (Cmm.Capply ty,
+             [load Cmm.Word_int Asttypes.Mutable (var v); arg; (var v)],
+             dbg)
   | args ->
-      let arity = List.length args in
-      let l = symbol (apply_function_sym arity) :: args @ [f] in
-      Cmm.Cop (Cmm.Capply ty, l, dbg)
+    let arity = List.length args in
+    let l = symbol (apply_function_sym arity) :: args @ [f] in
+    Cmm.Cop (Cmm.Capply ty, l, dbg)
+
+let indirect_full_call ?(dbg=Debuginfo.none) ty f = function
+  (* the single-argument case is already optimized by indirect_call *)
+  | [_] as args -> indirect_call ~dbg ty f args
+  | args ->
+    (* Use a variable to avoid duplicating the cmm code of the closure [f]. *)
+    let v = Backend_var.create_local "*closure*" in
+    let v' = Backend_var.With_provenance.create v in
+    (* get the function's code pointer *)
+    let fun_ptr =
+      load Cmm.Word_int Asttypes.Mutable @@
+      field_address (var v) 2 dbg
+    in
+    letin v' f @@
+    Cmm.Cop (Cmm.Capply ty, fun_ptr :: args @ [var v], dbg)
+
 
 
 (* Cmm phrases *)
