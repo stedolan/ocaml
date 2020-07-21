@@ -221,8 +221,10 @@ module T = struct
       (sub.extension_constructor sub ptyexn_constructor)
 
   let map_extension_constructor_kind sub = function
-      Pext_decl(ctl, cto) ->
-        Pext_decl(map_constructor_arguments sub ctl, map_opt (sub.typ sub) cto)
+      Pext_decl(poly, ctl, cto) ->
+        Pext_decl(List.map (newtype sub) poly,
+                  map_constructor_arguments sub ctl,
+                  map_opt (sub.typ sub) cto)
     | Pext_rebind li ->
         Pext_rebind (map_loc sub li)
 
@@ -460,8 +462,8 @@ module E = struct
     | Pexp_poly (e, t) ->
         poly ~loc ~attrs (sub.expr sub e) (map_opt (sub.typ sub) t)
     | Pexp_object cls -> object_ ~loc ~attrs (sub.class_structure sub cls)
-    | Pexp_newtype (s, l, e) ->
-        let (s, l) = T.newtype sub (s, l) in
+    | Pexp_newtype (nt, e) ->
+        let (s, l) = T.newtype sub nt in
         newtype ~loc ~attrs s l (sub.expr sub e)
     | Pexp_pack me -> pack ~loc ~attrs (sub.module_expr sub me)
     | Pexp_open (o, e) ->
@@ -707,11 +709,13 @@ let default_mapper =
 
 
     constructor_declaration =
-      (fun this {pcd_name; pcd_args; pcd_res; pcd_loc; pcd_attributes} ->
+      (fun this {pcd_name; pcd_args; pcd_res; pcd_poly;
+                 pcd_loc; pcd_attributes} ->
         Type.constructor
           (map_loc this pcd_name)
           ~args:(T.map_constructor_arguments this pcd_args)
           ?res:(map_opt (this.typ this) pcd_res)
+          ~poly:(List.map (T.newtype this) pcd_poly)
           ~loc:(this.location this pcd_loc)
           ~attrs:(this.attributes this pcd_attributes)
       );

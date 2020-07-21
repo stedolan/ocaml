@@ -3489,7 +3489,7 @@ and type_expect_
       in
       re { exp with exp_extra =
              (Texp_poly cty, loc, sexp.pexp_attributes) :: exp.exp_extra }
-  | Pexp_newtype({txt=name}, layout, sbody) ->
+  | Pexp_newtype(({txt=name}, layout), sbody) ->
       let layout = Typetexp.transl_layout layout in
       let ty =
         if Typetexp.valid_tyvar_name name then

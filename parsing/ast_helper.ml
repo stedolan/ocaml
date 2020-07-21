@@ -205,7 +205,7 @@ module Exp = struct
   let lazy_ ?loc ?attrs a = mk ?loc ?attrs (Pexp_lazy a)
   let poly ?loc ?attrs a b = mk ?loc ?attrs (Pexp_poly (a, b))
   let object_ ?loc ?attrs a = mk ?loc ?attrs (Pexp_object a)
-  let newtype ?loc ?attrs a l b = mk ?loc ?attrs (Pexp_newtype (a, l, b))
+  let newtype ?loc ?attrs a l b = mk ?loc ?attrs (Pexp_newtype ((a, l), b))
   let pack ?loc ?attrs a = mk ?loc ?attrs (Pexp_pack a)
   let open_ ?loc ?attrs a b = mk ?loc ?attrs (Pexp_open (a, b))
   let letop ?loc ?attrs let_ ands body =
@@ -529,11 +529,12 @@ module Type = struct
     }
 
   let constructor ?(loc = !default_loc) ?(attrs = []) ?(info = empty_info)
-        ?(args = Pcstr_tuple []) ?res name =
+        ?(args = Pcstr_tuple []) ?res ?(poly = []) name =
     {
      pcd_name = name;
      pcd_args = args;
      pcd_res = res;
+     pcd_poly = poly;
      pcd_loc = loc;
      pcd_attributes = add_info_attrs info attrs;
     }
@@ -581,10 +582,11 @@ module Te = struct
     }
 
   let decl ?(loc = !default_loc) ?(attrs = []) ?(docs = empty_docs)
-             ?(info = empty_info) ?(args = Pcstr_tuple []) ?res name =
+             ?(info = empty_info) ?(args = Pcstr_tuple []) ?res ?(poly = [])
+             name =
     {
      pext_name = name;
-     pext_kind = Pext_decl(args, res);
+     pext_kind = Pext_decl(poly, args, res);
      pext_loc = loc;
      pext_attributes = add_docs_attrs docs (add_info_attrs info attrs);
     }

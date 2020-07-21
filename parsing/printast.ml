@@ -154,6 +154,15 @@ let layout_opt i ppf = function
   | None -> ()
   | Some l -> layout i ppf l
 
+let newtype i ppf (s, l) =
+  match l with
+  | None ->
+     line i ppf "newtype %a\n" fmt_string_loc s
+  | Some { play_desc; _ } ->
+     line i ppf "newtype %a %a\n"
+       fmt_string_loc s
+       (list i string_loc) play_desc
+
 let rec core_type i ppf x =
   line i ppf "core_type %a\n" fmt_location x.ptyp_loc;
   attributes i ppf x.ptyp_attributes;
@@ -196,12 +205,8 @@ let rec core_type i ppf x =
       line i ppf "Ptyp_alias \"%s\"\n" s;
       core_type i ppf ct;
   | Ptyp_poly (sl, ct) ->
-      line i ppf "Ptyp_poly%a\n"
-        (fun ppf ->
-           List.iter (fun (s, l) ->
-             fprintf ppf " %a %a" fmt_string_loc s (layout_opt i) l )
-        )
-        sl;
+      line i ppf "Ptyp_poly\n";
+      List.iter (newtype i ppf) sl;
       core_type i ppf ct;
   | Ptyp_package (s, l) ->
       line i ppf "Ptyp_package %a\n" fmt_longident_loc s;
@@ -384,10 +389,10 @@ and expression i ppf x =
   | Pexp_object s ->
       line i ppf "Pexp_object\n";
       class_structure i ppf s
-  | Pexp_newtype (s, None, e) ->
+  | Pexp_newtype ((s, None), e) ->
       line i ppf "Pexp_newtype \"%s\"\n" s.txt;
       expression i ppf e
-  | Pexp_newtype (s, Some l, e) ->
+  | Pexp_newtype ((s, Some l), e) ->
       line i ppf "Pexp_newtype \"%s\" %a\n" s.txt (layout i) l;
       expression i ppf e
   | Pexp_pack me ->
@@ -512,8 +517,9 @@ and extension_constructor i ppf x =
 
 and extension_constructor_kind i ppf x =
   match x with
-      Pext_decl(a, r) ->
+      Pext_decl(pvs, a, r) ->
         line i ppf "Pext_decl\n";
+        List.iter (newtype i ppf) pvs;
         constructor_arguments (i+1) ppf a;
         option (i+1) core_type ppf r;
     | Pext_rebind li ->
@@ -898,10 +904,11 @@ and core_type_x_core_type_x_location i ppf (ct1, ct2, l) =
   core_type (i+1) ppf ct2;
 
 and constructor_decl i ppf
-                     {pcd_name; pcd_args; pcd_res; pcd_loc; pcd_attributes} =
+    {pcd_name; pcd_args; pcd_res; pcd_poly; pcd_loc; pcd_attributes} =
   line i ppf "%a\n" fmt_location pcd_loc;
   line (i+1) ppf "%a\n" fmt_string_loc pcd_name;
   attributes i ppf pcd_attributes;
+  List.iter (newtype i ppf) pcd_poly;
   constructor_arguments (i+1) ppf pcd_args;
   option (i+1) core_type ppf pcd_res
 

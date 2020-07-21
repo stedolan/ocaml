@@ -151,7 +151,7 @@ let add_type_declaration bv td =
 
 let add_extension_constructor bv ext =
   match ext.pext_kind with
-    Pext_decl(args, rty) ->
+    Pext_decl(_pvs, args, rty) ->
       add_constructor_arguments bv args;
       Option.iter (add_type bv) rty
   | Pext_rebind lid -> add bv lid
@@ -248,7 +248,7 @@ let rec add_expr bv exp =
   | Pexp_poly (e, t) -> add_expr bv e; add_opt add_type bv t
   | Pexp_object { pcstr_self = pat; pcstr_fields = fieldl } ->
       let bv = add_pattern bv pat in List.iter (add_class_field bv) fieldl
-  | Pexp_newtype (_, _, e) -> add_expr bv e
+  | Pexp_newtype (_, e) -> add_expr bv e
   | Pexp_pack m -> add_module_expr bv m
   | Pexp_open (o, e) ->
       let bv = open_declaration bv o in

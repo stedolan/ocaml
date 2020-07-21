@@ -213,7 +213,8 @@ module Type:
       type_declaration
 
     val constructor: ?loc:loc -> ?attrs:attrs -> ?info:info ->
-      ?args:constructor_arguments -> ?res:core_type -> str ->
+      ?args:constructor_arguments -> ?res:core_type -> ?poly:newtype list ->
+      str ->
       constructor_declaration
     val field: ?loc:loc -> ?attrs:attrs -> ?info:info ->
       ?mut:mutable_flag -> str -> core_type -> label_declaration
@@ -233,7 +234,8 @@ module Te:
       str -> extension_constructor_kind -> extension_constructor
 
     val decl: ?loc:loc -> ?attrs:attrs -> ?docs:docs -> ?info:info ->
-      ?args:constructor_arguments -> ?res:core_type -> str ->
+      ?args:constructor_arguments -> ?res:core_type -> ?poly:newtype list ->
+      str ->
       extension_constructor
     val rebind: ?loc:loc -> ?attrs:attrs -> ?docs:docs -> ?info:info ->
       str -> lid -> extension_constructor

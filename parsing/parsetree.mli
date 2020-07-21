@@ -130,7 +130,7 @@ and core_type_desc =
            [< `A|`B ]        (flag = Closed; labels = Some [])
            [< `A|`B > `X `Y ](flag = Closed; labels = Some ["X";"Y"])
          *)
-  | Ptyp_poly of (string loc * layout option) list * core_type
+  | Ptyp_poly of newtype list * core_type
         (* 'a1 ... 'an. T
 
            Can only appear in the following context:
@@ -193,6 +193,9 @@ and object_field = {
 and object_field_desc =
   | Otag of label loc * core_type
   | Oinherit of core_type
+
+(* Type binders: (type a : layout) and ('a : layout) . *)
+and newtype = string loc * layout option
 
 (* Patterns *)
 
@@ -375,7 +378,7 @@ and expression_desc =
            for methods (not values). *)
   | Pexp_object of class_structure
         (* object ... end *)
-  | Pexp_newtype of string loc * layout option * expression
+  | Pexp_newtype of newtype * expression
         (* fun (type t) -> E and fun (type t : layout) -> E *)
   | Pexp_pack of module_expr
         (* (module ME)
@@ -493,6 +496,7 @@ and constructor_declaration =
      pcd_name: string loc;
      pcd_args: constructor_arguments;
      pcd_res: core_type option;
+     pcd_poly: newtype list;
      pcd_loc: Location.t;
      pcd_attributes: attributes; (* C of ... [@id1] [@id2] *)
     }
@@ -540,7 +544,7 @@ and type_exception =
   }
 
 and extension_constructor_kind =
-    Pext_decl of constructor_arguments * core_type option
+    Pext_decl of newtype list * constructor_arguments * core_type option
       (*
          | C of T1 * ... * Tn     ([T1; ...; Tn], None)
          | C: T0                  ([], Some T0)

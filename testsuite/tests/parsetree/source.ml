@@ -7380,3 +7380,10 @@ let f = function
 
 let () =
   f (fun (type t) -> x)
+
+(* Explicit binders on GADT existentials *)
+type (_,_) lam =
+  | Var : 'a . 'a -> (('a,'t,'e) rcons, 't) lam
+  | Shift : 'e 't . { body : ('e,'t) lam } -> (('a,'q,'e) rcons, 't) lam
+  | Abs : 'a * (('a,'s,'e) rcons, 't) lam -> ('e, 's -> 't) lam
+  | App : 'e 's 't . ('e, 's -> 't) lam * ('e, 's) lam -> ('e, 't) lam

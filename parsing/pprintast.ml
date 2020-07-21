@@ -303,6 +303,12 @@ and type_with_label ctxt f (label, c) =
   | Labelled s -> pp f "%s:%a" s (core_type1 ctxt) c
   | Optional s -> pp f "?%s:%a" s (core_type1 ctxt) c
 
+and poly_binders f = function
+  | [] -> ()
+  | l ->
+     pp f "%a@;.@;"
+       (list tyvar_loc_layout ~sep:"@;") l
+
 and core_type ctxt f x =
   if x.ptyp_attributes <> [] then begin
     pp f "((%a)%a)" (core_type ctxt) {x with ptyp_attributes=[]}
@@ -317,16 +323,7 @@ and core_type ctxt f x =
     | Ptyp_poly ([], ct) ->
         core_type ctxt f ct
     | Ptyp_poly (sl, ct) ->
-        pp f "@[<2>%a%a@]"
-          (fun f l ->
-             pp f "%a"
-               (fun f l -> match l with
-                  | [] -> ()
-                  | _ ->
-                      pp f "%a@;.@;"
-                        (list tyvar_loc_layout ~sep:"@;")  l)
-               l)
-          sl (core_type ctxt) ct
+        pp f "@[<2>%a%a@]" poly_binders sl (core_type ctxt) ct
     | _ -> pp f "@[<2>%a@]" (core_type1 ctxt) x
 
 and core_type1 ctxt f x =
@@ -624,10 +621,10 @@ and expression ctxt f x =
         pp f "@[<2>fun@;%a->@;%a@]"
           (label_exp ctxt) (l, e0, p)
           (expression ctxt) e
-    | Pexp_newtype (lid, None, e) ->
+    | Pexp_newtype ((lid, None), e) ->
         pp f "@[<2>fun@;(type@;%s)@;->@;%a@]" lid.txt
           (expression ctxt) e
-    | Pexp_newtype (lid, Some l, e) ->
+    | Pexp_newtype ((lid, Some l), e) ->
         pp f "@[<2>fun@;(type@;%s : %a)@;->@;%a@]" lid.txt
           (expression ctxt) e layout l
     | Pexp_function l ->
@@ -1238,9 +1235,9 @@ and binding ctxt f {pvb_pat=p; pvb_expr=x; _} =
           else
             pp f "%a@ %a"
               (label_exp ctxt) (label,eo,p) pp_print_pexp_function e
-      | Pexp_newtype (str,None,e) ->
+      | Pexp_newtype ((str,None),e) ->
           pp f "(type@ %s)@ %a" str.txt pp_print_pexp_function e
-      | Pexp_newtype (str,Some l,e) ->
+      | Pexp_newtype ((str,Some l),e) ->
           pp f "(type@ %s : %a)@ %a" str.txt layout l
             pp_print_pexp_function e
       | _ -> pp f "=@;%a" (expression ctxt) x
@@ -1256,7 +1253,7 @@ and binding ctxt f {pvb_pat=p; pvb_expr=x; _} =
       | _ -> None in
     let rec gadt_exp tyvars e =
       match e with
-      | {pexp_desc=Pexp_newtype (tyvar, layout, e); pexp_attributes=[]} ->
+      | {pexp_desc=Pexp_newtype ((tyvar, layout), e); pexp_attributes=[]} ->
           gadt_exp ((tyvar, layout) :: tyvars) e
       | {pexp_desc=Pexp_constraint (e, ct); pexp_attributes=[]} ->
           Some (List.rev tyvars, e, ct)
@@ -1519,7 +1516,8 @@ and type_declaration ctxt eq f x =
   let constructor_declaration f pcd =
     pp f "|@;";
     constructor_declaration ctxt f
-      (pcd.pcd_name.txt, pcd.pcd_args, pcd.pcd_res, pcd.pcd_attributes)
+      (pcd.pcd_name.txt, pcd.pcd_poly, pcd.pcd_args, pcd.pcd_res,
+       pcd.pcd_attributes)
   in
   let repr f =
     let intro f =
@@ -1558,7 +1556,7 @@ and type_extension ctxt f x =
     x.ptyext_constructors
     (item_attributes ctxt) x.ptyext_attributes
 
-and constructor_declaration ctxt f (name, args, res, attrs) =
+and constructor_declaration ctxt f (name, poly, args, res, attrs) =
   let name =
     match name with
     | "::" -> "(::)"
@@ -1569,7 +1567,7 @@ and constructor_declaration ctxt f (name, args, res, attrs) =
         (fun f -> function
            | Pcstr_tuple [] -> ()
            | Pcstr_tuple l ->
-             pp f "@;of@;%a" (list (core_type1 ctxt) ~sep:"@;*@;") l
+             pp f "@;of@;%a%a" poly_binders poly (list (core_type1 ctxt) ~sep:"@;*@;") l
            | Pcstr_record l -> pp f "@;of@;%a" (record_declaration ctxt) l
         ) args
         (attributes ctxt) attrs
@@ -1577,11 +1575,13 @@ and constructor_declaration ctxt f (name, args, res, attrs) =
       pp f "%s:@;%a@;%a" name
         (fun f -> function
            | Pcstr_tuple [] -> core_type1 ctxt f r
-           | Pcstr_tuple l -> pp f "%a@;->@;%a"
+           | Pcstr_tuple l -> pp f "%a%a@;->@;%a"
+                                poly_binders poly
                                 (list (core_type1 ctxt) ~sep:"@;*@;") l
                                 (core_type1 ctxt) r
            | Pcstr_record l ->
-               pp f "%a@;->@;%a" (record_declaration ctxt) l (core_type1 ctxt) r
+               pp f "%a%a@;->@;%a" poly_binders poly
+                 (record_declaration ctxt) l (core_type1 ctxt) r
         )
         args
         (attributes ctxt) attrs
@@ -1589,8 +1589,9 @@ and constructor_declaration ctxt f (name, args, res, attrs) =
 and extension_constructor ctxt f x =
   (* Cf: #7200 *)
   match x.pext_kind with
-  | Pext_decl(l, r) ->
-      constructor_declaration ctxt f (x.pext_name.txt, l, r, x.pext_attributes)
+  | Pext_decl(pvs, l, r) ->
+      constructor_declaration ctxt f
+        (x.pext_name.txt, pvs, l, r, x.pext_attributes)
   | Pext_rebind li ->
       pp f "%s%a@;=@;%a" x.pext_name.txt
         (attributes ctxt) x.pext_attributes

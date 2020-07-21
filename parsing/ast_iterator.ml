@@ -197,8 +197,10 @@ module T = struct
     sub.attributes sub ptyexn_attributes
 
   let iter_extension_constructor_kind sub = function
-      Pext_decl(ctl, cto) ->
-        iter_constructor_arguments sub ctl; iter_opt (sub.typ sub) cto
+      Pext_decl(ctvs, ctl, cto) ->
+        List.iter (newtype sub) ctvs;
+        iter_constructor_arguments sub ctl;
+        iter_opt (sub.typ sub) cto
     | Pext_rebind li ->
         iter_loc sub li
 
@@ -419,7 +421,7 @@ module E = struct
     | Pexp_poly (e, t) ->
         sub.expr sub e; iter_opt (sub.typ sub) t
     | Pexp_object cls -> sub.class_structure sub cls
-    | Pexp_newtype (s, l, e) -> T.newtype sub (s, l); sub.expr sub e
+    | Pexp_newtype (nt, e) -> T.newtype sub nt; sub.expr sub e
     | Pexp_pack me -> sub.module_expr sub me
     | Pexp_open (o, e) ->
         sub.open_declaration sub o; sub.expr sub e
@@ -647,10 +649,12 @@ let default_iterator =
 
 
     constructor_declaration =
-      (fun this {pcd_name; pcd_args; pcd_res; pcd_loc; pcd_attributes} ->
+      (fun this {pcd_name; pcd_args; pcd_res; pcd_poly;
+                 pcd_loc; pcd_attributes} ->
          iter_loc this pcd_name;
          T.iter_constructor_arguments this pcd_args;
          iter_opt (this.typ this) pcd_res;
+         List.iter (T.newtype this) pcd_poly;
          this.location this pcd_loc;
          this.attributes this pcd_attributes
       );

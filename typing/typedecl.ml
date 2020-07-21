@@ -255,14 +255,16 @@ let transl_constructor_arguments env closed = function
       Types.Cstr_record lbls',
       Cstr_record lbls
 
-let make_constructor env type_path type_params sargs sret_type =
+let make_constructor env type_path type_params spoly sargs sret_type =
   match sret_type with
   | None ->
+      assert (spoly = []);
       let args, targs =
         transl_constructor_arguments env true sargs
       in
         targs, None, args, None
   | Some sret_type ->
+     (* FIXME_layout spoly *)
       (* if it's a generalized constructor we must first narrow and
          then widen so as to not introduce any new constraints *)
       let z = narrow () in
@@ -360,7 +362,7 @@ let transl_declaration env sdecl (id, uid) =
           let name = Ident.create_local scstr.pcd_name.txt in
           let targs, tret_type, args, ret_type =
             make_constructor env (Path.Pident id) params
-                             scstr.pcd_args scstr.pcd_res
+                             scstr.pcd_poly scstr.pcd_args scstr.pcd_res
           in
           let tcstr =
             { cd_id = name;
@@ -981,10 +983,10 @@ let transl_extension_constructor env type_path type_params
   let id = Ident.create_scoped ~scope sext.pext_name.txt in
   let args, ret_type, kind =
     match sext.pext_kind with
-      Pext_decl(sargs, sret_type) ->
+      Pext_decl(spoly, sargs, sret_type) ->
         let targs, tret_type, args, ret_type =
           make_constructor env type_path typext_params
-            sargs sret_type
+            spoly sargs sret_type
         in
           args, ret_type, Text_decl(targs, tret_type)
     | Pext_rebind lid ->

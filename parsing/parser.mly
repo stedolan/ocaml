@@ -358,7 +358,7 @@ let pat_of_label ~loc lbl =
 let mk_newtypes ~loc newtypes exp =
   let mkexp = mkexp ~loc in
   List.fold_right (fun (newtype, layout) exp ->
-    mkexp (Pexp_newtype (newtype, layout, exp)))
+    mkexp (Pexp_newtype ((newtype, layout), exp)))
     newtypes exp
 
 let wrap_type_annotation ~loc newtypes core_type body =
@@ -2994,20 +2994,20 @@ constructor_declarations:
 generic_constructor_declaration(opening):
   opening
   cid = mkrhs(constr_ident)
-  args_res = generalized_constructor_arguments
+  poly_args_res = generalized_constructor_arguments
   attrs = attributes
     {
-      let args, res = args_res in
+      let poly, args, res = poly_args_res in
       let info = symbol_info $endpos in
       let loc = make_loc $sloc in
-      cid, args, res, attrs, loc, info
+      cid, args, res, poly, attrs, loc, info
     }
 ;
 %inline constructor_declaration(opening):
   d = generic_constructor_declaration(opening)
     {
-      let cid, args, res, attrs, loc, info = d in
-      Type.constructor cid ~args ?res ~attrs ~loc ~info
+      let cid, args, res, poly, attrs, loc, info = d in
+      Type.constructor cid ~args ?res ~attrs ~poly ~loc ~info
     }
 ;
 str_exception_declaration:
@@ -3032,28 +3032,36 @@ sig_exception_declaration:
   ext = ext
   attrs1 = attributes
   id = mkrhs(constr_ident)
-  args_res = generalized_constructor_arguments
+  poly_args_res = generalized_constructor_arguments
   attrs2 = attributes
   attrs = post_item_attributes
-    { let args, res = args_res in
+    { let poly, args, res = poly_args_res in
       let loc = make_loc $sloc in
       let docs = symbol_docs $sloc in
       Te.mk_exception ~attrs
-        (Te.decl id ~args ?res ~attrs:(attrs1 @ attrs2) ~loc ~docs)
+        (Te.decl id ~args ?res ~attrs:(attrs1 @ attrs2) ~poly ~loc ~docs)
       , ext }
 ;
 %inline let_exception_declaration:
     mkrhs(constr_ident) generalized_constructor_arguments attributes
-      { let args, res = $2 in
-        Te.decl $1 ~args ?res ~attrs:$3 ~loc:(make_loc $sloc) }
+      { let poly, args, res = $2 in
+        Te.decl $1 ~args ?res ~poly ~attrs:$3 ~loc:(make_loc $sloc) }
 ;
 generalized_constructor_arguments:
-    /*empty*/                     { (Pcstr_tuple [],None) }
-  | OF constructor_arguments      { ($2,None) }
+    /*empty*/                     { ([], Pcstr_tuple [],None) }
+  | OF constructor_arguments      { ([], $2,None) }
   | COLON constructor_arguments MINUSGREATER atomic_type %prec below_HASH
-                                  { ($2,Some $4) }
+                                  { ([], $2,Some $4) }
+  | COLON
+      typevar_list DOT
+      constructor_arguments MINUSGREATER
+      atomic_type %prec below_HASH
+                                  { ($2, $4, Some $6) }
+
   | COLON atomic_type %prec below_HASH
-                                  { (Pcstr_tuple [],Some $2) }
+                                  { ([], Pcstr_tuple [],Some $2) }
+  | COLON typevar_list DOT atomic_type %prec below_HASH
+                                  { ($2, Pcstr_tuple [],Some $4) }
 ;
 
 constructor_arguments:
@@ -3118,8 +3126,8 @@ label_declaration_semi:
 %inline extension_constructor_declaration(opening):
   d = generic_constructor_declaration(opening)
     {
-      let cid, args, res, attrs, loc, info = d in
-      Te.decl cid ~args ?res ~attrs ~loc ~info
+      let cid, args, res, poly, attrs, loc, info = d in
+      Te.decl cid ~args ?res ~poly ~attrs ~loc ~info
     }
 ;
 extension_constructor_rebind(opening):
