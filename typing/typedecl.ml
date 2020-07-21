@@ -241,9 +241,9 @@ let transl_labels env closed lbls =
       lbls in
   lbls, lbls'
 
-let transl_constructor_arguments env closed = function
+let transl_constructor_arguments env closed ?bindings = function
   | Pcstr_tuple l ->
-      let l = List.map (transl_simple_type env closed) l in
+      let l = List.map (transl_simple_type env ?bindings closed) l in
       List.iter (fun t ->
         try Ctype.constrain_layout env t.ctyp_type Layout.value
         with Ctype.Unify _ ->
@@ -251,6 +251,7 @@ let transl_constructor_arguments env closed = function
       Types.Cstr_tuple (List.map (fun t -> t.ctyp_type) l),
       Cstr_tuple l
   | Pcstr_record l ->
+      assert (bindings = None); (* FIXME_layout *)
       let lbls, lbls' = transl_labels env closed l in
       Types.Cstr_record lbls',
       Cstr_record lbls
@@ -264,15 +265,15 @@ let make_constructor env type_path type_params spoly sargs sret_type =
       in
         targs, None, args, None
   | Some sret_type ->
-     (* FIXME_layout spoly *)
       (* if it's a generalized constructor we must first narrow and
          then widen so as to not introduce any new constraints *)
       let z = narrow () in
       reset_type_variables ();
+      let _vars, bindings = transl_type_var_bindings spoly in
       let args, targs =
-        transl_constructor_arguments env false sargs
+        transl_constructor_arguments env false ~bindings sargs
       in
-      let tret_type = transl_simple_type env false sret_type in
+      let tret_type = transl_simple_type env false ~bindings sret_type in
       let ret_type = tret_type.ctyp_type in
       (* TODO add back type_path as a parameter ? *)
       begin match (Ctype.repr ret_type).desc with

@@ -7,7 +7,7 @@ type ('a : immediate) imm = 'a
 (* FIXME_layout: There should be a better syntax to constrain the
    layout of 'b *)
 type ('a : value) is_immediate =
-  | Immediate : 'b imm is_immediate
+  | Immediate : ('b : immediate) . 'b is_immediate
   | Value : 'a is_immediate
 
 [%%expect{|
