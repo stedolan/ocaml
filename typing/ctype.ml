@@ -1296,9 +1296,8 @@ let instance_constructor ?in_pattern cstr =
     begin match in_pattern with
     | None -> ()
     | Some (env, expansion_scope) ->
-        let process existential =
-          (* FIXME_layout: Existentials of other layouts sound fun *)
-          let decl = new_declaration expansion_scope None Layout.value in
+        let process (existential, layout) =
+          let decl = new_declaration expansion_scope None layout in
           let name = existential_name cstr existential in
           let path =
             Path.Pident
@@ -2550,34 +2549,48 @@ let unify_eq t1 t2 =
       try TypePairs.find unify_eq_set (order_type_pair t1 t2); true
       with Not_found -> false
 
-let rec cmp_layout env refine_var fail ok ty layout =
-  if Layout.equal_any layout then ok else
+let rec cmp_layout env may_refine_var may_refine_env ty layout =
+  if Layout.equal_any layout then () else
   let ty = repr ty in
+  let fail got expected =
+    raise (Trace.layout {got; expected}) in
   let check_sub l =
-    if Layout.subset l layout then ok else
+    if not (Layout.subset l layout) then
       fail l layout in
   match ty.desc with
   | Tvar tv ->
     begin match Layout.inter tv.layout layout with
-    | Some layout' ->
-      if layout' = tv.layout then ok else refine_var ty.desc layout'
-    | None ->
-      fail tv.layout layout
+    | Some layout' when layout' = tv.layout -> ()
+    | Some layout' when may_refine_var ->
+       set_layout ty.desc layout'
+    | _ -> fail tv.layout layout
     end
-  | Tconstr (path, _tl, _abbrev) ->
-    begin match Env.find_type path env with
+  | Tconstr (path, tl, _abbrev) ->
+    begin match Env.find_type path !env with
     | exception Not_found ->
       fail Layout.any layout
     | { type_layout; _ } when Layout.subset type_layout layout ->
-      ok
+      ()
     | { type_layout; _ } ->
       (* If that check failed, it might still be OK:
          we need to expand aliases to find out *)
-      match try_expand_head try_expand_once env ty with
-      | exception Cannot_expand ->
-        fail type_layout layout
+      match try_expand_head try_expand_once !env ty with
       | ty' ->
-        cmp_layout env refine_var fail ok ty' layout end
+        cmp_layout env may_refine_var may_refine_env ty' layout
+      | exception Cannot_expand ->
+        (* If *that* failed, maybe we can instantiate a
+           locally abstract type to make it pass *)
+        match Layout.inter type_layout layout with
+        | Some layout when
+                 may_refine_env
+              && tl = []
+              && is_instantiable !env path ->
+           let tv = newvar ~layout () in
+           reify env tv;
+           add_gadt_equation env path tv
+        | _ ->
+           fail type_layout layout
+    end
   | Tarrow _
   | Ttuple _
   | Tobject _
@@ -2585,7 +2598,7 @@ let rec cmp_layout env refine_var fail ok ty layout =
   | Tpackage _->
     check_sub Layout.value
   | Tpoly (ty, _tyl) ->
-    cmp_layout env refine_var fail ok ty layout
+    cmp_layout env may_refine_var may_refine_env ty layout
   | Tunivar uv ->
     check_sub uv.layout
   | Tlink _ -> assert false
@@ -2596,22 +2609,20 @@ let rec cmp_layout env refine_var fail ok ty layout =
 (* Verify that ty has a given layout,
    refining layouts of type variables if necessary *)
 let constrain_layout env ty layout =
-  cmp_layout
-    env
-    (fun v layout -> set_layout v layout)
-    (fun got expected -> raise (Trace.layout {got; expected}))
-    ()
-    ty layout
+  cmp_layout (ref env) true false ty layout
+
+(* Verify that ty has a given layout,
+   refining layouts of type variables
+   and introducing local constraints if necessary *)
+let constrain_layout_gadt env ty layout =
+  cmp_layout env true (!umode = Pattern && !generate_equations) ty layout
 
 (* Check whether ty has a given layout,
    keeping type variables rigid *)
 let check_layout env ty layout =
-  cmp_layout
-    env
-    (fun _ _ -> false)
-    (fun _ _ -> false)
-    true
-    ty layout
+  match cmp_layout (ref env) false false ty layout with
+  | () -> true
+  | exception Unify [Trace.Layout _] -> false
 
 (* Compute an upper bound on the layout of a type,
    regardless of how Tvars are later instantiated *)
@@ -2639,8 +2650,9 @@ let rec layout_supremum env ty =
 
 let unify1_var env t1 t2 =
   begin match t1.desc with
-  | Tvar tv -> constrain_layout env t2 tv.layout
+  | Tvar tv -> constrain_layout_gadt env t2 tv.layout
   | _ -> assert false end;
+  let env = !env in
   occur env t1 t2;
   occur_univar env t2;
   let d1 = t1.desc in
@@ -2668,9 +2680,9 @@ let rec unify (env:Env.t ref) t1 t2 =
     | (Tconstr _, Tvar _) when deep_occur t2 t1 ->
         unify2 env t1 t2
     | (Tvar _, _) ->
-        unify1_var !env t1 t2
+        unify1_var env t1 t2
     | (_, Tvar _) ->
-        unify1_var !env t2 t1
+        unify1_var env t2 t1
     | (Tunivar _, Tunivar _) ->
         unify_univar t1 t2 !univar_pairs;
         update_level !env t1.level t2;

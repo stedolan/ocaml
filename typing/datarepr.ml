@@ -63,6 +63,12 @@ let constructor_existentials cd_args cd_res =
         let res_vars = free_vars type_ret in
         TypeSet.elements (TypeSet.diff arg_vars_set res_vars)
   in
+  let existentials =
+    List.map (fun t ->
+        let layout = match (repr t).desc with
+          | Tvar { layout; _ } -> layout
+          | _ -> Layout.value in
+        t, layout) existentials in
   (tyl, existentials)
 
 let constructor_args ~current_unit priv cd_args cd_res path rep =
