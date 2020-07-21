@@ -81,6 +81,9 @@ val get_least_significant_16_bits_then_byte_swap : t -> t
 (** The set consisting of the representations of constant [true] and [false]. *)
 val all_bools : Set.t
 
+(** The set consisting of the representations of constant [true] and [false]. *)
+val all_regular_tags : Set.t
+
 module Or_unknown : sig
   type nonrec t = private
     | Ok of t

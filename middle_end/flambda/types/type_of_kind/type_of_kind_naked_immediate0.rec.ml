@@ -78,113 +78,183 @@ module Make_meet_or_join
     with type typing_env := Typing_env.t
     with type typing_env_extension := Typing_env_extension.t) =
 struct
-  let bad_meet_or_join env t1 t2 =
-    Misc.fatal_errorf "Bad naked immediate meet/join with %a and %a in env:@ %a"
-      print t1
-      print t2
-      TE.print (Meet_or_join_env.target_join_env env)
-
-  let meet_or_join env t1 t2 : _ Or_bottom_or_absorbing.t =
-  (*
-    Format.eprintf "NN meet_or_join %a and %a\n%!"
-      print t1 print t2 (*Typing_env.print (Meet_env.env env)*);
-      *)
+  let meet env t1 t2 : _ Or_bottom.t =
     match t1, t2 with
     | Naked_immediates is1, Naked_immediates is2 ->
-      let is = E.Target_imm.Set.union_or_inter is1 is2 in
+      let is = I.Set.inter is1 is2 in
       if I.Set.is_empty is then Bottom
       else Ok (Naked_immediates is, TEE.empty ())
     | Is_int ty1, Is_int ty2 ->
-      Or_bottom_or_absorbing.of_or_bottom (E.switch T.meet T.join' env ty1 ty2)
+      Or_bottom.map (T.meet env ty1 ty2)
         ~f:(fun (ty, env_extension) -> Is_int ty, env_extension)
     | Get_tag ty1, Get_tag ty2 ->
-      Or_bottom_or_absorbing.of_or_bottom (E.switch T.meet T.join' env ty1 ty2)
+      Or_bottom.map (T.meet env ty1 ty2)
         ~f:(fun (ty, env_extension) -> Get_tag ty, env_extension)
     | Is_int ty, Naked_immediates is_int ->
       begin match I.Set.elements is_int with
       | [] -> Bottom
       | [is_int] ->
         let shape =
-          if I.equal is_int I.zero then T.any_block ()
-          else if I.equal is_int I.one then T.any_tagged_immediate ()
-          else bad_meet_or_join env t1 t2
+          if I.equal is_int I.zero then Some (T.any_block ())
+          else if I.equal is_int I.one then Some (T.any_tagged_immediate ())
+          else None
         in
-        Or_bottom_or_absorbing.of_or_bottom
-          (E.switch T.meet T.join' env ty shape)
-          ~f:(fun (ty, env_extension) -> Is_int ty, env_extension)
-      | n1 :: n2 :: [] ->
-        (* Note: Set.elements returns a sorted list, so n1 = 1 && n2 = 0
-           should never occur *)
-        if I.equal n1 I.zero && I.equal n2 I.one
-        then Ok (Is_int ty, TEE.empty ())
-        else bad_meet_or_join env t1 t2
-      | _::_::_::_ -> bad_meet_or_join env t1 t2
+        begin match shape with
+        | Some shape ->
+          Or_bottom.map
+            (T.meet env ty shape)
+            ~f:(fun (ty, env_extension) -> Is_int ty, env_extension)
+        | None -> Bottom
+        end
+      | _ :: _ :: _ ->
+        (* Note: we're potentially losing precision because the set could end up
+           not containing either 0 or 1 or both, but this should be uncommon. *)
+        Ok (Is_int ty, TEE.empty ())
       end
     | Naked_immediates is_int, Is_int ty ->
       begin match I.Set.elements is_int with
       | [] -> Bottom
       | [is_int] ->
         let shape =
-          if I.equal is_int I.zero then T.any_block ()
-          else if I.equal is_int I.one then T.any_tagged_immediate ()
-          else bad_meet_or_join env t1 t2
+          if I.equal is_int I.zero then Some (T.any_block ())
+          else if I.equal is_int I.one then Some (T.any_tagged_immediate ())
+          else None
         in
-        Or_bottom_or_absorbing.of_or_bottom
-          (E.switch T.meet T.join' env shape ty)
-          ~f:(fun (ty, env_extension) -> Is_int ty, env_extension)
-      | n1 :: n2 :: [] ->
-        if I.equal n1 I.zero && I.equal n2 I.one
-        then Ok (Is_int ty, TEE.empty ())
-        else bad_meet_or_join env t1 t2
-      | _::_::_::_ -> bad_meet_or_join env t1 t2
+        begin match shape with
+        | Some shape ->
+          Or_bottom.map
+            (T.meet env shape ty)
+            ~f:(fun (ty, env_extension) -> Is_int ty, env_extension)
+        | None -> Bottom
+        end
+      | _ :: _ :: _ ->
+        (* Note: we're potentially losing precision because the set could end up
+           not containing either 0 or 1 or both, but this should be uncommon. *)
+        Ok (Is_int ty, TEE.empty ())
       end
     | Get_tag ty, Naked_immediates tags ->
       (* CR mshinwell: eliminate code duplication, same above.  Or-patterns
          aren't the answer, since join depends on the left/right envs! *)
-      let tags =
-        Target_imm.Set.fold (fun tag tags ->
-            match Target_imm.to_tag tag with
-            | Some tag -> Tag.Set.add tag tags
-            | None -> bad_meet_or_join env t1 t2)
-          tags
-          Tag.Set.empty
-      in
-      begin match T.blocks_with_these_tags tags with
-      | Known shape ->
-        Or_bottom_or_absorbing.of_or_bottom
-          (E.switch T.meet T.join' env ty shape)
-          ~f:(fun (ty, env_extension) -> Get_tag ty, env_extension)
-      | Unknown ->
-        begin match E.op () with
-        | Meet -> Ok (Get_tag ty, TEE.empty ())
-        | Join ->
-          (* This should be Top, but we only have Absorbing; fortunately,
-             since we're in the join case, Absorbing turns out to be Top *)
-          Absorbing
+      let exception Invalid_tag in
+      begin try
+        let tags =
+          I.Set.fold (fun tag tags ->
+              match Target_imm.to_tag tag with
+              | Some tag -> Tag.Set.add tag tags
+              | None -> raise Invalid_tag)
+            tags
+            Tag.Set.empty
+        in
+        begin match T.blocks_with_these_tags tags with
+        | Known shape ->
+          Or_bottom.map
+            (T.meet env ty shape)
+            ~f:(fun (ty, env_extension) -> Get_tag ty, env_extension)
+        | Unknown ->
+          Ok (Get_tag ty, TEE.empty ())
         end
+      with Invalid_tag ->
+        (* There is a choice to make here: is it more interesting to keep
+           the Get_tag type, or the Naked_immediates type ?
+           In general the Get_tag type is more interesting, but we reach this
+           case only when we're doing a meet with something that cannot be
+           a regular tag, so it's likely that the Naked_immediates set is more
+           relevant. *)
+        let tags =
+          I.Set.filter (fun tag ->
+              match Tag.create_from_targetint (Target_imm.to_targetint tag) with
+              | None -> false
+              | Some _ -> true)
+            tags
+        in
+        Ok (Naked_immediates tags, TEE.empty ())
       end
-    | (Is_int _ | Get_tag _), (Is_int _ | Get_tag _) -> Absorbing
+    | (Is_int _ | Get_tag _), (Is_int _ | Get_tag _) ->
+      (* We can't return Bottom, as it would be unsound, so we need to either
+         do the actual meet with Naked_immediates, or just give up and return
+         one of the arguments. *)
+      Ok (t1, TEE.empty ())
     | Naked_immediates tags, Get_tag ty ->
-      let tags =
-        Target_imm.Set.fold (fun tag tags ->
-            match Target_imm.to_tag tag with
-            | Some tag -> Tag.Set.add tag tags
-            | None -> bad_meet_or_join env t1 t2)
-          tags
-          Tag.Set.empty
-      in
-      begin match T.blocks_with_these_tags tags with
-      | Known shape ->
-        Or_bottom_or_absorbing.of_or_bottom
-          (E.switch T.meet T.join' env ty shape)
-          ~f:(fun (ty, env_extension) -> Get_tag ty, env_extension)
-      | Unknown ->
-        begin match E.op () with
-        | Meet -> Ok (Get_tag ty, TEE.empty ())
-        | Join ->
-          (* This should be Top, but we only have Absorbing; fortunately,
-             since we're in the join case, Absorbing turns out to be Top *)
-          Absorbing
+      let exception Invalid_tag in
+      begin try
+        let tags =
+          I.Set.fold (fun tag tags ->
+              match Target_imm.to_tag tag with
+              | Some tag -> Tag.Set.add tag tags
+              | None -> raise Invalid_tag)
+            tags
+            Tag.Set.empty
+        in
+        begin match T.blocks_with_these_tags tags with
+        | Known shape ->
+          Or_bottom.map
+            (T.meet env ty shape)
+            ~f:(fun (ty, env_extension) -> Get_tag ty, env_extension)
+        | Unknown ->
+          Ok (Get_tag ty, TEE.empty ())
         end
+      with Invalid_tag ->
+        (* There is a choice to make here: is it more interesting to keep
+           the Get_tag type, or the Naked_immediates type ?
+           In general the Get_tag type is more interesting, but we reach this
+           case only when we're doing a meet with something that cannot be
+           a regular tag, so it's likely that the Naked_immediates set is more
+           relevant. *)
+        let tags =
+          I.Set.filter (fun tag ->
+              match Tag.create_from_targetint (Target_imm.to_targetint tag) with
+              | None -> false
+              | Some _ -> true)
+            tags
+        in
+        Ok (Naked_immediates tags, TEE.empty ())
       end
+
+  let all_regular_tags =
+    let rec compute_all_tags acc n =
+      match Tag.create n with
+      | None -> acc
+      | Some t ->
+        if Tag.is_structured_block_but_not_a_variant t
+        then acc
+        else begin
+          assert (Tag.is_structured_block t);
+          let imm =
+            Target_imm.int (Targetint.OCaml.of_int n)
+          in
+          compute_all_tags (I.Set.add imm acc) (succ n)
+        end
+    in
+    compute_all_tags I.Set.empty 0
+
+  let to_naked_immediates t =
+    match t with
+    | Naked_immediates imms -> imms
+    | Is_int _ -> I.all_bools
+    | Get_tag _ ->
+      (* The current infrastructure around joins doesn't make it easy to
+         return Unknown, so we compute the set of all possible tags *)
+      I.all_regular_tags
+
+  let join env t1 t2 =
+    match t1, t2 with
+    | Naked_immediates is1, Naked_immediates is2 ->
+      let is = I.Set.union is1 is2 in
+      Naked_immediates is
+    | Is_int ty1, Is_int ty2 ->
+      Is_int (T.join' env ty1 ty2)
+    | Get_tag ty1, Get_tag ty2 ->
+      Get_tag (T.join' env ty1 ty2)
+    | ty, Naked_immediates nimms
+    | Naked_immediates nimms, ty ->
+      if I.Set.is_empty nimms then ty
+      else Naked_immediates (I.Set.union nimms (to_naked_immediates ty))
+    | Is_int _, Get_tag _ | Get_tag _, Is_int _ ->
+      (* There's a possibility that we could get a more precise result, but again
+         it's probably not worth the trouble *)
+      Naked_immediates all_regular_tags
+
+  let meet_or_join env t1 t2 =
+    Or_bottom_or_absorbing.of_or_bottom (E.switch meet join env t1 t2)
+      ~f:(fun x -> x)
 end

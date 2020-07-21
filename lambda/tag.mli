@@ -55,6 +55,9 @@ val is_structured_block : t -> bool
     the block is not treated like a variant, for example a lazy value. *)
 val is_structured_block_but_not_a_variant : t -> bool
 
+(** Returns the set of all tags allowed for regular blocks *)
+val all_regular_tags : Set.t
+
 (* CR mshinwell: This name should be changed---all "value"s are scannable.
    "Structured"? *)
 module Scannable : sig

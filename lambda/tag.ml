@@ -136,3 +136,11 @@ end
 
 let is_structured_block_but_not_a_variant t =
   is_structured_block t && t > Obj.last_non_constant_constructor_tag
+
+let all_regular_tags =
+  let rec compute_all_tags acc n =
+    if n > Obj.last_non_constant_constructor_tag
+    then acc
+    else compute_all_tags (Set.add n acc) (succ n)
+  in
+  compute_all_tags Set.empty 0
