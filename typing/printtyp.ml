@@ -948,6 +948,12 @@ let tree_of_layout l =
   if l = Types.Layout.value then None else
     Some (List.map Types.Layout.to_string l)
 
+let non_value_names () =
+  List.filter_map (function
+      | { desc = Tvar { layout; _ }}, name when layout <> Layout.value ->
+         Some (name, tree_of_layout layout)
+      | _ -> None) !names
+
 let layout_of_param ty =
   match ty.desc with
   | Tvar { layout; _ } -> tree_of_layout layout
@@ -1160,11 +1166,7 @@ let type_scheme_max ?(b_reset_names=true) ppf ty =
 let tree_of_type_scheme ty =
   reset_and_mark_loops ty;
   let tree = tree_of_typexp true ty in
-  let vars_with_layout =
-    List.filter_map (function
-      | {desc=Tvar {layout; _}}, name when layout <> Types.Layout.value ->
-        Some (name, tree_of_layout layout)
-      | _ -> None) !names in
+  let vars_with_layout = non_value_names () in
   match vars_with_layout with
   | [] -> tree
   | v -> Otyp_poly (v, tree)
@@ -1325,14 +1327,15 @@ and tree_of_constructor cd =
   let name = Ident.name cd.cd_id in
   let arg () = tree_of_constructor_arguments cd.cd_args in
   match cd.cd_res with
-  | None -> (name, arg (), None)
+  | None -> (name, [], arg (), None)
   | Some res ->
       let nm = !names in
       names := [];
       let ret = tree_of_typexp false res in
       let args = arg () in
+      let poly = non_value_names () in
       names := nm;
-      (name, args, Some ret)
+      (name, poly, args, Some ret)
 
 and tree_of_label l =
   (Ident.name l.ld_id, l.ld_mutable = Mutable, tree_of_typexp false l.ld_type)
@@ -1359,14 +1362,15 @@ let constructor_arguments ppf a =
 
 let extension_constructor_args_and_ret_type_subtree ext_args ext_ret_type =
   match ext_ret_type with
-  | None -> (tree_of_constructor_arguments ext_args, None)
+  | None -> ([], tree_of_constructor_arguments ext_args, None)
   | Some res ->
     let nm = !names in
     names := [];
     let ret = tree_of_typexp false res in
     let args = tree_of_constructor_arguments ext_args in
+    let poly = non_value_names () in
     names := nm;
-    (args, Some ret)
+    (poly, args, Some ret)
 
 let tree_of_extension_constructor id ext es =
   reset_except_context ();
@@ -1386,7 +1390,7 @@ let tree_of_extension_constructor id ext es =
     List.map (fun ty -> type_param (tree_of_typexp false ty)) ty_params
   in
   let name = Ident.name id in
-  let args, ret =
+  let poly, args, ret =
     extension_constructor_args_and_ret_type_subtree
       ext.ext_args
       ext.ext_ret_type
@@ -1395,6 +1399,7 @@ let tree_of_extension_constructor id ext es =
     { oext_name = name;
       oext_type_name = ty_name;
       oext_type_params = ty_params;
+      oext_poly = poly;
       oext_args = args;
       oext_ret_type = ret;
       oext_private = ext.ext_private }
@@ -1413,13 +1418,13 @@ let extension_constructor id ppf ext =
 let extension_only_constructor id ppf ext =
   reset_except_context ();
   let name = Ident.name id in
-  let args, ret =
+  let poly, args, ret =
     extension_constructor_args_and_ret_type_subtree
       ext.ext_args
       ext.ext_ret_type
   in
   Format.fprintf ppf "@[<hv>%a@]"
-    !Oprint.out_constr (name, args, ret)
+    !Oprint.out_constr (name, poly, args, ret)
 
 (* Print a value declaration *)
 

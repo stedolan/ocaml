@@ -13,7 +13,7 @@ type ('a : value) is_immediate =
 [%%expect{|
 type ('a : immediate) imm = 'a
 type 'a is_immediate =
-    Immediate : 'b imm is_immediate
+    Immediate : ('b : immediate). 'b is_immediate
   | Value : 'a is_immediate
 |}]
 
