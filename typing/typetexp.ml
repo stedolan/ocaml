@@ -643,7 +643,7 @@ let make_fixed_univars ty =
 
 let create_package_mty = create_package_mty false
 
-let globalize_used_variables env fixed =
+let globalize_used_variables env ?(bindings = TyVarMap.empty) fixed =
   let r = ref [] in
   TyVarMap.iter
     (fun name (ty, loc) ->
@@ -655,8 +655,11 @@ let globalize_used_variables env fixed =
       with Not_found ->
         if fixed && Btype.is_Tvar (repr ty) then
           raise(Error(loc, env, Unbound_type_variable ("'"^name)));
-        (* FIXME_layout: layout of v2 (GADT existentials) *)
-        let v2 = new_global_var Layout.value in
+        let layout =
+          match TyVarMap.find name bindings with
+          | _, _, l -> l
+          | exception Not_found -> Layout.value in
+        let v2 = new_global_var layout in
         r := (loc, v, v2) :: !r;
         type_variables := TyVarMap.add name v2 !type_variables)
     !used_variables;
@@ -668,15 +671,23 @@ let globalize_used_variables env fixed =
           raise (Error(loc, env, Type_mismatch trace)))
       !r
 
-let transl_simple_type_prevars prevars env fixed styp =
-  univars := []; used_variables := prevars;
+type var_bindings_list = (type_expr * Location.t * layout) TyVarMap.t
+
+let transl_type_var_bindings (vars : newtype list) =
+  let vars = List.map (fun (name, layout) ->
+      name.txt, name.loc, transl_layout layout) vars in
+  let tyvars = List.fold_left (fun acc (name, loc, layout) ->
+    let v = newvar ~name layout in
+    TyVarMap.add name (v, loc, layout) acc) TyVarMap.empty vars in
+  vars, tyvars
+
+let transl_simple_type env ?(bindings = TyVarMap.empty) fixed styp =
+  univars := [];
+  used_variables := TyVarMap.map (fun (t,l,_v) -> t,l) bindings;
   let typ = transl_type env (if fixed then Fixed else Extensible) styp in
-  globalize_used_variables env fixed ();
+  globalize_used_variables env ~bindings fixed ();
   make_fixed_univars typ.ctyp_type;
   typ
-
-let transl_simple_type env fixed styp =
-  transl_simple_type_prevars TyVarMap.empty env fixed styp
 
 let transl_simple_type_univars env styp =
   univars := []; used_variables := TyVarMap.empty; pre_univars := [];
@@ -714,19 +725,14 @@ let transl_simple_type_delayed env styp =
   (typ, globalize_used_variables env false)
 
 let transl_type_scheme env styp =
-  let vars, styp =
-    match styp with
-    | {ptyp_desc = Ptyp_poly (vars, styp); _} ->
-      let vars = List.map (fun (n,l) -> n.txt, n.loc, transl_layout l) vars in
-      vars, styp
-    | _ -> [], styp in
   reset_type_variables();
   begin_def();
-  let prevars =
-    List.fold_left (fun acc (name, loc, layout) ->
-      let v = newvar ~name layout in
-      TyVarMap.add name (v, loc) acc) TyVarMap.empty vars in
-  let typ = transl_simple_type_prevars prevars env false styp in
+  let vars, styp =
+    match styp with
+    | {ptyp_desc = Ptyp_poly (vars, styp); _} -> vars, styp
+    | _ -> [], styp in
+  let vars, bindings = transl_type_var_bindings vars in
+  let typ = transl_simple_type env ~bindings false styp in
   end_def();
   tighten_contravariant_layouts env typ.ctyp_type;
   generalize typ.ctyp_type;

@@ -21,8 +21,13 @@ val valid_tyvar_name : string -> bool
 
 val transl_layout:
         Parsetree.layout option -> Types.layout
+type var_bindings_list
+val transl_type_var_bindings :
+        Parsetree.newtype list ->
+        (string * Location.t * Types.layout) list * var_bindings_list
 val transl_simple_type:
-        Env.t -> bool -> Parsetree.core_type -> Typedtree.core_type
+        Env.t -> ?bindings:var_bindings_list ->
+        bool -> Parsetree.core_type -> Typedtree.core_type
 val transl_simple_type_univars:
         Env.t -> Parsetree.core_type -> Typedtree.core_type
 val transl_simple_type_delayed:
