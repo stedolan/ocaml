@@ -63,6 +63,7 @@ type operation =
   | Ispecific of Arch.specific_operation
   | Iname_for_debugger of { ident : Backend_var.t; which_parameter : int option;
       provenance : unit option; is_assignment : bool; }
+  | Ipoll
 
 type instruction =
   { desc: instruction_desc;
@@ -179,6 +180,7 @@ let spacetime_node_hole_pointer_is_live_before insn =
          we use the node hole pointer for these, and we do not need to say
          that it is live at such points. *)
       false
+    | Ipoll -> false
     | Iintop op | Iintop_imm (op, _) ->
       begin match op with
       | Icheckbound _
@@ -203,5 +205,5 @@ let operation_can_raise op =
   match op with
   | Icall_ind _ | Icall_imm _ | Iextcall _
   | Iintop (Icheckbound _) | Iintop_imm (Icheckbound _, _)
-  | Ialloc _ -> true
+  | Ialloc _ | Ipoll -> true
   | _ -> false

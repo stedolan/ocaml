@@ -18,6 +18,10 @@
 #include <stdlib.h>
 #include <time.h>
 
+void caml_call_poll()
+{
+}
+
 void caml_ml_array_bound_error(void)
 {
   fprintf(stderr, "Fatal error: out-of-bound access in array or string\n");

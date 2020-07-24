@@ -98,6 +98,11 @@ void caml_garbage_collection(void)
                             nallocs, alloc_len);
 }
 
+void caml_poll(void)
+{
+  caml_gc_dispatch();
+}
+
 DECLARE_SIGNAL_HANDLER(handle_signal)
 {
   int saved_errno;

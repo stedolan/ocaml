@@ -2020,6 +2020,7 @@ asmcomp/asmgen.cmo : \
     asmcomp/printlinear.cmi \
     asmcomp/printcmm.cmi \
     typing/primitive.cmi \
+    asmcomp/polling.cmi \
     utils/misc.cmi \
     asmcomp/mach.cmi \
     parsing/location.cmi \
@@ -2060,6 +2061,7 @@ asmcomp/asmgen.cmx : \
     asmcomp/printlinear.cmx \
     asmcomp/printcmm.cmx \
     typing/primitive.cmx \
+    asmcomp/polling.cmx \
     utils/misc.cmx \
     asmcomp/mach.cmx \
     parsing/location.cmx \
@@ -2606,6 +2608,16 @@ asmcomp/mach.cmi : \
     asmcomp/cmm.cmi \
     middle_end/backend_var.cmi \
     asmcomp/arch.cmo
+asmcomp/polling.cmo : \
+    asmcomp/reg.cmi \
+    asmcomp/mach.cmi \
+    asmcomp/polling.cmi
+asmcomp/polling.cmx : \
+    asmcomp/reg.cmx \
+    asmcomp/mach.cmx \
+    asmcomp/polling.cmi
+asmcomp/polling.cmi : \
+    asmcomp/mach.cmi
 asmcomp/printcmm.cmo : \
     utils/targetint.cmi \
     lambda/lambda.cmi \
@@ -2774,6 +2786,7 @@ asmcomp/selectgen.cmo : \
     lambda/simplif.cmi \
     asmcomp/reg.cmi \
     asmcomp/proc.cmi \
+    asmcomp/polling.cmi \
     utils/numbers.cmi \
     utils/misc.cmi \
     asmcomp/mach.cmi \
@@ -2789,6 +2802,7 @@ asmcomp/selectgen.cmx : \
     lambda/simplif.cmx \
     asmcomp/reg.cmx \
     asmcomp/proc.cmx \
+    asmcomp/polling.cmx \
     utils/numbers.cmx \
     utils/misc.cmx \
     asmcomp/mach.cmx \

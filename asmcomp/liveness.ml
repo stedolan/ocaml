@@ -62,7 +62,7 @@ let rec live i finally =
         let across_after = Reg.diff_set_array after i.res in
         let across =
           match op with
-          | Icall_ind _ | Icall_imm _ | Iextcall _ | Ialloc _
+          | Icall_ind _ | Icall_imm _ | Iextcall _ | Ialloc _ | Ipoll
           | Iintop (Icheckbound _) | Iintop_imm(Icheckbound _, _) ->
               (* The function call may raise an exception, branching to the
                  nearest enclosing try ... with. Similarly for bounds checks

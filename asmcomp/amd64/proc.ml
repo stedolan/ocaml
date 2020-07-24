@@ -323,7 +323,7 @@ let destroyed_at_oper = function
   | Iop(Iintop(Idiv | Imod)) | Iop(Iintop_imm((Idiv | Imod), _))
         -> [| rax; rdx |]
   | Iop(Istore(Single, _, _)) -> [| rxmm15 |]
-  | Iop(Ialloc _) -> destroyed_at_alloc
+  | Iop(Ialloc _) | Iop(Ipoll) -> destroyed_at_alloc (* TODO: Could we loosen this in the non-PLT case for poll? *)
   | Iop(Iintop(Imulh | Icomp _) | Iintop_imm((Icomp _), _))
         -> [| rax |]
   | Iop (Iintop (Icheckbound _)) when Config.spacetime ->
@@ -359,7 +359,7 @@ let max_register_pressure = function
         if fp then [| 3; 0 |] else  [| 4; 0 |]
   | Iintop(Idiv | Imod) | Iintop_imm((Idiv | Imod), _) ->
     if fp then [| 10; 16 |] else [| 11; 16 |]
-  | Ialloc _ ->
+  | Ialloc _ | Ipoll ->
     if fp then [| 11 - num_destroyed_by_plt_stub; 16 |]
     else [| 12 - num_destroyed_by_plt_stub; 16 |]
   | Iintop(Icomp _) | Iintop_imm((Icomp _), _) ->
@@ -373,7 +373,7 @@ let max_register_pressure = function
 
 let op_is_pure = function
   | Icall_ind _ | Icall_imm _ | Itailcall_ind _ | Itailcall_imm _
-  | Iextcall _ | Istackoffset _ | Istore _ | Ialloc _
+  | Iextcall _ | Istackoffset _ | Istore _ | Ialloc _ | Ipoll
   | Iintop(Icheckbound _) | Iintop_imm(Icheckbound _, _) -> false
   | Ispecific(Ilea _|Isextend32|Izextend32) -> true
   | Ispecific _ -> false
