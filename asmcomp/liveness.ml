@@ -123,10 +123,11 @@ let rec live env i finally =
               (* extcalls that never return can raise an exception *)
               env.at_raise
           | Icall_ind _ | Icall_imm _ | Iextcall _ | Ialloc _
+          | Iprobe _
           | Iintop (Icheckbound _) | Iintop_imm(Icheckbound _, _) ->
               (* The function call may raise an exception, branching to the
-                 nearest enclosing try ... with. Similarly for bounds checks
-                 and allocation (for the latter: finalizers may throw
+                 nearest enclosing try ... with. Similarly for bounds checks,
+                 probes and allocation (for the latter: finalizers may throw
                  exceptions, as may signal handlers).
                  Hence, everything that must be live at the beginning of
                  the exception handler must also be live across this instr. *)
