@@ -159,7 +159,7 @@ let oper_result_type = function
   | Cintoffloat -> typ_int
   | Craise _ -> typ_void
   | Ccheckbound -> typ_void
-  | Cprobe _ -> typ_int
+  | Cprobe _ -> typ_void
   | Cprobe_is_enabled _ -> typ_int
 
 (* Infer the size in bytes of the result of an expression whose evaluation
