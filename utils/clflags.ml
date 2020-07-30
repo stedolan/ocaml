@@ -435,6 +435,7 @@ module Flambda = struct
     let code_id_and_symbol_scoping_checks = ref false
     let fallback_inlining_heuristic = ref false
     let inline_effects_in_cmm = ref false
+    let phantom_lets = ref true
   end
 
   module Debug = struct

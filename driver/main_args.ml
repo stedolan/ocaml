@@ -977,6 +977,15 @@ let mk_no_flambda_expert_inline_effects_in_cmm f =
   " Prevent inlining of effectful expressions in the produced cmm (default)"
 ;;
 
+let mk_flambda_expert_phantom_lets f =
+  "-flambda-expert-phantom-lets", Arg.Unit f,
+  " Generate phantom lets when -g is specified"
+;;
+
+let mk_no_flambda_expert_phantom_lets f =
+  "-no-flambda-expert-phantom-lets", Arg.Unit f,
+  " Do not generate phantom lets even when -g is specified"
+;;
 
 let mk_flambda_debug_concrete_types_only_on_canonicals f =
   "-flambda-debug-concrete-types-only-on-canonicals", Arg.Unit f,
@@ -1221,6 +1230,8 @@ module type Optcommon_options = sig
   val _no_flambda_expert_fallback_inlining_heuristic : unit -> unit
   val _flambda_expert_inline_effects_in_cmm : unit -> unit
   val _no_flambda_expert_inline_effects_in_cmm : unit -> unit
+  val _flambda_expert_phantom_lets : unit -> unit
+  val _no_flambda_expert_phantom_lets : unit -> unit
   val _flambda_debug_concrete_types_only_on_canonicals : unit -> unit
   val _no_flambda_debug_concrete_types_only_on_canonicals : unit -> unit
 
@@ -1582,6 +1593,10 @@ struct
       F._flambda_expert_inline_effects_in_cmm;
     mk_no_flambda_expert_inline_effects_in_cmm
       F._no_flambda_expert_inline_effects_in_cmm;
+    mk_flambda_expert_phantom_lets
+      F._flambda_expert_phantom_lets;
+    mk_no_flambda_expert_phantom_lets
+      F._no_flambda_expert_phantom_lets;
     mk_flambda_debug_concrete_types_only_on_canonicals
       F._flambda_debug_concrete_types_only_on_canonicals;
     mk_no_flambda_debug_concrete_types_only_on_canonicals
@@ -1737,6 +1752,10 @@ module Make_opttop_options (F : Opttop_options) = struct
       F._flambda_expert_inline_effects_in_cmm;
     mk_no_flambda_expert_inline_effects_in_cmm
       F._no_flambda_expert_inline_effects_in_cmm;
+    mk_flambda_expert_phantom_lets
+      F._flambda_expert_phantom_lets;
+    mk_no_flambda_expert_phantom_lets
+      F._no_flambda_expert_phantom_lets;
     mk_flambda_debug_concrete_types_only_on_canonicals
       F._flambda_debug_concrete_types_only_on_canonicals;
     mk_no_flambda_debug_concrete_types_only_on_canonicals
@@ -2058,6 +2077,11 @@ module Default = struct
       set Flambda.Expert.inline_effects_in_cmm
     let _no_flambda_expert_inline_effects_in_cmm =
       clear Flambda.Expert.inline_effects_in_cmm
+    let _flambda_expert_phantom_lets =
+      set Flambda.Expert.phantom_lets
+    let _no_flambda_expert_phantom_lets =
+      clear Flambda.Expert.phantom_lets
+
     let _flambda_debug_concrete_types_only_on_canonicals =
       set Flambda.Debug.concrete_types_only_on_canonicals
     let _no_flambda_debug_concrete_types_only_on_canonicals =

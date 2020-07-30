@@ -196,6 +196,9 @@ let create_singleton_let (bound_var : Var_in_binding_pos.t) defining_expr body
           Expr.print body;
         print_result := true)
   end;
+  let generate_phantom_lets =
+    !Clflags.debug && !Clflags.Flambda.Expert.phantom_lets
+  in
   (* CR mshinwell: [let_creation_result] should really be some kind of
      "benefit" type. *)
   let bound_var, keep_binding, let_creation_result =
@@ -246,7 +249,7 @@ let create_singleton_let (bound_var : Var_in_binding_pos.t) defining_expr body
            provenance info associated with the variable.  If there isn't, the
            [Let] can be deleted even if debugging information is being
            generated. *)
-        not (has_uses || (!Clflags.debug && user_visible))
+        not (has_uses || (generate_phantom_lets && user_visible))
       in
       if will_delete_binding then begin
         bound_var, false, Have_deleted defining_expr
@@ -278,7 +281,7 @@ let create_singleton_let (bound_var : Var_in_binding_pos.t) defining_expr body
     let free_names =
       let from_defining_expr =
         let from_defining_expr = Named.free_names defining_expr in
-        if not !Clflags.debug then (* CR mshinwell: refine condition *)
+        if not generate_phantom_lets then (* CR mshinwell: refine condition *)
           from_defining_expr
         else
           Name_occurrences.downgrade_occurrences_at_strictly_greater_kind

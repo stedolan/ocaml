@@ -239,6 +239,8 @@ module type Optcommon_options = sig
   val _no_flambda_expert_fallback_inlining_heuristic : unit -> unit
   val _flambda_expert_inline_effects_in_cmm : unit -> unit
   val _no_flambda_expert_inline_effects_in_cmm : unit -> unit
+  val _flambda_expert_phantom_lets : unit -> unit
+  val _no_flambda_expert_phantom_lets : unit -> unit
   val _flambda_debug_concrete_types_only_on_canonicals : unit -> unit
   val _no_flambda_debug_concrete_types_only_on_canonicals : unit -> unit
 
