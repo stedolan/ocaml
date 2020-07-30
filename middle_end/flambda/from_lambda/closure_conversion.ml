@@ -64,7 +64,7 @@ let drop_handlers0 handlers ~around:body =
       match component with
       | No_loop cont ->
         let handler, _ = Continuation.Map.find cont handlers in
-        Flambda.Let_cont.create_non_recursive cont handler ~body
+        Let_cont.create_non_recursive cont handler ~body
       | Has_loop conts ->
         let handlers =
           conts
@@ -72,7 +72,7 @@ let drop_handlers0 handlers ~around:body =
                cont, fst (Continuation.Map.find cont handlers))
           |> Continuation.Map.of_list
         in
-        Flambda.Let_cont.create_recursive handlers ~body)
+        Let_cont.create_recursive handlers ~body)
     body
     top_sorted
 
@@ -218,7 +218,7 @@ let close_c_call t ~let_bound_var (prim : Primitive.description)
      body of that [Let]. *)
   let body, delayed_handlers = k None in
   let return_continuation, needs_wrapper =
-    match Flambda.Expr.descr body with
+    match Expr.descr body with
     | Apply_cont apply_cont
       when
         Simple.List.equal (Apply_cont_expr.args apply_cont)
@@ -249,7 +249,7 @@ let close_c_call t ~let_bound_var (prim : Primitive.description)
   t.imported_symbols <- Symbol.Set.add call_symbol t.imported_symbols;
   let call args =
     let apply =
-      Flambda.Apply.create ~callee:(Simple.symbol call_symbol)
+      Apply.create ~callee:(Simple.symbol call_symbol)
         ~continuation:(Return return_continuation)
         exn_continuation
         ~args
@@ -258,9 +258,9 @@ let close_c_call t ~let_bound_var (prim : Primitive.description)
         ~inline:Default_inline
         ~inlining_depth:0
     in
-    Flambda.Expr.create_apply apply
+    Expr.create_apply apply
   in
-  let call : Flambda.Expr.t =
+  let call : Expr.t =
     List.fold_left2 (fun (call : Simple.t list -> Expr.t)
             arg (arg_repr : Primitive.native_repr) ->
         let unbox_arg : P.unary_primitive option =
@@ -304,7 +304,7 @@ let close_c_call t ~let_bound_var (prim : Primitive.description)
       let let_bound_var' = VB.create let_bound_var Name_mode.normal in
       let handler_param = Variable.rename let_bound_var in
       let body =
-        Flambda.Expr.create_let let_bound_var'
+        Expr.create_let let_bound_var'
           (Named.create_prim
             (Unary (box_return_value, Simple.var handler_param))
             dbg)
@@ -318,14 +318,14 @@ let close_c_call t ~let_bound_var (prim : Primitive.description)
       let after_call =
         let params = [Kinded_parameter.create handler_param return_kind] in
         let params_and_handler =
-          Flambda.Continuation_params_and_handler.create params
+          Continuation_params_and_handler.create params
             ~handler:code_after_call
         in
-        Flambda.Continuation_handler.create ~params_and_handler
+        Continuation_handler.create ~params_and_handler
           ~stub:false
           ~is_exn_handler:false
       in
-      Flambda.Let_cont.create_non_recursive return_continuation after_call
+      Let_cont.create_non_recursive return_continuation after_call
         ~body:call
   in
   call, delayed_handlers
@@ -388,10 +388,10 @@ let close_primitive t env ~let_bound_var named (prim : Lambda.primitive) ~args
     let raise_kind = Some (LC.raise_kind raise_kind) in
     let trap_action = Trap_action.Pop { exn_handler; raise_kind; } in
     let apply_cont =
-      Flambda.Apply_cont.create ~trap_action exn_handler ~args ~dbg
+      Apply_cont.create ~trap_action exn_handler ~args ~dbg
     in
     (* Since raising of an exception doesn't terminate, we don't call [k]. *)
-    Flambda.Expr.create_apply_cont apply_cont, Delayed_handlers.empty
+    Expr.create_apply_cont apply_cont, Delayed_handlers.empty
   | prim, args ->
     Lambda_to_flambda_primitives.convert_and_bind exn_continuation
       ~backend:t.backend
@@ -504,10 +504,10 @@ let rec close t env (ilam : Ilambda.t) : Expr.t * _ =
           ~around:handler
     in
     let params_and_handler =
-      Flambda.Continuation_params_and_handler.create params ~handler
+      Continuation_params_and_handler.create params ~handler
     in
     let handler =
-      Flambda.Continuation_handler.create ~params_and_handler
+      Continuation_handler.create ~params_and_handler
         ~stub:false
         ~is_exn_handler:is_exn_handler
     in
@@ -532,7 +532,7 @@ let rec close t env (ilam : Ilambda.t) : Expr.t * _ =
     in
     let exn_continuation = close_exn_continuation t env exn_continuation in
     let apply =
-      Flambda.Apply.create ~callee:(find_simple_from_id t env func)
+      Apply.create ~callee:(find_simple_from_id t env func)
         ~continuation:(Return continuation)
         exn_continuation
         ~args:(find_simples t env args)
@@ -546,9 +546,9 @@ let rec close t env (ilam : Ilambda.t) : Expr.t * _ =
     let args = find_simples t env args in
     let trap_action = close_trap_action_opt trap_action in
     let apply_cont =
-      Flambda.Apply_cont.create ?trap_action cont ~args ~dbg:Debuginfo.none
+      Apply_cont.create ?trap_action cont ~args ~dbg:Debuginfo.none
     in
-    Flambda.Expr.create_apply_cont apply_cont, Delayed_handlers.empty
+    Expr.create_apply_cont apply_cont, Delayed_handlers.empty
   | Switch (scrutinee, sw) ->
     let scrutinee = Simple.name (Env.find_name env scrutinee) in
     let untagged_scrutinee = Variable.create "untagged" in
@@ -565,7 +565,7 @@ let rec close t env (ilam : Ilambda.t) : Expr.t * _ =
           let trap_action = close_trap_action_opt trap_action in
           let args = find_simples t env args in
           Target_imm.int (Targetint.OCaml.of_int case),
-            Flambda.Apply_cont.create ?trap_action cont ~args
+            Apply_cont.create ?trap_action cont ~args
               ~dbg:Debuginfo.none)
         sw.consts
     in
@@ -588,7 +588,7 @@ let rec close t env (ilam : Ilambda.t) : Expr.t * _ =
       let default_action =
         let args = find_simples t env default_args in
         let trap_action = close_trap_action_opt default_trap_action in
-        Flambda.Apply_cont.create ?trap_action default_action ~args
+        Apply_cont.create ?trap_action default_action ~args
           ~dbg:Debuginfo.none
       in
       let switch =
@@ -613,7 +613,7 @@ let rec close t env (ilam : Ilambda.t) : Expr.t * _ =
                 let args = find_simples t env args in
                 let trap_action = close_trap_action_opt trap_action in
                 let default =
-                  Flambda.Apply_cont.create ?trap_action default ~args
+                  Apply_cont.create ?trap_action default ~args
                     ~dbg:Debuginfo.none
                 in
                 Target_imm.Map.add case default cases)
@@ -697,8 +697,8 @@ and close_let_rec t env ~defs ~body =
   (* CR mshinwell: We should maybe have something more elegant here *)
   let generated_closures =
     Closure_id.Set.diff
-      (Closure_id.Map.keys (Flambda.Function_declarations.funs (
-        Flambda.Set_of_closures.function_decls set_of_closures)))
+      (Closure_id.Map.keys (Function_declarations.funs (
+        Set_of_closures.function_decls set_of_closures)))
       (Closure_id.Map.keys closure_vars)
   in
   let closure_vars =
@@ -713,8 +713,8 @@ and close_let_rec t env ~defs ~body =
   let closure_vars =
     List.map (fun (closure_id, _) ->
         Closure_id.Map.find closure_id closure_vars)
-      (Flambda.Function_declarations.funs_in_order (
-          Flambda.Set_of_closures.function_decls set_of_closures)
+      (Function_declarations.funs_in_order (
+          Set_of_closures.function_decls set_of_closures)
         |> Closure_id.Lmap.bindings)
   in
   let body, handlers = close t env body in
@@ -729,7 +729,7 @@ and close_let_rec t env ~defs ~body =
   let expr =
     Expr.create_pattern_let
       (Bindable_let_bound.set_of_closures ~closure_vars)
-      (Flambda.Named.create_set_of_closures set_of_closures)
+      (Named.create_set_of_closures set_of_closures)
       body
   in
   expr, handlers
@@ -769,7 +769,7 @@ and close_functions t external_env function_declarations =
   let funs =
     Closure_id.Lmap.of_list (Closure_id.Map.bindings funs)
   in
-  let function_decls = Flambda.Function_declarations.create funs in
+  let function_decls = Function_declarations.create funs in
   let closure_elements =
     Ident.Map.fold (fun id var_within_closure map ->
         let external_var = Simple.var (Env.find_var external_env id) in
@@ -777,7 +777,7 @@ and close_functions t external_env function_declarations =
       var_within_closures_from_idents
       Var_within_closure.Map.empty
   in
-  Flambda.Set_of_closures.create function_decls ~closure_elements
+  Set_of_closures.create function_decls ~closure_elements
 
 and close_one_function t ~external_env ~by_closure_id decl
       ~var_within_closures_from_idents ~closure_ids_from_idents
@@ -938,7 +938,7 @@ and close_one_function t ~external_env ~by_closure_id decl
     else LC.inline_attribute (Function_decl.inline decl)
   in
   let params_and_body =
-    Flambda.Function_params_and_body.create
+    Function_params_and_body.create
       ~return_continuation:(Function_decl.return_continuation decl)
       exn_continuation params ~dbg ~body ~my_closure
   in
@@ -949,7 +949,7 @@ and close_one_function t ~external_env ~by_closure_id decl
     | Tupled -> true, [K.value]
   in
   let fun_decl =
-    Flambda.Function_declaration.create ~code_id
+    Function_declaration.create ~code_id
       ~params_arity
       ~result_arity:[LC.value_kind return]
       ~stub
@@ -1009,13 +1009,17 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
            during Cmm generation, we can instead "return" [module_symbol]
            here to ensure that its associated "let symbol" doesn't get
            deleted. *)
-        Flambda.Apply_cont.create return_cont
+        Apply_cont.create return_cont
           ~args:[Simple.symbol module_symbol]
           ~dbg:Debuginfo.none
         |> Expr.create_apply_cont
       in
-      Flambda.Expr.create_let_symbol (Singleton module_symbol)
-        Syntactic static_const return
+      Expr.create_let_symbol
+        (Bound_symbols.singleton
+          (Bound_symbols.Pattern.block_like module_symbol))
+        Syntactic
+        (Static_const.Group.create [static_const])
+        return
     in
     let block_access : P.Block_access_kind.t =
       Values {
@@ -1040,10 +1044,10 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
   let load_fields_cont_handler =
     let param = Kinded_parameter.create module_block_var K.value in
     let params_and_handler =
-      Flambda.Continuation_params_and_handler.create [param]
+      Continuation_params_and_handler.create [param]
         ~handler:load_fields_body;
     in
-    Flambda.Continuation_handler.create ~params_and_handler
+    Continuation_handler.create ~params_and_handler
       ~stub:false  (* CR mshinwell: remove "stub" notion *)
       ~is_exn_handler:false
   in
@@ -1055,7 +1059,7 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
        used to define the module block symbol. *)
     let body, handlers = close t Env.empty ilam.expr in
     let body = drop_all_handlers handlers ~around:body in
-    Flambda.Let_cont.create_non_recursive ilam.return_continuation
+    Let_cont.create_non_recursive ilam.return_continuation
       load_fields_cont_handler
       ~body
   in
@@ -1068,25 +1072,19 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
   let exn_continuation = ilam.exn_continuation.exn_handler in
   let body =
     List.fold_left (fun body (code_id, params_and_body) ->
-        let bound_symbols : Bound_symbols.t =
-          Sets_of_closures [{
-            code_ids = Code_id.Set.singleton code_id;
-            closure_symbols = Closure_id.Lmap.empty;
-          }]
+        let bound_symbols =
+          Bound_symbols.singleton (Bound_symbols.Pattern.code code_id)
         in
         let static_const : Static_const.t =
-          let code : Static_const.Code.t =
-            { params_and_body = Present params_and_body;
-              newer_version_of = None;
-            }
+          let code =
+            Static_const.Code.create code_id
+              ~params_and_body:(Present params_and_body)
+              ~newer_version_of:None
           in
-          Sets_of_closures [{
-            code = Code_id.Lmap.singleton code_id code;
-            set_of_closures = Set_of_closures.empty;
-          }]
+          Code code
         in
-        Flambda.Expr.create_let_symbol bound_symbols Syntactic static_const
-          body)
+        Expr.create_let_symbol bound_symbols Syntactic
+          (Static_const.Group.create [static_const]) body)
       body
       t.code
   in
@@ -1106,8 +1104,11 @@ let ilambda_to_flambda ~backend ~module_ident ~module_block_size_in_words
   end;
   let body =
     List.fold_left (fun body (symbol, static_const) ->
-        Flambda.Expr.create_let_symbol (Singleton symbol) Syntactic
-          static_const body)
+        let bound_symbols =
+          Bound_symbols.singleton (Bound_symbols.Pattern.block_like symbol)
+        in
+        Expr.create_let_symbol bound_symbols Syntactic
+          (Static_const.Group.create [static_const]) body)
       body
       t.declared_symbols
   in

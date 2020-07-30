@@ -40,11 +40,11 @@ let pattern_match_pair t1 t2 ~f =
 type flattened_for_printing_descr =
   | Code of Code_id.t * Static_const.Code.t
   | Set_of_closures of Symbol.t Closure_id.Lmap.t * Set_of_closures.t
-  | Other of Symbol.t * Static_const.t
+  | Block_like of Symbol.t * Static_const.t
 
 type flattened_for_printing = {
   second_or_later_binding_within_one_set : bool;
-  second_or_later_set_of_closures : bool;
+  second_or_later_rec_binding : bool;
   descr : flattened_for_printing_descr;
   scoping_rule : Symbol_scoping_rule.t;
 }
@@ -52,69 +52,55 @@ type flattened_for_printing = {
 let shape_colour descr =
   match descr with
   | Code _ -> Flambda_colours.code_id ()
-  | Set_of_closures _ | Other _ -> Flambda_colours.symbol ()
+  | Set_of_closures _ | Block_like _ -> Flambda_colours.symbol ()
 
-let flatten_for_printing0 bound_symbols scoping_rule defining_expr =
-  match (bound_symbols : Bound_symbols.t) with
-  | Singleton symbol ->
-    [{ second_or_later_binding_within_one_set = false;
-       second_or_later_set_of_closures = false;
-       descr = Other (symbol, defining_expr);
-       scoping_rule;
-    }]
-  | Sets_of_closures bound_symbol_components ->
-    let code_and_sets_of_closures =
-      Static_const.must_be_sets_of_closures defining_expr
-    in
-    let flattened, _ =
-      List.fold_left2
-        (fun (flattened_acc, second_or_later_set_of_closures)
-             ({ code_ids = _; closure_symbols; }
-                : Bound_symbols.Code_and_set_of_closures.t)
-             ({ code; set_of_closures; }
-                : Static_const.Code_and_set_of_closures.t) ->
-          let flattened, _ =
-            Code_id.Lmap.fold (fun code_id code (flattened', first) ->
-                let flattened =
-                  { second_or_later_binding_within_one_set = not first;
-                    second_or_later_set_of_closures;
-                    descr = Code (code_id, code);
-                    scoping_rule;
-                  }
-                in
-                flattened :: flattened', false)
-              code
-              ([], true)
-          in
-          let flattened' =
-            if Set_of_closures.is_empty set_of_closures then []
-            else
-              let second_or_later_binding_within_one_set =
-                not (Code_id.Lmap.is_empty code)
-              in
-              [{ second_or_later_binding_within_one_set;
-                 second_or_later_set_of_closures;
-                 descr = Set_of_closures (closure_symbols, set_of_closures);
-                 scoping_rule;
-              }]
-          in
-          let flattened_acc =
-            flattened_acc @ (List.rev flattened) @ (List.rev flattened')
-          in
-          flattened_acc, true)
-        ([], false)
-        bound_symbol_components
-        code_and_sets_of_closures
-    in
-    flattened
+(* CR mshinwell: Remove [second_or_later_binding_within_one_set] if it
+   doesn't become used soon. *)
+
+let flatten_for_printing0 bound_symbols scoping_rule defining_exprs =
+  Static_const.Group.match_against_bound_symbols defining_exprs bound_symbols
+    ~init:([], false)
+    ~code:(fun (flattened_acc, second_or_later_rec_binding)
+          code_id code ->
+      let flattened =
+        { second_or_later_binding_within_one_set = false;
+          second_or_later_rec_binding;
+          descr = Code (code_id, code);
+          scoping_rule;
+        }
+      in
+      flattened_acc @ [flattened], true)
+    ~set_of_closures:(fun (flattened_acc, second_or_later_rec_binding)
+          ~closure_symbols set_of_closures ->
+      let flattened =
+        if Set_of_closures.is_empty set_of_closures then []
+        else
+          let second_or_later_binding_within_one_set = false in
+          [{ second_or_later_binding_within_one_set;
+             second_or_later_rec_binding;
+             descr = Set_of_closures (closure_symbols, set_of_closures);
+             scoping_rule;
+          }]
+      in
+      flattened_acc @ flattened, true)
+    ~block_like:(fun (flattened_acc, second_or_later_rec_binding)
+          symbol defining_expr ->
+      let flattened =
+        { second_or_later_binding_within_one_set = false;
+          second_or_later_rec_binding;
+          descr = Block_like (symbol, defining_expr);
+          scoping_rule;
+        }
+      in
+      flattened_acc @ [flattened], true)
 
 let flatten_for_printing t =
   pattern_match t ~f:(fun (bindable_let_bound : Bindable_let_bound.t) ~body ->
     match bindable_let_bound with
     | Symbols { bound_symbols; scoping_rule; } ->
-      let flattened =
+      let flattened, _ =
         flatten_for_printing0 bound_symbols scoping_rule
-          (Named.must_be_static_const t.defining_expr)
+          (Named.must_be_static_consts t.defining_expr)
       in
       Some (flattened, body)
     | Singleton _ | Set_of_closures _ -> None)
@@ -138,31 +124,32 @@ let print_flattened_descr_lhs ppf descr =
             (Flambda_colours.normal ()))
         print_closure_binding)
       (Closure_id.Lmap.bindings closure_symbols)
-  | Other (symbol, _) -> Symbol.print ppf symbol
+  | Block_like (symbol, _) -> Symbol.print ppf symbol
 
 (* CR mshinwell: Use [print_with_cache]? *)
 let print_flattened_descr_rhs ppf descr =
   match descr with
   | Code (_, code) -> Static_const.Code.print ppf code
   | Set_of_closures (_, set) -> Set_of_closures.print ppf set
-  | Other (_, static_const) -> Static_const.print ppf static_const
+  | Block_like (_, static_const) -> Static_const.print ppf static_const
 
 let print_flattened ppf
-      { second_or_later_binding_within_one_set;
-        second_or_later_set_of_closures;
+      { second_or_later_binding_within_one_set = _;
+        second_or_later_rec_binding;
         descr;
         scoping_rule;
       } =
-  fprintf ppf "@[<hov 1>";
-  if second_or_later_set_of_closures
+  fprintf ppf "@[<hov 0>";
+  (*
+  if second_or_later_rec_binding
     && not second_or_later_binding_within_one_set
   then begin
     fprintf ppf "@<0>%sand_set @<0>%s"
       (Flambda_colours.elide ())
       (Flambda_colours.normal ())
-  end else if second_or_later_binding_within_one_set then begin
+  end else *) if second_or_later_rec_binding then begin
     fprintf ppf "@<0>%sand @<0>%s"
-      (Flambda_colours.elide ())
+      (Flambda_colours.expr_keyword ())
       (Flambda_colours.normal ())
   end else begin
     let shape =
@@ -301,8 +288,8 @@ let invariant env t =
         Simple.pattern_match simple
           ~const:(fun const -> E.add_variable env var (T.kind_for_const const))
           ~name:(fun name -> E.add_variable env var (E.kind_of_name env name))
-      | Static_const _, Symbols _ -> env
-      | Static_const _, Singleton _ ->
+      | Static_consts _, Symbols _ -> env
+      | Static_consts _, Singleton _ ->
         Misc.fatal_errorf "Cannot bind a [Static_const] to a [Singleton]:@ %a"
           print t
       | (Simple _ | Prim _ | Set_of_closures _), Symbols _ ->

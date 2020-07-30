@@ -147,21 +147,99 @@ let simplify_static_const_of_kind_value dacc
     let ty = T.this_immutable_string str in
     let dacc = bind_result_sym ty in
     Immutable_string str, dacc
-  | Sets_of_closures _ ->
-    Misc.fatal_errorf "[Sets_of_closures] cannot be bound by a \
-        [Singleton] binding:@ %a"
+  | Code _ | Set_of_closures _ ->
+    Misc.fatal_errorf "[Code] and [Set_of_closures] cannot be bound by a \
+        [Block_like] binding:@ %a"
       SC.print static_const
 
-let simplify_static_const dacc (bound_symbols : Bound_symbols.t)
-      (static_const : SC.t) : Bound_symbols.t * SC.t * DA.t =
-  match bound_symbols with
-  | Singleton result_sym ->
-    let static_const, dacc =
-      simplify_static_const_of_kind_value dacc static_const ~result_sym
-    in
-    bound_symbols, static_const, dacc
-  | Sets_of_closures bound_symbols' ->
-    let sets = SC.must_be_sets_of_closures static_const in
+let simplify_static_consts dacc (bound_symbols : Bound_symbols.t)
+      static_consts =
+  let bound_symbols_list = Bound_symbols.to_list bound_symbols in
+  let static_consts_list = Static_const.Group.to_list static_consts in
+  if List.compare_lengths bound_symbols_list static_consts_list <> 0 then begin
+    Misc.fatal_errorf "Bound symbols don't match static constants:@ %a@ =@ %a"
+      Bound_symbols.print bound_symbols
+      Static_const.Group.print static_consts
+  end;
+  (* The closure symbols are bound recursively across all of the
+     definitions.  We can start by giving these type [Unknown], since
+     simplification of the constants that are neither pieces of code nor
+     closures will not look at the structure of these closure symbols'
+     definitions. *)
+  let dacc =
+    Static_const.Group.match_against_bound_symbols static_consts bound_symbols
+      ~init:dacc
+      ~set_of_closures:(fun dacc ~closure_symbols _ ->
+        Closure_id.Lmap.fold (fun _ closure_symbol dacc ->
+            DA.with_denv dacc
+              (DE.define_symbol (DA.denv dacc) closure_symbol K.value))
+          closure_symbols
+          dacc)
+      ~code:(fun dacc _ _ -> dacc)
+      ~block_like:(fun dacc _ _ -> dacc)
+  in
+  (* Next we simplify all the constants that are not closures.  The ordering
+     of the bindings is respected.  This step also adds code into the
+     environment.  We can do that here because we're not simplifying the code
+     (which may contain recursive references to symbols and/or code IDs
+     being defined). *)
+  let bound_symbols, static_consts, dacc =
+    Static_const.Group.match_against_bound_symbols static_consts bound_symbols
+      ~init:([], [], dacc)
+      ~code:(fun (bound_symbols, static_consts, dacc) code_id code ->
+        let dacc =
+          match SC.Code.params_and_body code with
+          | None -> dacc
+          | Some params_and_body ->
+            let newer_version_of = code.newer_version_of in
+            DA.map_denv dacc ~f:(fun denv ->
+              DE.define_code denv ?newer_version_of ~code_id ~params_and_body)
+        in
+        (Bound_symbols.Pattern.code code_id) :: bound_symbols,
+          (SC.Code code) :: static_consts,
+          dacc)
+      ~set_of_closures:(fun acc ~closure_symbols:_ _ -> acc)
+      ~block_like:
+        (fun (bound_symbols, static_consts, dacc) symbol static_const ->
+          let static_const, dacc =
+            simplify_static_const_of_kind_value dacc static_const
+              ~result_sym:symbol
+          in
+          (Bound_symbols.Pattern.block_like symbol) :: bound_symbols,
+            static_const :: static_consts,
+            dacc)
+  in
+  let bound_symbols = Bound_symbols.create bound_symbols in
+  let static_consts = Static_const.Group.create static_consts in
+  (* We now collect together all of the closures, from all of the sets
+     being defined, and simplify them together. *)
+  let closure_bound_names_all_sets, all_sets_of_closures_and_symbols =
+    Static_const.Group.match_against_bound_symbols static_consts bound_symbols
+      ~init:([], [])
+      ~code:(fun acc _ _ -> acc)
+      ~block_like:(fun acc _ _ -> acc)
+      ~set_of_closures:
+        (fun (closure_bound_names_all_sets, sets_of_closures)
+             ~closure_symbols set_of_closures ->
+          let closure_bound_names =
+            Closure_id.Lmap.fold
+              (fun closure_id symbol closure_bound_names_all_sets ->
+                Closure_id.Map.add closure_id
+                  (Name_in_binding_pos.symbol symbol)
+                closure_bound_names_all_sets)
+              closure_symbols
+              Closure_id.Map.empty
+          in
+          closure_bound_names :: closure_bound_names_all_sets,
+            (closure_symbols, set_of_closures) :: sets_of_closures)
+  in
+  let bound_symbols', static_consts', dacc =
     Simplify_set_of_closures.simplify_lifted_sets_of_closures dacc
-      ~orig_bound_symbols:bound_symbols ~orig_static_const:static_const
-      bound_symbols' sets
+      ~all_sets_of_closures_and_symbols
+      ~closure_bound_names_all_sets
+  in
+  (* The ordering of these lists doesn't matter as they will go through
+     [Sort_lifted_constants] before the terms are constructed. *)
+  Bound_symbols.concat bound_symbols bound_symbols',
+    Static_const.Group.concat static_consts static_consts',
+    dacc

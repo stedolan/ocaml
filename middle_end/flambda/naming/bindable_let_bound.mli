@@ -31,7 +31,7 @@ type t = private
     (** The binding of one or more variables to the individual closures in a
         set of closures.  The variables are statically scoped. *)
   | Symbols of symbols
-    (** The binding of one or more symbols to a statically-allocated constant.
+    (** The binding of one or more symbols to statically-allocated constant(s).
         The scoping of the symbols may either be syntactic, or follow the
         dominator tree. *)
 

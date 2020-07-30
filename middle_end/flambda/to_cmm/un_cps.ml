@@ -689,14 +689,14 @@ and let_expr env res t =
         let_expr_prim body env res v p dbg
       | Set_of_closures { closure_vars; _ }, Set_of_closures soc ->
         let_set_of_closures env res body closure_vars soc
-      | Symbols { bound_symbols; scoping_rule; }, Static_const const ->
-        let_symbol env res bound_symbols scoping_rule const body
+      | Symbols { bound_symbols; scoping_rule; }, Static_consts consts ->
+        let_symbol env res bound_symbols scoping_rule consts body
       (* Error cases *)
-      | Singleton _, (Set_of_closures _ | Static_const _) ->
+      | Singleton _, (Set_of_closures _ | Static_consts _) ->
         Misc.fatal_errorf
           "Singleton binding to a set of closure or static const if forbidden:@ %a"
           Let.print t
-      | Set_of_closures _, (Simple _ | Prim _ | Static_const _) ->
+      | Set_of_closures _, (Simple _ | Prim _ | Static_consts _) ->
         Misc.fatal_errorf
           "Set_of_closures binding a non-Set_of_closures:@ %a"
           Let.print t
@@ -707,18 +707,19 @@ and let_expr env res t =
       end
     end)
 
-and let_symbol env res bound_symbols _scoping_rule const body =
+and let_symbol env res bound_symbols _scoping_rule consts body =
   let env =
     (* All bound symbols are allowed to appear in each other's definition,
        so they're added to the environment first *)
+    (* CR mshinwell: This isn't quite right now, but can be fixed later *)
     Env.add_to_scope env
       (Bound_symbols.everything_being_defined bound_symbols)
   in
   let env, res, update_opt =
-    Un_cps_static.static_const
+    Un_cps_static.static_consts
       env res ~params_and_body
       bound_symbols
-      const
+      consts
   in
   match update_opt with
   | None -> expr env res body (* trying to preserve tail calls whenever we can *)

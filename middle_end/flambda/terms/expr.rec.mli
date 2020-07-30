@@ -62,12 +62,12 @@ val create_pattern_let0
     whether something got deleted. *)
 val create_let : Var_in_binding_pos.t -> Named.t -> t -> t
 
-(** Create a [Let] expression that binds a statically-allocated
-    value to one or more symbol(s). *)
+(** Create a [Let] expression that binds one or more statically-allocated
+    values to one or more symbol(s). *)
 val create_let_symbol
    : Bound_symbols.t
   -> Symbol_scoping_rule.t
-  -> Static_const.t
+  -> Static_const.Group.t
   -> t
   -> t
 

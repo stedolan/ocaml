@@ -45,6 +45,12 @@ let create
     code_ids;
   }
 
+let singleton_code_id code_id =
+  create ~code_ids:(Code_id.Set.singleton code_id) ()
+
+let singleton_symbol symbol =
+  create ~symbols:(Symbol.Set.singleton symbol) ()
+
 let add_const t const =
   { t with consts = Const.Set.add const t.consts }
 
@@ -104,6 +110,11 @@ let union t1 t2 =
     consts = Const.Set.union t1.consts t2.consts;
     code_ids = Code_id.Set.union t1.code_ids t2.code_ids;
   }
+
+let rec union_list ts =
+  match ts with
+  | [] -> empty
+  | t::ts -> union t (union_list ts)
 
 module Import_map = struct
   type t = {

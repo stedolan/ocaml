@@ -142,6 +142,14 @@ module Stdlib : sig
         function, is a prefix of both of the given lists.  The input lists,
         each with such longest common prefix removed, are also returned. *)
 
+    val fold_left3
+       : ('a -> 'b -> 'c -> 'd -> 'a)
+      -> 'a
+      -> 'b list
+      -> 'c list
+      -> 'd list
+      -> 'a
+
     val fold_left4
        : ('a -> 'b -> 'c -> 'd -> 'e -> 'a)
       -> 'a

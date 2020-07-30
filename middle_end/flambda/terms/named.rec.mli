@@ -27,7 +27,8 @@ type t = private
   | Set_of_closures of Set_of_closures.t
     (** Definition of a set of (dynamically allocated) possibly
         mutually-recursive closures. *)
-  | Static_const of Static_const.t
+  | Static_consts of Static_const.Group.t
+    (* CR mshinwell: Add comment regarding ordering, recursion, etc. *)
     (** Definition of one or more symbols representing statically-allocated
         constants (including sets of closures). *)
 
@@ -46,9 +47,9 @@ val create_prim : Flambda_primitive.t -> Debuginfo.t -> t
 (** Convert a set of closures into the defining expression of a [Let]. *)
 val create_set_of_closures : Set_of_closures.t -> t
 
-(** Convert a statically-allocated constant into the defining expression of
-    a [Let]. *)
-val create_static_const : Static_const.t -> t
+(** Convert one or more statically-allocated constants into the defining
+    expression of a [Let]. *)
+val create_static_consts : Static_const.t list -> t
 
 (** Build an expression boxing the name.  The returned kind is the
     one of the unboxed version. *)
@@ -79,6 +80,8 @@ val invariant_returning_kind
 
 val is_dynamically_allocated_set_of_closures : t -> bool
 
-val is_static_const : t -> bool
+(** Returns [true] iff the given expression is one or more statically-allocated
+    constants. *)
+val is_static_consts : t -> bool
 
-val must_be_static_const : t -> Static_const.t
+val must_be_static_consts : t -> Static_const.Group.t

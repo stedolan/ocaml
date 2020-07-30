@@ -362,6 +362,13 @@ module Stdlib = struct
       in
       find_prefix ~longest_common_prefix_rev:[] first second
 
+    let rec fold_left3 f accu l1 l2 l3 =
+      match l1, l2, l3 with
+      | [], [], [] -> accu
+      | a1::l1, a2::l2, a3::l3 ->
+        fold_left3 f (f accu a1 a2 a3) l1 l2 l3
+      | _, _, _ -> invalid_arg "List.fold_left3"
+
     let rec fold_left4 f accu l1 l2 l3 l4 =
       match l1, l2, l3, l4 with
       | [], [], [], [] -> accu

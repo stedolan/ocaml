@@ -25,7 +25,6 @@ type simplify_named_result =
     }
   | Reified of {
       definition : Named.t;
-      bound_symbol : Bound_symbols.t;
       symbol : Symbol.t;
       static_const : Static_const.t;
     }
@@ -92,7 +91,6 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
         let named = Named.create_simple (Simple.symbol symbol) in
         Reified
           { definition = named;
-            bound_symbol = Singleton symbol;
             symbol;
             static_const;
           }
@@ -105,7 +103,7 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
         bindable_let_bound set_of_closures
     in
     bindings_result bindings dacc
-  | Static_const static_const ->
+  | Static_consts static_consts ->
     let { Bindable_let_bound. bound_symbols; scoping_rule = _; } =
       Bindable_let_bound.must_be_symbols bindable_let_bound
     in
@@ -115,26 +113,20 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
           bodies):@ %a"
         Named.print named
     end;
-    let bound_symbols_free_names = Bound_symbols.free_names bound_symbols in
-    let dacc =
-      (* CR mshinwell: tidy this up? *)
-      DA.map_denv dacc ~f:(fun denv ->
-        Name_occurrences.fold_names bound_symbols_free_names
-          ~init:denv
-          ~f:(fun denv name ->
-            Name.pattern_match name
-              ~var:(fun _ -> denv)
-              ~symbol:(fun symbol ->
-                match bound_symbols with
-                | Singleton _ -> DE.now_defining_symbol denv symbol
-                | Sets_of_closures _ ->
-                  (* [Simplify_set_of_closures] will do [now_defining_symbol]. *)
-                  denv)))
+    let non_closure_symbols_being_defined =
+      Bound_symbols.non_closure_symbols_being_defined bound_symbols
     in
-    let bound_symbols, static_const, dacc =
+    let dacc =
+      DA.map_denv dacc ~f:(fun denv ->
+        Symbol.Set.fold (fun symbol denv ->
+            DE.now_defining_symbol denv symbol)
+          non_closure_symbols_being_defined
+          denv)
+    in
+    let bound_symbols, static_consts, dacc =
       try
-        Simplify_static_const.simplify_static_const dacc bound_symbols
-          static_const
+        Simplify_static_const.simplify_static_consts dacc bound_symbols
+          static_consts
       with Misc.Fatal_error -> begin
         if !Clflags.flambda_context_on_error then begin
           Format.eprintf "\n%sContext is:%s simplifying [Let_symbol] binding \
@@ -158,51 +150,45 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
     *)
     let dacc =
       DA.map_denv dacc ~f:(fun denv ->
-        Name_occurrences.fold_names bound_symbols_free_names
-          ~init:denv
-          ~f:(fun denv name ->
-            Name.pattern_match name
-              ~var:(fun _ -> denv)
-              ~symbol:(fun symbol ->
-                match bound_symbols with
-                | Singleton _ -> DE.no_longer_defining_symbol denv symbol
-                | Sets_of_closures _ -> denv)))
+        Symbol.Set.fold (fun symbol denv ->
+            DE.no_longer_defining_symbol denv symbol)
+          non_closure_symbols_being_defined
+          denv)
     in
     let dacc =
-      match bound_symbols with
-      | Singleton symbol ->
-        DA.consider_constant_for_sharing dacc symbol static_const
-      | Sets_of_closures _ -> dacc
+      Static_const.Group.match_against_bound_symbols static_consts bound_symbols
+        ~init:dacc
+        ~code:(fun dacc _ _ -> dacc)
+        ~set_of_closures:(fun dacc ~closure_symbols:_ _ -> dacc)
+        ~block_like:(fun dacc symbol static_const ->
+          DA.consider_constant_for_sharing dacc symbol static_const)
     in
-    let lifted_constant =
-      match bound_symbols with
-      | Singleton symbol ->
-        let typ =
-          TE.find (DA.typing_env dacc) (Name.symbol symbol) (Some K.value)
-        in
-        LC.create_singleton symbol static_const (DA.denv dacc) typ
-      | Sets_of_closures sets ->
-        let sets =
-          ListLabels.map sets
-            ~f:(fun (set : Bound_symbols.Code_and_set_of_closures.t)
-                  : LC.for_one_set_of_closures ->
-              let closure_symbols_with_types =
-                Closure_id.Lmap.map (fun symbol ->
-                    let typ =
-                      TE.find (DA.typing_env dacc) (Name.symbol symbol)
-                        (Some K.value)
-                    in
-                    symbol, typ)
-                  set.closure_symbols
-              in
-              { code_ids = set.code_ids;
-                denv = Some (DA.denv dacc);
-                closure_symbols_with_types;
-              })
-        in
-        LC.create_multiple_sets_of_closures sets static_const
+    let lifted_constants =
+      ListLabels.map2
+        (Bound_symbols.to_list bound_symbols)
+        (Static_const.Group.to_list static_consts)
+        ~f:(fun (pat : Bound_symbols.Pattern.t) static_const ->
+          match pat with
+          | Block_like symbol ->
+            let typ =
+              TE.find (DA.typing_env dacc) (Name.symbol symbol) (Some K.value)
+            in
+            LC.create_block_like symbol static_const (DA.denv dacc) typ
+          | Code code_id -> LC.create_code code_id static_const
+          | Set_of_closures closure_symbols ->
+            let closure_symbols_with_types =
+              Closure_id.Lmap.map (fun symbol ->
+                  let typ =
+                    TE.find (DA.typing_env dacc) (Name.symbol symbol) (Some K.value)
+                  in
+                  symbol, typ)
+                closure_symbols
+            in
+            LC.create_set_of_closures (DA.denv dacc)
+              ~closure_symbols_with_types
+              static_const)
     in
-    let dacc = DA.add_lifted_constant dacc lifted_constant in
+    let dacc = DA.add_lifted_constant dacc (LC.concat lifted_constants) in
     (* We don't need to return any bindings; [Simplify_expr.simplify_let]
        will create the "let symbol" binding when it sees the lifted
        constant. *)

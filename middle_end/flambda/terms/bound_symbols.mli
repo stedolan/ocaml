@@ -16,37 +16,42 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-module Code_and_set_of_closures : sig
-  type t = {
-    code_ids : Code_id.Set.t;
-    closure_symbols : Symbol.t Closure_id.Lmap.t;
-    (* CR mshinwell: keep a separate field for the symbols being defined? *)
-  }
+module Pattern : sig
+  type t = private
+    | Code of Code_id.t
+    | Set_of_closures of Symbol.t Closure_id.Lmap.t
+    | Block_like of Symbol.t
+
+  val code : Code_id.t -> t
+
+  val set_of_closures : Symbol.t Closure_id.Lmap.t -> t
+
+  val block_like : Symbol.t -> t
 
   val print : Format.formatter -> t -> unit
 end
 
-type t =
-  | Singleton of Symbol.t
-    (** A binding of a single symbol of kind [Value]. *)
-  | Sets_of_closures of Code_and_set_of_closures.t list
-    (** A recursive binding of possibly multiple sets of closures with
-        associated code. All code IDs and symbols named in the
-        [Code_and_set_of_closures.t list] are in scope for _all_ associated
-        [Static_const.code_and_set_of_closures list] values on the right-hand
-        side of the corresponding [Let_symbol] expression. Despite the
-        recursive nature of the binding, the elements in the
-        [Code_and_set_of_closures.t list] must correspond elementwise to the
-        elements in the corresponding
-        [Static_const.code_and_set_of_closures list]. *)
+type t
+
+val empty : t
+
+val create : Pattern.t list -> t
+
+val singleton : Pattern.t -> t
+
+val to_list : t -> Pattern.t list
 
 val being_defined : t -> Symbol.Set.t
 
 val code_being_defined : t -> Code_id.Set.t
 
+val non_closure_symbols_being_defined : t -> Symbol.Set.t
+
 val closure_symbols_being_defined : t -> Symbol.Set.t
 
 val everything_being_defined : t -> Code_id_or_symbol.Set.t
+
+val concat : t -> t -> t
 
 include Expr_std.S with type t := t
 include Contains_ids.S with type t := t

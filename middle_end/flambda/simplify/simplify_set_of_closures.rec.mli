@@ -32,8 +32,7 @@ val simplify_non_lifted_set_of_closures
     the right-hand side of a [Let_symbol] binding. *)
 val simplify_lifted_sets_of_closures
    : Downwards_acc.t
-  -> orig_bound_symbols:Bound_symbols.t
-  -> orig_static_const:Static_const.t
-  -> Bound_symbols.Code_and_set_of_closures.t list
-  -> Static_const.Code_and_set_of_closures.t list
-  -> Bound_symbols.t * Static_const.t * Downwards_acc.t
+  -> all_sets_of_closures_and_symbols:
+    (Symbol.t Closure_id.Lmap.t * Set_of_closures.t) list
+  -> closure_bound_names_all_sets:Name_in_binding_pos.t Closure_id.Map.t list
+  -> Bound_symbols.t * Static_const.Group.t * Downwards_acc.t

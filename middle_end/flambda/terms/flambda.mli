@@ -85,12 +85,12 @@ module rec Expr : sig
       (such as is required to bind a [Set_of_closures]). *)
   val create_pattern_let : Bindable_let_bound.t -> Named.t -> t -> t
 
-  (** Create a [Let] expression that binds a statically-allocated
-      value to one or more symbol(s). *)
+  (** Create a [Let] expression that binds one or more statically-allocated
+      values to one or more symbol(s). *)
   val create_let_symbol
      : Bound_symbols.t
     -> Symbol_scoping_rule.t
-    -> Static_const.t
+    -> Static_const.Group.t
     -> t
     -> t
 
@@ -164,7 +164,7 @@ end and Named : sig
     | Set_of_closures of Set_of_closures.t
       (** Definition of a set of (dynamically allocated) possibly
           mutually-recursive closures. *)
-    | Static_const of Static_const.t
+    | Static_consts of Static_const.Group.t
       (** Definition of one or more symbols representing statically-allocated
           constants (including sets of closures). *)
 
@@ -181,9 +181,9 @@ end and Named : sig
   (** Convert a set of closures into the defining expression of a [Let]. *)
   val create_set_of_closures : Set_of_closures.t -> t
 
-  (** Convert a statically-allocated constant into the defining expression of
-      a [Let]. *)
-  val create_static_const : Static_const.t -> t
+  (** Convert one or more statically-allocated constants into the defining
+      expression of a [Let]. *)
+  val create_static_consts : Static_const.t list -> t
 
   (** Build an expression boxing the name.  The returned kind is the
       one of the unboxed version. *)
@@ -210,11 +210,11 @@ end and Named : sig
       statically-allocated set of closures). *)
   val is_dynamically_allocated_set_of_closures : t -> bool
 
-  (** Returns [true] iff the given expression is a statically-allocated
-      constant. *)
-  val is_static_const : t -> bool
+  (** Returns [true] iff the given expression is one or more
+      statically-allocated constants. *)
+  val is_static_consts : t -> bool
 
-  val must_be_static_const : t -> Static_const.t
+  val must_be_static_consts : t -> Static_const.Group.t
 end and Let_expr : sig
   (** The alpha-equivalence classes of expressions that bind variables; and
       the expressions that bind symbols (which are not treated up to
@@ -525,7 +525,8 @@ end and Static_const : sig
       symbols. *)
 
   module Field_of_block : sig
-    (** Inhabitants (of kind [Value]) of fields of statically-allocated blocks. *)
+    (** Inhabitants (of kind [Value]) of fields of statically-allocated
+        blocks. *)
     type t =
       | Symbol of Symbol.t
         (** The address of the given symbol. *)
@@ -543,7 +544,8 @@ end and Static_const : sig
       version of one that existed previously (and may still exist), for
       example after a round of simplification. *)
   module Code : sig
-    type t = {
+    type t = private {
+      code_id : Code_id.t;
       params_and_body : Function_params_and_body.t or_deleted;
       newer_version_of : Code_id.t option;
     }
@@ -555,32 +557,30 @@ end and Static_const : sig
 
     val free_names : t -> Name_occurrences.t
 
+    val create
+       : Code_id.t
+      -> params_and_body:Function_params_and_body.t or_deleted
+      -> newer_version_of:Code_id.t option
+      -> t
+
+    (** A piece of code that is [Deleted] with no [newer_version_of]. *)
+    val deleted : Code_id.t -> t
+
+    val code_id : t -> Code_id.t
+    val params_and_body : t -> Function_params_and_body.t option
+
     val make_deleted : t -> t
   end
 
-  (** The possibly-recursive declaration of pieces of code and any associated
-      set of closures. *)
-  module Code_and_set_of_closures : sig
-    type t = {
-      code : Code.t Code_id.Lmap.t;
-      (* CR mshinwell: Check the free names of the set of closures *)
-      set_of_closures : Set_of_closures.t;
-    }
-
-    val free_names : t -> Name_occurrences.t
-
-    val map_code : t -> f:(Code_id.t -> Code.t -> Code.t) -> t
-  end
+  (* CR mshinwell: Somewhere there should be an invariant check that
+    code has no free names. *)
 
   (** The static structure of a symbol, possibly with holes, ready to be filled
       with values computed at runtime. *)
   type t =
-    | Block of Tag.Scannable.t * Mutability.t
-        * (Field_of_block.t list)
-    | Sets_of_closures of Code_and_set_of_closures.t list
-      (** All code and sets of closures within the list are allowed to be
-          recursive across those sets (but not recursive with any other code or
-          set of closures). *)
+    | Code of Code.t
+    | Set_of_closures of Set_of_closures.t
+    | Block of Tag.Scannable.t * Mutability.t * (Field_of_block.t list)
     | Boxed_float of Numbers.Float_by_bit_pattern.t Or_variable.t
     | Boxed_int32 of Int32.t Or_variable.t
     | Boxed_int64 of Int64.t Or_variable.t
@@ -592,19 +592,68 @@ end and Static_const : sig
 
   include Identifiable.S with type t := t
   include Contains_names.S with type t := t
+  include Contains_ids.S with type t := t
 
-  val get_pieces_of_code : t -> Code.t Code_id.Lmap.t
-
-  val get_pieces_of_code' : t -> Function_params_and_body.t Code_id.Lmap.t
-
-  (** Returns [true] iff the given term does not contain any variables,
-      which means that the corresponding value can be statically allocated,
-      without any need to patch it afterwards. *)
   val is_fully_static : t -> bool
 
   val can_share : t -> bool
 
-  val must_be_sets_of_closures : t -> Code_and_set_of_closures.t list
+  val to_code : t -> Code.t option
+
+  val must_be_set_of_closures : t -> Set_of_closures.t
+
+  val match_against_bound_symbols_pattern
+    : t
+    -> Bound_symbols.Pattern.t
+    -> code:(Code_id.t -> Code.t -> 'a)
+    -> set_of_closures:(
+        closure_symbols:Symbol.t Closure_id.Lmap.t
+      -> Set_of_closures.t
+      -> 'a)
+    -> block_like:(Symbol.t -> t -> 'a)
+    -> 'a
+
+  module Group : sig
+    type t
+
+    include Contains_names.S with type t := t
+    include Contains_ids.S with type t := t
+
+    val empty : t
+
+    val create : Static_const.t list -> t
+
+    val print_with_cache
+       : cache:Printing_cache.t
+      -> Format.formatter
+      -> t
+      -> unit
+
+    val print : Format.formatter -> t -> unit
+
+    val to_list : t -> Static_const.t list
+
+    val concat : t -> t -> t
+
+    val match_against_bound_symbols
+       : t
+      -> Bound_symbols.t
+      -> init:'a
+      -> code:('a -> Code_id.t -> Code.t -> 'a)
+      -> set_of_closures:(
+          'a
+        -> closure_symbols:Symbol.t Closure_id.Lmap.t
+        -> Set_of_closures.t
+        -> 'a)
+      -> block_like:('a -> Symbol.t -> Static_const.t -> 'a)
+      -> 'a
+
+    val pieces_of_code : t -> Function_params_and_body.t Code_id.Map.t
+
+    val pieces_of_code' : t -> Code.t list
+
+    val is_fully_static : t -> bool
+  end
 end
 
 module Function_declaration = Function_declaration
@@ -634,16 +683,3 @@ module Import : sig
   module Static_const = Static_const
   module Switch = Switch
 end
-
-(** If [newer_versions_of] maps [id1] to [id2] then [id1] is a newer
-    version of [id2]. *)
-val pieces_of_code
-   : ?newer_versions_of:Code_id.t Code_id.Map.t
-  -> ?set_of_closures:(Symbol.t Closure_id.Lmap.t * Set_of_closures.t)
-  -> Function_params_and_body.t Code_id.Lmap.t
-  -> Bound_symbols.t * Static_const.t
-
-val deleted_pieces_of_code
-   : ?newer_versions_of:Code_id.t Code_id.Map.t
-  -> Code_id.Set.t
-  -> Bound_symbols.t * Static_const.t

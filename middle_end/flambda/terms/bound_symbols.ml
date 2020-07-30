@@ -16,102 +16,107 @@
 
 [@@@ocaml.warning "+a-30-40-41-42"]
 
-module K = Flambda_kind
+module Pattern = struct
+  type t =
+    | Code of Code_id.t
+    | Set_of_closures of Symbol.t Closure_id.Lmap.t
+    | Block_like of Symbol.t
 
-module Code_and_set_of_closures = struct
-  type t = {
-    code_ids : Code_id.Set.t;
-    closure_symbols : Symbol.t Closure_id.Lmap.t;
-  }
+  let code code_id = Code code_id
+  let set_of_closures closure_symbols = Set_of_closures closure_symbols
+  let block_like symbol = Block_like symbol
 
-  (* CR mshinwell: Share with [Bindable_let_bound] and below *)
-  let print_closure_binding ppf (closure_id, sym) =
-    Format.fprintf ppf "@[%a @<0>%s\u{21a4}@<0>%s %a@]"
-      Symbol.print sym
-      (Flambda_colours.elide ())
-      (Flambda_colours.elide ())
-      Closure_id.print closure_id
+  let print ppf t =
+    match t with
+    | Code code_id ->
+      Format.fprintf ppf "@[<hov 1>(Code@ %a)@]" Code_id.print code_id
+    | Set_of_closures closure_symbols ->
+      Format.fprintf ppf "@[<hov 1>(Set_of_closures@ %a)@]"
+        (Closure_id.Lmap.print Symbol.print) closure_symbols
+    | Block_like symbol ->
+      Format.fprintf ppf "@[<hov 1>(Block_like@ %a)@]" Symbol.print symbol
 
-  let print ppf { code_ids; closure_symbols; } =
-    match
-      Code_id.Set.elements code_ids, Closure_id.Lmap.bindings closure_symbols
-    with
-    | [code_id], [] ->
-      Format.fprintf ppf "%a" Code_id.print code_id
-    | [], [closure_binding] ->
-      Format.fprintf ppf "@<0>%s%a@<0>%s"
-        (Flambda_colours.symbol ())
-        print_closure_binding closure_binding
-        (Flambda_colours.normal ())
-    | _, _ ->
-      Format.fprintf ppf "@[<hov 1>\
-          @[<hov 1>(code_ids@ (%a))@]@ \
-          @[<hov 1>(closure_symbols@ {%a})@]\
-          @]"
-        Code_id.Set.print code_ids
-        (Format.pp_print_list ~pp_sep:Format.pp_print_space
-          print_closure_binding)
-        (Closure_id.Lmap.bindings closure_symbols)
-
-  let being_defined { code_ids = _; closure_symbols; } =
-    Closure_id.Lmap.fold (fun _closure_id symbol being_defined ->
-        Symbol.Set.add symbol being_defined)
-      closure_symbols
-      Symbol.Set.empty
-
-  let closure_symbols_being_defined t = being_defined t
-
-  let code_being_defined { code_ids; closure_symbols = _; } = code_ids
-
-  let free_names { code_ids; closure_symbols; } =
-    let from_code_ids =
-      Code_id.Set.fold (fun code_id from_code_ids ->
-          Name_occurrences.add_code_id from_code_ids code_id Name_mode.normal)
-        code_ids
+  let free_names t =
+    match t with
+    | Code code_id ->
+      Name_occurrences.singleton_code_id code_id Name_mode.normal
+    | Set_of_closures closure_symbols ->
+      Closure_id.Lmap.fold (fun _ symbol free_names ->
+          Name_occurrences.add_symbol free_names symbol Name_mode.normal)
+        closure_symbols
         Name_occurrences.empty
-    in
-    Closure_id.Lmap.fold (fun _closure_id closure_sym bound_names ->
-        Name_occurrences.add_symbol bound_names closure_sym Name_mode.normal)
+    | Block_like symbol ->
+      Name_occurrences.singleton_symbol symbol Name_mode.normal
+
+  let being_defined t =
+    match t with
+    | Code _ -> Symbol.Set.empty
+    | Set_of_closures closure_symbols ->
       closure_symbols
-      from_code_ids
+      |> Closure_id.Lmap.data
+      |> Symbol.Set.of_list
+    | Block_like symbol -> Symbol.Set.singleton symbol
 
-  let all_ids_for_export { code_ids; closure_symbols; } =
-    let symbols =
-      Closure_id.Lmap.fold (fun _closure_id sym symbols ->
-          Symbol.Set.add sym symbols)
-        closure_symbols
-        Symbol.Set.empty
-    in
-    Ids_for_export.create ~code_ids ~symbols ()
+  let code_being_defined t =
+    match t with
+    | Code code_id -> Code_id.Set.singleton code_id
+    | Set_of_closures _ | Block_like _ -> Code_id.Set.empty
 
-  let import import_map { code_ids; closure_symbols; } =
-    let code_ids =
-      Code_id.Set.map (Ids_for_export.Import_map.code_id import_map) code_ids
-    in
-    let closure_symbols =
-      Closure_id.Lmap.map (Ids_for_export.Import_map.symbol import_map)
+  let closure_symbols_being_defined t =
+    match t with
+    | Code _ | Block_like _ -> Symbol.Set.empty
+    | Set_of_closures closure_symbols ->
+      closure_symbols
+      |> Closure_id.Lmap.data
+      |> Symbol.Set.of_list
+
+  let everything_being_defined t =
+    match t with
+    | Code code_id -> Code_id_or_symbol.Set.singleton (Code_id code_id)
+    | Set_of_closures closure_symbols ->
+      closure_symbols
+      |> Closure_id.Lmap.data
+      |> Symbol.Set.of_list
+      |> Code_id_or_symbol.set_of_symbol_set
+    | Block_like symbol -> Code_id_or_symbol.Set.singleton (Symbol symbol)
+
+  let all_ids_for_export t =
+    match t with
+    | Code code_id -> Ids_for_export.singleton_code_id code_id
+    | Set_of_closures closure_symbols ->
+      let symbols =
         closure_symbols
-    in
-    { code_ids; closure_symbols; }
+        |> Closure_id.Lmap.data
+        |> Symbol.Set.of_list
+      in
+      Ids_for_export.create ~symbols ()
+    | Block_like symbol -> Ids_for_export.singleton_symbol symbol
+
+  let import import_map t =
+    let module IM = Ids_for_export.Import_map in
+    match t with
+    | Code code_id -> Code (IM.code_id import_map code_id)
+    | Set_of_closures closure_symbols ->
+      let closure_symbols =
+        Closure_id.Lmap.map (IM.symbol import_map) closure_symbols
+      in
+      Set_of_closures closure_symbols
+    | Block_like symbol -> Block_like (IM.symbol import_map symbol)
 end
 
-type t =
-  | Singleton of Symbol.t
-  | Sets_of_closures of Code_and_set_of_closures.t list
+type t = Pattern.t list
+
+let empty = []
+
+let create pattern_list = pattern_list
+
+let singleton pattern = [pattern]
+
+let to_list t = t
 
 let print ppf t =
-  match t with
-  | Singleton sym ->
-    Format.fprintf ppf "@[%a@ \u{2237}@ %a@]"
-      Symbol.print sym
-      K.print K.value
-  | Sets_of_closures [set] ->
-    Code_and_set_of_closures.print ppf set
-  | Sets_of_closures sets ->
-    Format.fprintf ppf "@[<hov 1>(%a)@]"
-      (Format.pp_print_list ~pp_sep:Format.pp_print_space
-        Code_and_set_of_closures.print)
-      sets
+  Format.fprintf ppf "@[<hov 1>(%a)@]"
+    (Format.pp_print_list ~pp_sep:Format.pp_print_space Pattern.print) t
 
 let print_with_cache ~cache:_ ppf t = print ppf t
 
@@ -121,311 +126,35 @@ let print_with_cache ~cache:_ ppf t = print ppf t
 let invariant _ _ = ()
 
 let being_defined t =
-  match t with
-  | Singleton sym -> Symbol.Set.singleton sym
-  | Sets_of_closures sets ->
-    List.fold_left (fun being_defined set ->
-        Symbol.Set.union (Code_and_set_of_closures.being_defined set)
-          being_defined)
-      Symbol.Set.empty
-      sets
+  List.map Pattern.being_defined t
+  |> Symbol.Set.union_list
 
 let closure_symbols_being_defined t =
-  match t with
-  | Singleton _sym -> Symbol.Set.empty
-  | Sets_of_closures sets ->
-    Symbol.Set.union_list
-      (List.map Code_and_set_of_closures.closure_symbols_being_defined sets)
+  List.map Pattern.closure_symbols_being_defined t
+  |> Symbol.Set.union_list
+
+let non_closure_symbols_being_defined t =
+  Symbol.Set.diff (being_defined t) (closure_symbols_being_defined t)
 
 let code_being_defined t =
-  match t with
-  | Singleton _ -> Code_id.Set.empty
-  | Sets_of_closures sets ->
-    Code_id.Set.union_list
-      (List.map Code_and_set_of_closures.code_being_defined sets)
+  List.map Pattern.code_being_defined t
+  |> Code_id.Set.union_list
 
 let everything_being_defined t =
-  let code =
-    Code_id.Set.fold (fun code_id code ->
-        Code_id_or_symbol.Set.add (Code_id code_id) code)
-      (code_being_defined t)
-      Code_id_or_symbol.Set.empty
-  in
-  let closure_symbols =
-    Symbol.Set.fold (fun symbol closure_symbols ->
-        Code_id_or_symbol.Set.add (Symbol symbol) closure_symbols)
-      (being_defined t)
-      Code_id_or_symbol.Set.empty
-  in
-  Code_id_or_symbol.Set.union code closure_symbols
+  List.map Pattern.everything_being_defined t
+  |> Code_id_or_symbol.Set.union_list
 
 let apply_name_permutation t _perm = t
 
 let free_names t =
-  match t with
-  | Singleton sym -> Name_occurrences.singleton_symbol sym Name_mode.normal
-  | Sets_of_closures sets ->
-    Name_occurrences.union_list
-      (List.map Code_and_set_of_closures.free_names sets)
+  List.map Pattern.free_names t
+  |> Name_occurrences.union_list
 
 let all_ids_for_export t =
-  match t with
-  | Singleton sym -> Ids_for_export.add_symbol (Ids_for_export.empty) sym
-  | Sets_of_closures sets ->
-    List.fold_left (fun ids set ->
-        Ids_for_export.union ids
-          (Code_and_set_of_closures.all_ids_for_export set))
-      Ids_for_export.empty
-      sets
+  List.map Pattern.all_ids_for_export t
+  |> Ids_for_export.union_list
 
 let import import_map t =
-  match t with
-  | Singleton sym ->
-    Singleton (Ids_for_export.Import_map.symbol import_map sym)
-  | Sets_of_closures sets ->
-    let sets = List.map (Code_and_set_of_closures.import import_map) sets in
-    Sets_of_closures sets
+  List.map (Pattern.import import_map) t
 
-(*
-module Scoping_rule = struct
-  type t =
-    | Syntactic
-    | Dominator
-
-  let print ppf t =
-    match t with
-    | Syntactic -> Format.fprintf ppf "Syntactic"
-    | Dominator -> Format.fprintf ppf "Dominator"
-end
-
-type t = {
-  scoping_rule : Scoping_rule.t;
-  bound_symbols : Bound_symbols.t;
-  defining_expr : Static_const.t;
-  body : Expr.t;
-}
-
-let create scoping_rule bound_symbols defining_expr body =
-  { scoping_rule;
-    bound_symbols;
-    defining_expr;
-    body;
-  }
-
-let scoping_rule t = t.scoping_rule
-let bound_symbols t = t.bound_symbols
-let defining_expr t = t.defining_expr
-let body t = t.body
-
-type flattened_for_printing_descr =
-  | Code of Code_id.t * Static_const.Code.t
-  | Set_of_closures of Symbol.t Closure_id.Map.t * Set_of_closures.t
-  | Other of Symbol.t * Static_const.t
-
-type flattened_for_printing = {
-  second_or_later_binding_within_one_set : bool;
-  second_or_later_set_of_closures : bool;
-  descr : flattened_for_printing_descr;
-  scoping_rule : Scoping_rule.t;
-}
-
-let shape_colour descr =
-  match descr with
-  | Code _ -> Flambda_colours.code_id ()
-  | Set_of_closures _ | Other _ -> Flambda_colours.symbol ()
-
-let flatten_for_printing { scoping_rule; bound_symbols; defining_expr; _ } =
-  match bound_symbols with
-  | Singleton symbol ->
-    [{ second_or_later_binding_within_one_set = false;
-       second_or_later_set_of_closures = false;
-       descr = Other (symbol, defining_expr);
-       scoping_rule;
-    }]
-  | Sets_of_closures bound_symbol_components ->
-    let code_and_sets_of_closures =
-      Static_const.must_be_sets_of_closures defining_expr
-    in
-    let flattened, _ =
-      List.fold_left2
-        (fun (flattened_acc, second_or_later_set_of_closures)
-             ({ code_ids = _; closure_symbols; }
-                : Bound_symbols.Code_and_set_of_closures.t)
-             ({ code; set_of_closures; }
-                : Static_const.Code_and_set_of_closures.t) ->
-          let flattened, _ =
-            Code_id.Map.fold (fun code_id code (flattened', first) ->
-                let flattened =
-                  { second_or_later_binding_within_one_set = not first;
-                    second_or_later_set_of_closures;
-                    descr = Code (code_id, code);
-                    scoping_rule;
-                  }
-                in
-                flattened :: flattened', false)
-              code
-              ([], true)
-          in
-          let flattened' =
-            if Set_of_closures.is_empty set_of_closures then []
-            else
-              let second_or_later_binding_within_one_set =
-                not (Code_id.Map.is_empty code)
-              in
-              [{ second_or_later_binding_within_one_set;
-                 second_or_later_set_of_closures;
-                 descr = Set_of_closures (closure_symbols, set_of_closures);
-                 scoping_rule;
-              }]
-          in
-          let flattened_acc =
-            flattened_acc @ (List.rev flattened) @ (List.rev flattened')
-          in
-          flattened_acc, true)
-        ([], false)
-        bound_symbol_components
-        code_and_sets_of_closures
-    in
-    flattened
-
-let print_closure_binding ppf (closure_id, sym) =
-  Format.fprintf ppf "@[%a @<0>%s\u{21a4}@<0>%s %a@]"
-    Symbol.print sym
-    (Flambda_colours.elide ())
-    (Flambda_colours.elide ())
-    Closure_id.print closure_id
-
-let print_flattened_descr_lhs ppf descr =
-  match descr with
-  | Code (code_id, _) -> Code_id.print ppf code_id
-  | Set_of_closures (closure_symbols, _) ->
-    Format.fprintf ppf "@[<hov 0>%a@]"
-      (Format.pp_print_list
-        ~pp_sep:(fun ppf () ->
-          Format.fprintf ppf "@<0>%s,@ @<0>%s"
-            (Flambda_colours.elide ())
-            (Flambda_colours.normal ()))
-        print_closure_binding)
-      (Closure_id.Map.bindings closure_symbols)
-  | Other (symbol, _) -> Symbol.print ppf symbol
-
-(* CR mshinwell: Use [print_with_cache]? *)
-let print_flattened_descr_rhs ppf descr =
-  match descr with
-  | Code (_, code) -> Static_const.Code.print ppf code
-  | Set_of_closures (_, set) -> Set_of_closures.print ppf set
-  | Other (_, static_const) -> Static_const.print ppf static_const
-
-let print_flattened ppf
-      { second_or_later_binding_within_one_set;
-        second_or_later_set_of_closures;
-        descr;
-        scoping_rule;
-      } =
-  fprintf ppf "@[<hov 1>";
-  if second_or_later_set_of_closures
-    && not second_or_later_binding_within_one_set
-  then begin
-    fprintf ppf "@<0>%sand_set @<0>%s"
-      (Flambda_colours.elide ())
-      (Flambda_colours.normal ())
-  end else if second_or_later_binding_within_one_set then begin
-    fprintf ppf "@<0>%sand @<0>%s"
-      (Flambda_colours.elide ())
-      (Flambda_colours.normal ())
-  end else begin
-    let shape =
-      match scoping_rule with
-      | Syntactic -> "\u{25b6}" (* filled triangle *)
-      | Dominator -> "\u{25b7}" (* unfilled triangle *)
-    in
-    fprintf ppf "@<0>%s@<1>%s @<0>%s"
-      (shape_colour descr)
-      shape
-      (Flambda_colours.normal ())
-  end;
-  fprintf ppf
-    "%a@<0>%s =@<0>%s@ %a@]"
-    print_flattened_descr_lhs descr
-    (Flambda_colours.elide ())
-    (Flambda_colours.normal ())
-    print_flattened_descr_rhs descr
-
-let flatten t : _ * Expr.t =
-  let rec flatten (expr : Expr.t) : _ * Expr.t =
-    match Expr.descr expr with
-    | Let_symbol t ->
-      let flattened = flatten_for_printing t in
-      let flattened', body = flatten t.body in
-      flattened @ flattened', body
-    | _ -> [], expr
-  in
-  let flattened = flatten_for_printing t in
-  let flattened', body = flatten t.body in
-  flattened @ flattened', body
-
-let print_with_cache ~cache ppf t =
-  let rec print_more flattened =
-    match flattened with
-    | [] -> ()
-    | flat::flattened ->
-      fprintf ppf "@ ";
-      print_flattened ppf flat;
-      print_more flattened
-  in
-  let flattened, body = flatten t in
-  match flattened with
-  | [] -> assert false
-  | flat::flattened ->
-    fprintf ppf "@[<v 1>(@<0>%slet_symbol@<0>%s@ @[<v 0>%a"
-      (Flambda_colours.expr_keyword ())
-      (Flambda_colours.normal ())
-      print_flattened flat;
-    print_more flattened;
-    fprintf ppf "@]@ %a)@]" (Expr.print_with_cache ~cache) body
-
-let print ppf t = print_with_cache ~cache:(Printing_cache.create ()) ppf t
-
-let invariant env
-      { scoping_rule = _; bound_symbols = _; defining_expr = _; body; } =
-  (* Static_const.invariant env defining_expr; *) (* CR mshinwell: FIXME *)
-  Expr.invariant env body
-
-let free_names { scoping_rule = _; bound_symbols; defining_expr; body; } =
-  let from_bound_symbols = Bound_symbols.free_names bound_symbols in
-  let from_defining_expr =
-    match bound_symbols with
-    | Singleton _ -> Static_const.free_names defining_expr
-    | Sets_of_closures _ ->
-      Name_occurrences.diff (Static_const.free_names defining_expr)
-        from_bound_symbols
-  in
-  Name_occurrences.union from_defining_expr
-    (Name_occurrences.diff (Expr.free_names body) from_bound_symbols)
-
-let apply_name_permutation
-      ({ scoping_rule; bound_symbols; defining_expr; body; } as t) perm =
-  let defining_expr' = Static_const.apply_name_permutation defining_expr perm in
-  let body' = Expr.apply_name_permutation body perm in
-  if defining_expr == defining_expr' && body == body' then t
-  else
-    { scoping_rule;
-      bound_symbols;
-      defining_expr = defining_expr';
-      body = body';
-    }
-
-let all_ids_for_export
-      { scoping_rule = _; bound_symbols; defining_expr; body; } =
-  let bound_symbols_ids = Bound_symbols.all_ids_for_export bound_symbols in
-  let defining_expr_ids = Static_const.all_ids_for_export defining_expr in
-  let body_ids = Expr.all_ids_for_export body in
-  Ids_for_export.union bound_symbols_ids
-    (Ids_for_export.union defining_expr_ids body_ids)
-
-let import import_map { scoping_rule; bound_symbols; defining_expr; body; } =
-  let bound_symbols = Bound_symbols.import import_map bound_symbols in
-  let defining_expr = Static_const.import import_map defining_expr in
-  let body = Expr.import import_map body in
-  { scoping_rule; bound_symbols; defining_expr; body; }
-*)
+let concat t1 t2 = t1 @ t2

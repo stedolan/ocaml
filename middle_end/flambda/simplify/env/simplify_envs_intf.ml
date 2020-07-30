@@ -145,6 +145,8 @@ module type Downwards_env = sig
 
   val add_lifted_constant : t -> lifted_constant -> t
 
+  val add_lifted_constants_from_list : t -> lifted_constant list -> t
+
   val add_lifted_constants : t -> lifted_constant_state -> t
 
   val define_code
@@ -264,40 +266,61 @@ module type Upwards_env = sig
     -> Apply_cont_rewrite.t option
 end
 
+(* CR mshinwell: The name of this module is a bit misleading *)
 module type Lifted_constant = sig
-  (** Description of a statically-allocated constant discovered during
-      simplification. *)
+  (** Description of a group of statically-allocated constants discovered
+      during simplification. *)
 
   type downwards_env
 
-  type for_one_set_of_closures = {
-    code_ids : Code_id.Set.t;
-    denv : downwards_env option;
-    closure_symbols_with_types : (Symbol.t * Flambda_type.t) Closure_id.Lmap.t;
-  }
+  module Definition : sig
+    type descr = private
+      | Code of Code_id.t
+      | Set_of_closures of {
+          denv : downwards_env;
+          closure_symbols_with_types
+            : (Symbol.t * Flambda_type.t) Closure_id.Lmap.t;
+        }
+      | Block_like of {
+          symbol : Symbol.t;
+          denv : downwards_env;
+          ty : Flambda_type.t;
+        }
 
-  (* CR-soon mshinwell: Probably best to make this abstract. *)
-  type descr = private
-    | Singleton of {
-        denv : downwards_env;
-        symbol : Symbol.t;
-        ty : Flambda_type.t;
-        defining_expr : Flambda.Static_const.t;
-      }
-    | Sets_of_closures of {
-        sets : for_one_set_of_closures list;
-        defining_expr : Flambda.Static_const.t;
-      }
+    type t
+
+    val descr : t -> descr
+
+    val defining_expr : t -> Static_const.t
+
+    val denv : t -> downwards_env option
+
+    val code : Code_id.t -> Static_const.t -> t
+
+    val set_of_closures
+       : downwards_env
+      -> closure_symbols_with_types
+           : (Symbol.t * Flambda_type.t) Closure_id.Lmap.t
+      -> Flambda.Static_const.t
+      -> t
+
+    val block_like
+       : downwards_env
+      -> Symbol.t
+      -> Flambda_type.t
+      -> Flambda.Static_const.t
+      -> t
+
+    val bound_symbols : t -> Bound_symbols.t
+  end
 
   type t
-
-  val descr : t -> descr
 
   val print : Format.formatter -> t -> unit
 
   (** The creation functions take the types of symbols to avoid re-inferring
       them. *)
-  val create_singleton
+  val create_block_like
      : Symbol.t
     -> Flambda.Static_const.t
     -> downwards_env
@@ -305,36 +328,22 @@ module type Lifted_constant = sig
     -> t
 
   val create_set_of_closures
-     : Code_id.Set.t
-    -> downwards_env
+     : downwards_env
     -> closure_symbols_with_types:(Symbol.t * Flambda_type.t) Closure_id.Lmap.t
     -> Flambda.Static_const.t
     -> t
 
-  val create_multiple_sets_of_closures
-     : for_one_set_of_closures list
+  val create_code
+     : Code_id.t
     -> Flambda.Static_const.t
     -> t
 
-  val create_piece_of_code
-     : ?newer_version_of:Code_id.t
-    -> Code_id.t
-    -> Flambda.Function_params_and_body.t
-    -> t
-
-  val create_pieces_of_code
-     : ?newer_versions_of:Code_id.t Code_id.Map.t
-    -> Flambda.Function_params_and_body.t Code_id.Lmap.t
-    -> t
-
-  val create_deleted_piece_of_code
-     : ?newer_versions_of:Code_id.t Code_id.Map.t
-    -> Code_id.t
-    -> t
-
+  val definitions : t -> Definition.t list
   val bound_symbols : t -> Bound_symbols.t
-  val defining_expr : t -> Flambda.Static_const.t
+  val defining_exprs : t -> Flambda.Static_const.Group.t
   val types_of_symbols : t -> (downwards_env * Flambda_type.t) Symbol.Map.t
+
+  val concat : t list -> t
 end
 
 module type Lifted_constant_state = sig

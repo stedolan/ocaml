@@ -27,8 +27,6 @@ end
 module Env = Un_cps_env
 module SC = Flambda.Static_const
 module R = Un_cps_result
-module BSCSC = Bound_symbols.Code_and_set_of_closures
-module SCCSC = Static_const.Code_and_set_of_closures
 
 (* CR mshinwell: Share these next functions with Un_cps.  Unfortunately
    there's a name clash with at least one of them ("symbol") with functions
@@ -128,14 +126,14 @@ let rec static_float_array_updates symb env acc i = function
           static_float_array_updates symb env acc (i + 1) r
       end
 
-let static_boxed_number kind env s default emit transl v r =
+let static_boxed_number kind env s default emit transl v r updates =
   let name = symbol s in
   let aux x cont = emit (name, Cmmgen_state.Global) (transl x) cont in
   let updates =
     match (v : _ Or_variable.t) with
     | Const _ -> None
     | Var v ->
-        make_update env kind (C.symbol name) v 0 None
+        make_update env kind (C.symbol name) v 0 updates
   in
   R.update_data r (or_variable aux default v), updates
 
@@ -253,24 +251,22 @@ and fill_static_up_to j acc i =
   if i = j then acc
   else fill_static_up_to j (C.cint 1n :: acc) (i + 1)
 
-let update_env_for_set_of_closure env { SCCSC.code; set_of_closures = _; } =
-  Code_id.Lmap.fold
-    (fun code_id SC.Code.({ params_and_body = p; newer_version_of; }) env ->
-       (* Check scope of the closure id *)
-       let env =
-         match newer_version_of with
-         | None -> env
-         | Some code_id ->
-           Env.check_scope ~allow_deleted:true env
-             (Code_id_or_symbol.Code_id code_id)
-       in
-       match (p : _ SC.Code.or_deleted) with
-       | Deleted ->
-         Env.mark_code_id_as_deleted env code_id
-       | Present p ->
-         (* Function info should be already computed *)
-         env
-    ) code env
+let update_env_for_code env (code : SC.Code.t) =
+  (* Check scope of the code ID *)
+  let code_id = SC.Code.code_id code in
+  let env =
+    match code.newer_version_of with
+    | None -> env
+    | Some code_id ->
+      Env.check_scope ~allow_deleted:true env
+        (Code_id_or_symbol.Code_id code_id)
+  in
+  match code.params_and_body with
+  | Deleted ->
+    Env.mark_code_id_as_deleted env code_id
+  | Present _ ->
+    (* Function info should already have been computed *)
+    env
 
 let add_function env r ~params_and_body code_id p =
   let fun_symbol = Code_id.code_symbol code_id in
@@ -280,33 +276,29 @@ let add_function env r ~params_and_body code_id p =
   let fundecl, r = params_and_body env r fun_name p in
   R.add_function r fundecl
 
-let add_functions
-    env ~params_and_body r { SCCSC.code; set_of_closures = _; }  =
-  let aux code_id SC.Code.({ params_and_body = p; newer_version_of = _; }) r =
-    match (p : _ SC.Code.or_deleted) with
-    | Deleted -> r
-    | Present p -> add_function env r ~params_and_body code_id p
-  in
-  Code_id.Lmap.fold aux code r
+let add_functions env ~params_and_body r (code : SC.Code.t) =
+  match code.params_and_body with
+  | Deleted -> r
+  | Present p -> add_function env r ~params_and_body (SC.Code.code_id code) p
 
-let preallocate_set_of_closures
-    (r, updates, env)
-    { BSCSC.code_ids = _; closure_symbols; }
-    { SCCSC.code = _; set_of_closures; } =
+let preallocate_set_of_closures (r, updates, env) ~closure_symbols
+      set_of_closures =
   let env, data, updates =
     let closure_symbols =
-      closure_symbols |> Closure_id.Lmap.bindings
+      closure_symbols
+      |> Closure_id.Lmap.bindings
       |> Closure_id.Map.of_list
     in
     static_set_of_closures env closure_symbols set_of_closures updates
   in
   let r = R.set_data r data in
-  R.archive_data r, updates, env
+  r, updates, env
 
-let static_const0 env r ~params_and_body (bound_symbols : Bound_symbols.t)
+let static_const0 env r ~updates ~params_and_body
+      (bound_symbols : Bound_symbols.Pattern.t)
       (static_const : Static_const.t) =
   match bound_symbols, static_const with
-  | Singleton s, Block (tag, _mut, fields) ->
+  | Block_like s, Block (tag, _mut, fields) ->
       let name = symbol s in
       let tag = Tag.Scannable.to_int tag in
       let block_name = name, Cmmgen_state.Global in
@@ -319,53 +311,53 @@ let static_const0 env r ~params_and_body (bound_symbols : Bound_symbols.t)
           fields (env, [])
       in
       let block = C.emit_block block_name header static_fields in
-      let updates = static_block_updates (C.symbol name) env None 0 fields in
+      let updates = static_block_updates (C.symbol name) env updates 0 fields in
       env, R.set_data r block, updates
-  | Sets_of_closures binders (*{ code_ids = _; closure_symbols; }*),
-    Sets_of_closures definitions (*{ code; set_of_closures; }*) ->
-      (* We cannot both build the environment and compile the functions in
-         one traversal, as the bodies may contain direct calls to the code ids
-         being defined *)
-      let updated_env =
-        List.fold_left update_env_for_set_of_closure env definitions
-      in
-      let r =
-        List.fold_left (add_functions updated_env ~params_and_body) r definitions
-      in
+  | Code code_id, Code code ->
+      if not (Code_id.equal code_id (Static_const.Code.code_id code)) then begin
+        Misc.fatal_errorf "Code ID mismatch:@ %a@ =@ %a"
+          Bound_symbols.Pattern.print bound_symbols
+          Static_const.print static_const
+      end;
+      (* Nothing needs doing here as we've already added the code to the
+         environment. *)
+      env, r, updates
+  | Set_of_closures closure_symbols, Set_of_closures set_of_closures ->
       let r, updates, env =
-        List.fold_left2 preallocate_set_of_closures
-          (r, None, updated_env) binders definitions
+        preallocate_set_of_closures (r, updates, env) ~closure_symbols
+          set_of_closures
       in
       env, r, updates
-  | Singleton s, Boxed_float v ->
+  | Block_like s, Boxed_float v ->
       let default = Numbers.Float_by_bit_pattern.zero in
       let transl = Numbers.Float_by_bit_pattern.to_float in
       let r, updates =
         static_boxed_number
-          Cmm.Double_u env s default C.emit_float_constant transl v r
+          Cmm.Double_u env s default C.emit_float_constant transl v r updates
       in
       env, r, updates
-  | Singleton s, Boxed_int32 v ->
+  | Block_like s, Boxed_int32 v ->
       let r, updates =
         static_boxed_number
-          Cmm.Word_int env s 0l C.emit_int32_constant Fun.id v r
+          Cmm.Word_int env s 0l C.emit_int32_constant Fun.id v r updates
       in
       env, r, updates
-  | Singleton s, Boxed_int64 v ->
+  | Block_like s, Boxed_int64 v ->
       let r, updates =
         static_boxed_number
-          Cmm.Word_int env s 0L C.emit_int64_constant Fun.id v r
+          Cmm.Word_int env s 0L C.emit_int64_constant Fun.id v r updates
       in
       env, r, updates
-  | Singleton s, Boxed_nativeint v ->
+  | Block_like s, Boxed_nativeint v ->
       let default = Targetint.zero in
       let transl = nativeint_of_targetint in
       let r, updates =
         static_boxed_number
           Cmm.Word_int env s default C.emit_nativeint_constant transl v r
+            updates
       in
       env, r, updates
-  | Singleton s,
+  | Block_like s,
     (Immutable_float_block fields | Immutable_float_array fields) ->
       let name = symbol s in
       let aux =
@@ -376,55 +368,93 @@ let static_const0 env r ~params_and_body (bound_symbols : Bound_symbols.t)
       let float_array =
         C.emit_float_array_constant (name, Cmmgen_state.Global) static_fields
       in
-      let e = static_float_array_updates (C.symbol name) env None 0 fields in
+      let e =
+        static_float_array_updates (C.symbol name) env updates 0 fields
+      in
       env, R.update_data r float_array, e
-  | Singleton s, Mutable_string { initial_value = str; }
-  | Singleton s, Immutable_string str ->
+  | Block_like s, Mutable_string { initial_value = str; }
+  | Block_like s, Immutable_string str ->
       let name = symbol s in
       let data = C.emit_string_constant (name, Cmmgen_state.Global) str in
-      env, R.update_data r data, None
-  | Singleton _, Sets_of_closures _ ->
-      Misc.fatal_errorf "[Code_and_set_of_closures] cannot be bound by a \
-          [Singleton] binding:@ %a"
+      env, R.update_data r data, updates
+  | Block_like _, (Code _ | Set_of_closures _) ->
+      Misc.fatal_errorf "[Code] and [Set_of_closures] cannot be bound by \
+          [Block_like] bindings:@ %a"
         SC.print static_const
-  | Sets_of_closures _,
+  | (Code _ | Set_of_closures _),
     (Block _ | Boxed_float _ | Boxed_int32 _ | Boxed_int64 _
       | Boxed_nativeint _ | Immutable_float_block _
       | Immutable_float_array _ | Mutable_string _ | Immutable_string _) ->
-      Misc.fatal_errorf "Only [Code_and_set_of_closures] can be bound by a \
-          [Code_and_set_of_closures] binding:@ %a"
+      Misc.fatal_errorf "Block-like constants cannot be bound by \
+          [Code] or [Set_of_closures] bindings:@ %a"
         SC.print static_const
+  | Code _, Set_of_closures _ ->
+    Misc.fatal_errorf "Sets of closures cannot be bound by [Code] bindings:\
+        @ %a"
+      SC.print static_const
+  | Set_of_closures _, Code _ ->
+    Misc.fatal_errorf "Pieces of code cannot be bound by [Set_of_closures] \
+        bindings:@ %a"
+      SC.print static_const
 
-let static_const
-    env r ~params_and_body
-    (bound_symbols : Bound_symbols.t)
-    (static_const : Static_const.t) =
+let static_const env r ~updates ~params_and_body bound_symbols static_const =
+  let env, r, updates =
+    static_const0 env r ~updates ~params_and_body bound_symbols static_const
+  in
+  env, R.archive_data r, updates
+
+let static_consts0 env r ~params_and_body bound_symbols static_consts =
+  (* We cannot both build the environment and compile any functions in
+     one traversal, as the bodies may contain direct calls to the code IDs
+     being defined. *)
+  let static_consts' = Static_const.Group.to_list static_consts in
+  let bound_symbols' = Bound_symbols.to_list bound_symbols in
+  if not (List.compare_lengths bound_symbols' static_consts' = 0) then begin
+    Misc.fatal_errorf "Mismatch between [Bound_symbols] and \
+        [Static_const]s:@ %a@ =@ %a"
+      Bound_symbols.print bound_symbols
+      Static_const.Group.print static_consts
+  end;
+  let env =
+    ListLabels.fold_left static_consts' ~init:env ~f:(fun env static_const ->
+      match Static_const.to_code static_const with
+      | None -> env
+      | Some code -> update_env_for_code env code)
+  in
+  let r =
+    ListLabels.fold_left static_consts' ~init:r ~f:(fun r static_const ->
+      match Static_const.to_code static_const with
+      | None -> r
+      | Some code -> add_functions env ~params_and_body r code)
+  in
+  ListLabels.fold_left2 bound_symbols' static_consts'
+    ~init:(env, r, None)
+    ~f:(fun (env, r, updates) bound_symbol_pat const ->
+      static_const env r ~updates ~params_and_body
+        bound_symbol_pat const)
+
+let static_consts env r ~params_and_body bound_symbols static_consts =
   try
-    (* Gc roots: statically allocated blocks themselves do not need to be scanned,
-       however if statically allocated blocks contain dynamically allocated
-       contents, then that block has to be registered as Gc roots for the Gc to
-       correctly patch it if/when it moves some of the dynamically allocated
-       blocks. As a safe over-approximation, we thus register as gc_roots all
-       symbols who have an associated computation (and thus are not
+    (* Gc roots: statically allocated blocks themselves do not need to be
+       scanned, however if statically allocated blocks contain dynamically
+       allocated contents, then that block has to be registered as Gc roots for
+       the Gc to correctly patch it if/when it moves some of the dynamically
+       allocated blocks. As a safe over-approximation, we thus register as
+       gc_roots all symbols who have an associated computation (and thus are not
        fully_static). *)
     let roots =
-      if Static_const.is_fully_static static_const then []
+      if Static_const.Group.is_fully_static static_consts then []
       else Symbol.Set.elements (Bound_symbols.being_defined bound_symbols)
     in
     let r = R.add_gc_roots r roots in
-    let env, r, update_opt =
-      static_const0 env r ~params_and_body bound_symbols static_const
-    in
-    (* [R.archive_data] helps keep definitions of separate symbols in different
-       [data_item] lists and this increases readability of the generated Cmm. *)
-    env, R.archive_data r, update_opt
+    static_consts0 env r ~params_and_body bound_symbols static_consts
   with Misc.Fatal_error as e ->
     if !Clflags.flambda_context_on_error then begin
-      (* Create a new let_symbol with a dummy body to better
-         print the ound symbols and static const. *)
+      (* Create a new "let symbol" with a dummy body to better print the bound
+         symbols and static consts. *)
       let dummy_body = Expr.create_invalid () in
       let tmp_let_symbol =
-        Expr.create_let_symbol bound_symbols Syntactic static_const dummy_body
+        Expr.create_let_symbol bound_symbols Syntactic static_consts dummy_body
       in
       Format.eprintf
         "\n@[<v 0>%sContext is:%s translating `let symbol' to Cmm:@ %a@."

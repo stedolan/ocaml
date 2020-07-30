@@ -63,7 +63,7 @@ let lift dacc ty ~bound_to static_const =
       end;
       let dacc =
         let denv = DA.denv dacc in
-        Lifted_constant.create_singleton symbol static_const denv ty
+        Lifted_constant.create_block_like symbol static_const denv ty
         |> DA.add_lifted_constant dacc
       in
       let dacc =
@@ -96,6 +96,7 @@ let try_to_reify dacc (term : Reachable.t) ~bound_to ~allow_lifting =
     | Lift to_lift ->
       if Name_mode.is_normal occ_kind && allow_lifting then
         let static_const = create_static_const to_lift in
+        (* CR mshinwell: Make sure we never need this check now
         (* We cannot currently handle the lifting of constants that are
            recursive with a symbol currently being defined, unless the
            constant is a closure, which it never is in this case.
@@ -109,7 +110,7 @@ let try_to_reify dacc (term : Reachable.t) ~bound_to ~allow_lifting =
             (DE.symbols_currently_being_defined denv)
         in
         if overlap_with_current_definitions then term, dacc, ty
-        else lift dacc ty ~bound_to static_const
+        else *) lift dacc ty ~bound_to static_const
       else
         term, dacc, ty
     | Simple simple ->

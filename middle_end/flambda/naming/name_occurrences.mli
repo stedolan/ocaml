@@ -68,6 +68,8 @@ val add_name : t -> Name.t -> Name_mode.t -> t
 
 val add_closure_var : t -> Var_within_closure.t -> Name_mode.t -> t
 
+val singleton_code_id : Code_id.t -> Name_mode.t -> t
+
 (** If the use of the code ID is in a "newer version of" field, use
     [add_newer_version_of_code_id], not this function -- see below. *)
 val add_code_id : t -> Code_id.t -> Name_mode.t -> t
@@ -111,6 +113,8 @@ val continuations : t -> Continuation.Set.t
 val continuations_including_in_trap_actions : t -> Continuation.Set.t
 
 val closure_vars : t -> Var_within_closure.Set.t
+
+val symbols : t -> Symbol.Set.t
 
 val code_ids : t -> Code_id.Set.t
 

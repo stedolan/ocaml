@@ -73,9 +73,9 @@ module Iter_sets_of_closures = struct
     | Simple _ | Prim _ -> ()
     | Set_of_closures s ->
         f ~closure_symbols:None s
-    | Static_const const ->
+    | Static_consts consts ->
       match bindable_let_bound with
-      | Symbols { bound_symbols; _ } -> static_const f bound_symbols const
+      | Symbols { bound_symbols; _ } -> static_consts f bound_symbols consts
       | Singleton _ | Set_of_closures _ ->
         Misc.fatal_errorf "[Static_const] can only be bound to [Symbols]:@ %a"
           Let.print let_expr
@@ -125,44 +125,19 @@ module Iter_sets_of_closures = struct
 
   and invalid _ _ = ()
 
-  (* and fun_decl _f _ _decl = assert false  (\* FIXME Let code *\) *)
-(*
-    let t = Function_declaration.params_and_body decl in
-    Function_params_and_body.pattern_match t
-      ~f:(fun ~return_continuation:_ _exn_k _args ~body ~my_closure:_ ->
-          expr f body
-        )
-*)
-
-  and static_const f
-        (bound_symbols : Bound_symbols.t)
-        (static_const : Static_const.t) =
-    match bound_symbols, static_const with
-    | Sets_of_closures bound_symbol_components,
-      Sets_of_closures code_and_sets_of_closures ->
-      (* CR mshinwell: Make this a proper error *)
-      assert (List.compare_lengths bound_symbol_components
-        code_and_sets_of_closures = 0);
-      List.iter2
-        (fun ({ code_ids = _; closure_symbols; }
-              : Bound_symbols.Code_and_set_of_closures.t)
-             ({ code; set_of_closures; }
-              : Static_const.Code_and_set_of_closures.t) ->
-            f ~closure_symbols:(Some closure_symbols) set_of_closures;
-            Code_id.Lmap.iter (fun _ { Static_const.Code. params_and_body;
-                                       newer_version_of = _; } ->
-                match params_and_body with
-                | Deleted -> ()
-                | Present params_and_body ->
-                    Function_params_and_body.pattern_match params_and_body
-                      ~f:(fun ~return_continuation:_ _ _ ~body ~my_closure:_ ->
-                          expr f body))
-              code)
-        bound_symbol_components code_and_sets_of_closures
-    | _ ->
-      (* CR mshinwell: Make exhaustive and cause errors on wrong cases.
-         Then enable warning 4 *)
-      ()
+  and static_consts f bound_symbols static_consts =
+    Static_const.Group.match_against_bound_symbols static_consts bound_symbols
+      ~init:()
+      ~code:(fun () _code_id (code : Static_const.Code.t) ->
+        match code.params_and_body with
+        | Deleted -> ()
+        | Present params_and_body ->
+          Function_params_and_body.pattern_match params_and_body
+            ~f:(fun ~return_continuation:_ _ _ ~body ~my_closure:_ ->
+                expr f body))
+      ~set_of_closures:(fun () ~closure_symbols set_of_closures ->
+        f ~closure_symbols:(Some closure_symbols) set_of_closures)
+      ~block_like:(fun () _ _ -> ())
 end
 
 let iter_sets_of_closures t ~f =

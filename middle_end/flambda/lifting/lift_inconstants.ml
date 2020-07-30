@@ -18,6 +18,13 @@
 
 open! Simplify_import
 
+(* CR mshinwell: This transformation is a nuisance as it entails
+   complications to [Sort_lifted_constants] to get the inserted
+   [Let_symbol] bindings in the correct order.  It isn't clear that it
+   is necessary now that we can lift inconstants as a matter of course
+   on the downwards traversal.
+   vlaviron also thinks that this pass is overly sensitive to traversal order
+   in some way
 let lift_non_closure_discovered_via_reified_continuation_param_types dacc
       var to_lift ~reified_continuation_params_to_symbols
       ~reified_definitions ~closure_symbols_by_set =
@@ -44,7 +51,7 @@ let lift_non_closure_discovered_via_reified_continuation_param_types dacc
     let lifted_constant =
       (* The environment here may be used by [Sort_lifted_constants], but the
          type will not be. *)
-      LC.create_singleton symbol static_const (DA.denv dacc) (T.any_value ())
+      LC.create_block_like symbol static_const (DA.denv dacc) (T.any_value ())
     in
     let reified_definitions = (lifted_constant, None) :: reified_definitions in
     let reified_continuation_params_to_symbols =
@@ -170,12 +177,9 @@ let lift_set_of_closures_discovered_via_reified_continuation_param_types dacc
          via symbols.)  See long comment above concerning subtle point
          relating to dependencies that might be exposed during such
          simplification. *)
-      LC.create_set_of_closures Code_id.Set.empty (DA.denv dacc)
+      LC.create_set_of_closures (DA.denv dacc)
         ~closure_symbols_with_types
-        (Sets_of_closures [{
-          code = Code_id.Lmap.empty;
-          set_of_closures;
-        }])
+        (Set_of_closures set_of_closures)
     in
     let reified_definitions =
       (lifted_constant, Some (DA.denv dacc, extra_deps)) :: reified_definitions
@@ -311,19 +315,21 @@ let lift_via_reification_of_continuation_param_types0 dacc ~params
   let handler =
     List.fold_left (fun handler lifted_constant ->
         let bound_symbols = LC.bound_symbols lifted_constant in
-        let defining_expr = LC.defining_expr lifted_constant in
-        Expr.create_let_symbol bound_symbols Dominator defining_expr handler)
+        let defining_exprs = LC.defining_exprs lifted_constant in
+        Expr.create_let_symbol bound_symbols Dominator defining_exprs handler)
       handler
       reified_definitions.bindings_outermost_last
   in
   dacc, handler
-
-let lift_via_reification_of_continuation_param_types dacc ~params
-      ~extra_params_and_args ~handler =
+*)
+let lift_via_reification_of_continuation_param_types dacc ~params:_
+      ~extra_params_and_args:_ ~handler =
+  (*
   if Flambda_features.lift_inconstants () then
     lift_via_reification_of_continuation_param_types0 dacc ~params
       ~extra_params_and_args ~handler
   else
+  *)
     dacc, handler
 
 let matches_extension_constructor static_const =
@@ -337,7 +343,7 @@ let matches_extension_constructor static_const =
       true
     | Mutable | Immutable -> false
     end
-  | (Sets_of_closures _ | Boxed_float _ | Boxed_int32 _ | Boxed_int64 _
+  | (Code _ | Set_of_closures _ | Boxed_float _ | Boxed_int32 _ | Boxed_int64 _
     | Boxed_nativeint _ | Immutable_float_block _ | Immutable_float_array _
     | Mutable_string _ | Immutable_string _) -> false
 

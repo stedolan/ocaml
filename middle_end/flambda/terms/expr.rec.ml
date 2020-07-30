@@ -367,10 +367,10 @@ let create_pattern_let bound_vars defining_expr body : t =
   let expr, _ = create_pattern_let0 bound_vars defining_expr body in
   expr
 
-let create_let_symbol bound_symbols scoping_rule static_const body : t =
+let create_let_symbol bound_symbols scoping_rule static_consts body : t =
   let expr, _ =
     create_pattern_let0 (Bindable_let_bound.symbols bound_symbols scoping_rule)
-      (Named.create_static_const static_const) body
+      (Named.create_static_consts static_consts) body
   in
   expr
 

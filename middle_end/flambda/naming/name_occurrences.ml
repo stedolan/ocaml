@@ -617,6 +617,8 @@ let add_code_id t id kind =
     code_ids = For_code_ids.add t.code_ids id kind;
   }
 
+let singleton_code_id id kind = add_code_id empty id kind
+
 let add_newer_version_of_code_id t id kind =
   { t with
     newer_version_of_code_ids =
@@ -822,6 +824,7 @@ let rec union_list ts =
   | t::ts -> union t (union_list ts)
 
 let closure_vars t = For_closure_vars.keys t.closure_vars
+let symbols t = For_names.keys t.names |> Name.set_to_symbol_set
 let continuations t = For_continuations.keys t.continuations
 let continuations_including_in_trap_actions t =
   Continuation.Set.union (For_continuations.keys t.continuations)

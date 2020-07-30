@@ -38,7 +38,7 @@ let rec simplify_let
       let is_dynamically_allocated_set_of_closures =
         Named.is_dynamically_allocated_set_of_closures defining_expr
       in
-      let is_let_symbol = Named.is_static_const defining_expr in
+      let is_let_symbol = Named.is_static_consts defining_expr in
       (* Simplification of toplevel dynamically-allocated sets of closures can
          yield constants that must be placed immediately around the body rather
          than propagated upwards to the previous enclosing "let symbol".  That
@@ -121,12 +121,9 @@ let rec simplify_let
         in
         let calculate_constants_to_place lifted_constants_to_place
               ~critical_deps ~to_float =
-          let fold_over_lifted_constants ~init ~f =
-            LCS.fold lifted_constants_to_place ~init
-              ~f:(fun acc lifted_const -> f acc (lifted_const, None))
-          in
           let sorted_lifted_constants =
-            Sort_lifted_constants.sort ~fold_over_lifted_constants
+            Sort_lifted_constants.sort
+              ~fold_over_lifted_constants:(LCS.fold lifted_constants_to_place)
           in
           (* If we are at a [Dominator]-scoped binding then we float up
              as many constants as we can whose definitions are fully static
@@ -153,11 +150,11 @@ let rec simplify_let
               ~init:([], to_float, critical_deps)
               ~f:(fun (to_place, to_float, critical_deps) lifted_const ->
                 let bound_symbols = LC.bound_symbols lifted_const in
-                let defining_expr = LC.defining_expr lifted_const in
-                if Static_const.is_fully_static defining_expr then
+                let defining_exprs = LC.defining_exprs lifted_const in
+                if Static_const.Group.is_fully_static defining_exprs then
                   let must_place =
                     Name_occurrences.inter_domain_is_non_empty critical_deps
-                      (Static_const.free_names defining_expr)
+                      (Static_const.Group.free_names defining_exprs)
                   in
                   if not must_place then
                     to_place, LCS.add to_float lifted_const, critical_deps
@@ -214,18 +211,22 @@ let rec simplify_let
         in
         body, user_data, uacc
       end
-    | Reified { definition; bound_symbol; symbol; static_const; } ->
+    | Reified { definition; symbol; static_const; } ->
       if place_lifted_constants_immediately then begin
         Misc.fatal_errorf "Did not expect [Simplify_named] to return \
             [Reified] (bound symbol %a)"
-          Bound_symbols.print bound_symbol
+          Symbol.print symbol
       end;
       (* In this case, the defining expression was found to be constant,
          so we generate a "let symbol" binding.  The constant being bound
          has not yet been added to [dacc]; that will happen during
          simplification of the following built [let_symbol_expr]. *)
+      let bound_symbols =
+        Bound_symbols.singleton (Bound_symbols.Pattern.block_like symbol)
+      in
       let let_symbol_expr =
-        Expr.create_let_symbol bound_symbol Dominator static_const
+        Expr.create_let_symbol bound_symbols Dominator
+          (Static_const.Group.create [static_const])
           (Expr.create_pattern_let bindable_let_bound definition body)
       in
       (* We're effectively replacing one expression (the original [Let])
@@ -978,9 +979,15 @@ and simplify_direct_partial_application
          constant identifying deleted code.  This will ensure, if for some
          reason the constant makes it to Cmm stage, that code size is not
          increased unnecessarily. *)
-      Lifted_constant.create_deleted_piece_of_code code_id
+      Lifted_constant.create_code code_id
+        (Code (Static_const.Code.deleted code_id))
     in
-    let code = Lifted_constant.create_piece_of_code code_id params_and_body in
+    let code =
+      Lifted_constant.create_code code_id
+        (Code (Static_const.Code.create code_id
+          ~params_and_body:(Present params_and_body)
+          ~newer_version_of:None))
+    in
     let dacc =
       DA.add_lifted_constant dacc dummy_code
       |> DA.map_denv ~f:(fun denv -> DE.add_lifted_constant denv code)

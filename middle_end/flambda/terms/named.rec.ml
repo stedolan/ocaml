@@ -20,12 +20,12 @@ type t =
   | Simple of Simple.t
   | Prim of Flambda_primitive.t * Debuginfo.t
   | Set_of_closures of Set_of_closures.t
-  | Static_const of Static_const.t
+  | Static_consts of Static_const.Group.t
 
 let create_simple simple = Simple simple
 let create_prim prim dbg = Prim (prim, dbg)
 let create_set_of_closures set_of_closures = Set_of_closures set_of_closures
-let create_static_const const = Static_const const
+let create_static_consts consts = Static_consts consts
 
 let print_with_cache ~cache ppf (t : t) =
   match t with
@@ -38,7 +38,8 @@ let print_with_cache ~cache ppf (t : t) =
       (Flambda_colours.normal ())
   | Set_of_closures set_of_closures ->
     Set_of_closures.print_with_cache ~cache ppf set_of_closures
-  | Static_const const -> Static_const.print ppf const
+  | Static_consts consts ->
+    Static_const.Group.print_with_cache ~cache ppf consts
 
 let print ppf t = print_with_cache ~cache:(Printing_cache.create ()) ppf t
 
@@ -57,7 +58,10 @@ let invariant_returning_kind env t : Flambda_primitive.result_kind =
       Flambda_primitive.invariant env prim;
       ignore (dbg : Debuginfo.t);
       Flambda_primitive.result_kind prim
-    | Static_const _ -> Singleton K.value
+    | Static_consts _ ->
+      (* CR mshinwell: This isn't really right, there can be multiple
+         constants *)
+      Singleton K.value
   with Misc.Fatal_error ->
     Misc.fatal_errorf "(during invariant checks) Context is:@ %a" print t
 
@@ -69,7 +73,7 @@ let free_names t =
   | Simple simple -> Simple.free_names simple
   | Prim (prim, _dbg) -> Flambda_primitive.free_names prim
   | Set_of_closures set -> Set_of_closures.free_names set
-  | Static_const const -> Static_const.free_names const
+  | Static_consts consts -> Static_const.Group.free_names consts
 
 let apply_name_permutation t perm =
   match t with
@@ -85,17 +89,17 @@ let apply_name_permutation t perm =
     let set' = Set_of_closures.apply_name_permutation set perm in
     if set == set' then t
     else Set_of_closures set'
-  | Static_const const ->
-    let const' = Static_const.apply_name_permutation const perm in
-    if const == const' then t
-    else Static_const const'
+  | Static_consts consts ->
+    let consts' = Static_const.Group.apply_name_permutation consts perm in
+    if consts == consts' then t
+    else Static_consts consts'
 
 let all_ids_for_export t =
   match t with
   | Simple simple -> Ids_for_export.from_simple simple
   | Prim (prim, _dbg) -> Flambda_primitive.all_ids_for_export prim
   | Set_of_closures set -> Set_of_closures.all_ids_for_export set
-  | Static_const const -> Static_const.all_ids_for_export const
+  | Static_consts consts -> Static_const.Group.all_ids_for_export consts
 
 let import import_map t =
   match t with
@@ -108,11 +112,11 @@ let import import_map t =
   | Set_of_closures set ->
     let set = Set_of_closures.import import_map set in
     Set_of_closures set
-  | Static_const const ->
-    let const = Static_const.import import_map const in
-    Static_const const
+  | Static_consts consts ->
+    let consts = Static_const.Group.import import_map consts in
+    Static_consts consts
 
-let box_value name (kind : Flambda_kind.t) dbg : Named.t * Flambda_kind.t =
+let box_value name (kind : Flambda_kind.t) dbg : t * Flambda_kind.t =
   let simple = Simple.name name in
   match kind with
   | Value -> Simple simple, kind
@@ -129,7 +133,7 @@ let box_value name (kind : Flambda_kind.t) dbg : Named.t * Flambda_kind.t =
   | Fabricated ->
     Misc.fatal_error "Cannot box values of [Fabricated] kind"
 
-let unbox_value name (kind : Flambda_kind.t) dbg : Named.t * Flambda_kind.t =
+let unbox_value name (kind : Flambda_kind.t) dbg : t * Flambda_kind.t =
   let simple = Simple.name name in
   match kind with
   | Value -> Simple simple, kind
@@ -152,7 +156,7 @@ let at_most_generative_effects (t : t) =
   | Simple _ -> true
   | Prim (prim, _) -> Flambda_primitive.at_most_generative_effects prim
   | Set_of_closures _ -> true
-  | Static_const _ -> true
+  | Static_consts _ -> true
 
 let dummy_value (kind : K.t) : t =
   let simple =
@@ -176,15 +180,15 @@ let dummy_value (kind : K.t) : t =
 let is_dynamically_allocated_set_of_closures t =
   match t with
   | Set_of_closures _ -> true
-  | Simple _ | Prim _ | Static_const _ -> false
+  | Simple _ | Prim _ | Static_consts _ -> false
 
-let is_static_const t =
+let is_static_consts t =
   match t with
-  | Static_const _ -> true
+  | Static_consts _ -> true
   | Simple _ | Prim _ | Set_of_closures _ -> false
 
-let must_be_static_const t =
+let must_be_static_consts t =
   match t with
-  | Static_const const -> const
+  | Static_consts consts -> consts
   | Simple _ | Prim _ | Set_of_closures _ ->
-    Misc.fatal_errorf "Must be a [Static_const], but is not: %a" print t
+    Misc.fatal_errorf "Must be [Static_consts], but is not: %a" print t

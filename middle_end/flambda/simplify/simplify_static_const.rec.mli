@@ -18,8 +18,8 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
-val simplify_static_const
+val simplify_static_consts
    : Downwards_acc.t
   -> Bound_symbols.t
-  -> Static_const.t
-  -> Bound_symbols.t * Static_const.t * Downwards_acc.t
+  -> Static_const.Group.t
+  -> Bound_symbols.t * Static_const.Group.t * Downwards_acc.t

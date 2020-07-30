@@ -32,6 +32,10 @@ val create
   -> unit
   -> t
 
+val singleton_code_id : Code_id.t -> t
+
+val singleton_symbol : Symbol.t -> t
+
 val from_simple : Simple.t -> t
 
 val add_const : t -> Reg_width_things.Const.t -> t
@@ -47,6 +51,8 @@ val add_simple : t -> Simple.t -> t
 val add_code_id : t -> Code_id.t -> t
 
 val union : t -> t -> t
+
+val union_list : t list -> t
 
 module Import_map : sig
   type t
