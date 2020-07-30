@@ -350,7 +350,6 @@ let allowed_for_toplevel_lifting static_const =
 
 type reify_primitive_at_toplevel_result =
   | Lift of {
-    dacc : DA.t;
     symbol : Symbol.t;
     static_const : Flambda.Static_const.t;
   }
@@ -377,8 +376,6 @@ let reify_primitive_at_toplevel dacc bound_var ty =
     then
       Cannot_reify
     else begin
-      (* CR mshinwell: This should attempt to share the constant (see
-         first function in this file for the code). *)
       match DA.find_shareable_constant dacc static_const with
       | Some symbol -> Shared symbol
       | None ->
@@ -387,8 +384,7 @@ let reify_primitive_at_toplevel dacc bound_var ty =
             (Linkage_name.create
                (Variable.unique_name (Var_in_binding_pos.var bound_var)))
         in
-        let dacc = DA.consider_constant_for_sharing dacc symbol static_const in
-        Lift { dacc; symbol; static_const; }
+        Lift { symbol; static_const; }
     end
   | Lift_set_of_closures _ | Simple _ | Cannot_reify | Invalid ->
     Cannot_reify

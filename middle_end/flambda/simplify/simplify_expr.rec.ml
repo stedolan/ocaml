@@ -31,6 +31,7 @@ let rec simplify_let
   : 'a. DA.t -> Let.t -> 'a k -> Expr.t * 'a * UA.t
 = fun dacc let_expr k ->
   let module L = Flambda.Let in
+  let original_dacc = dacc in
   L.pattern_match let_expr ~f:(fun bindable_let_bound ~body ->
     let defining_expr = L.defining_expr let_expr in
     let place_lifted_constants_immediately =
@@ -213,7 +214,7 @@ let rec simplify_let
         in
         body, user_data, uacc
       end
-    | Reified { definition; bound_symbol; static_const; dacc; } ->
+    | Reified { definition; bound_symbol; symbol; static_const; } ->
       if place_lifted_constants_immediately then begin
         Misc.fatal_errorf "Did not expect [Simplify_named] to return \
             [Reified] (bound symbol %a)"
@@ -230,7 +231,15 @@ let rec simplify_let
       (* We're effectively replacing one expression (the original [Let])
          with another here; the new expression will be completely
          re-simplified.  So we don't have to do anything relating to lifted
-         constants. *)
+         constants.
+         We have to revert to [original_dacc] as types in [dacc] may have
+         been affected (due to aliases) in ways that would be wrong to
+         propagate.  We do however augment [original_dacc] so that it knows
+         [symbol], which we have freshly generated, is eligible for
+         sharing. *)
+      let dacc =
+        DA.consider_constant_for_sharing original_dacc symbol static_const
+      in
       simplify_expr dacc let_symbol_expr k
     | Shared symbol ->
       if place_lifted_constants_immediately then begin
@@ -248,8 +257,8 @@ let rec simplify_let
           body
       in
       (* Same comment as for the [Reified] case with regard to lifted
-         constants. *)
-      simplify_expr dacc let_expr k)
+         constants and [original_dacc]. *)
+      simplify_expr original_dacc let_expr k)
 
 and simplify_one_continuation_handler :
  'a. DA.t
