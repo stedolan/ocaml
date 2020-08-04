@@ -107,6 +107,9 @@ end = struct
     end)
   end
 
+  (* CR-someday mshinwell: Add command-line flag to control this *)
+  let max_num_possible_results = 10
+
   let simplify op dacc ~original_term dbg ~arg1 ~arg1_ty ~arg2 ~arg2_ty
         ~result_var =
     let module PR = Possible_result in
@@ -125,9 +128,6 @@ end = struct
       Reachable.invalid (), env_extension, dacc
     in
     let check_possible_results ~possible_results =
-      (* CR mshinwell: We may want to bound the size of the set.
-         CARE: we either have to forget everything, or return everything;
-         it's wrong to return just a subset. *)
       if PR.Set.is_empty possible_results then
         result_invalid ()
       else
@@ -203,19 +203,24 @@ end = struct
     match proof1, proof2 with
     | (Proved nums1, Proved nums2)
         when N.ok_to_evaluate denv ->
-      assert (not (N.Lhs.Set.is_empty nums1)); (* XXX Fails, typedecl.ml *)
+      assert (not (N.Lhs.Set.is_empty nums1));
       assert (not (N.Rhs.Set.is_empty nums2));
-      let all_pairs = N.cross_product nums1 nums2 in
-      let possible_results =
-        N.Pair.Set.fold (fun (i1, i2) possible_results ->
-            match N.op op i1 i2 with
-            | None -> possible_results
-            | Some result ->
-              PR.Set.add (Exactly result) possible_results)
-          all_pairs
-          PR.Set.empty
-      in
-      check_possible_results ~possible_results
+      if N.Lhs.Set.cardinal nums1 > max_num_possible_results
+        || N.Rhs.Set.cardinal nums2 > max_num_possible_results
+      then
+        result_unknown ()
+      else
+        let all_pairs = N.cross_product nums1 nums2 in
+        let possible_results =
+          N.Pair.Set.fold (fun (i1, i2) possible_results ->
+              match N.op op i1 i2 with
+              | None -> possible_results
+              | Some result ->
+                PR.Set.add (Exactly result) possible_results)
+            all_pairs
+            PR.Set.empty
+        in
+        check_possible_results ~possible_results
     | (Proved nums1, Unknown)
         when N.ok_to_evaluate denv ->
       assert (not (N.Lhs.Set.is_empty nums1));
