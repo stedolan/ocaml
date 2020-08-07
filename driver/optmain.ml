@@ -965,7 +965,7 @@ let main () =
   | Some filename ->
     trace_until_exit ~sampling_rate:0.001 ~filename
   end;
-  begin match Sys.getenv_opt "COLUMNS" with
+  begin match Sys.getenv_opt "FLAMBDA_COLUMNS" with
   | None -> ()
   | Some i ->
     match int_of_string i with
