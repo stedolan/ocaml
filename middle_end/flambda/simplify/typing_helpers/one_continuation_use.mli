@@ -16,14 +16,14 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
+module DE = Simplify_envs.Downwards_env
 module T = Flambda_type
-module TE = Flambda_type.Typing_env
 
 type t
 
 val create
    : Continuation_use_kind.t
-  -> typing_env_at_use:TE.t
+  -> env_at_use:DE.t
   -> Apply_cont_rewrite_id.t
   -> arg_types:T.t list
   -> t
@@ -33,4 +33,4 @@ val print : Format.formatter -> t -> unit
 val id : t -> Apply_cont_rewrite_id.t
 val use_kind : t -> Continuation_use_kind.t
 val arg_types : t -> T.t list
-val typing_env_at_use : t -> TE.t
+val env_at_use : t -> DE.t

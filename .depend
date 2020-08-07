@@ -5814,7 +5814,6 @@ middle_end/flambda/simplify/simplify_expr.rec.cmo : \
     middle_end/flambda/naming/name_mode.cmi \
     utils/misc.cmi \
     parsing/location.cmi \
-    middle_end/flambda/lifting/lift_inconstants.cmi \
     middle_end/flambda/basic/kinded_parameter.cmi \
     middle_end/flambda/inlining/inlining_transforms.cmi \
     middle_end/flambda/inlining/inlining_decision.cmi \
@@ -5863,7 +5862,6 @@ middle_end/flambda/simplify/simplify_expr.rec.cmx : \
     middle_end/flambda/naming/name_mode.cmx \
     utils/misc.cmx \
     parsing/location.cmx \
-    middle_end/flambda/lifting/lift_inconstants.cmx \
     middle_end/flambda/basic/kinded_parameter.cmx \
     middle_end/flambda/inlining/inlining_transforms.cmx \
     middle_end/flambda/inlining/inlining_decision.cmx \
@@ -6315,16 +6313,19 @@ middle_end/flambda/simplify/basic/reachable.cmi : \
     middle_end/flambda/basic/invalid_term_semantics.cmi \
     middle_end/flambda/terms/flambda.cmi
 middle_end/flambda/simplify/env/continuation_env_and_param_types.cmo : \
+    middle_end/flambda/simplify/env/simplify_envs.cmi \
     middle_end/flambda/types/flambda_type.cmi \
     middle_end/flambda/basic/continuation_extra_params_and_args.cmi \
     middle_end/flambda/basic/apply_cont_rewrite_id.cmi \
     middle_end/flambda/simplify/env/continuation_env_and_param_types.cmi
 middle_end/flambda/simplify/env/continuation_env_and_param_types.cmx : \
+    middle_end/flambda/simplify/env/simplify_envs.cmx \
     middle_end/flambda/types/flambda_type.cmx \
     middle_end/flambda/basic/continuation_extra_params_and_args.cmx \
     middle_end/flambda/basic/apply_cont_rewrite_id.cmx \
     middle_end/flambda/simplify/env/continuation_env_and_param_types.cmi
 middle_end/flambda/simplify/env/continuation_env_and_param_types.cmi : \
+    middle_end/flambda/simplify/env/simplify_envs.cmi \
     middle_end/flambda/types/flambda_type.cmi \
     middle_end/flambda/basic/continuation_extra_params_and_args.cmi \
     middle_end/flambda/basic/apply_cont_rewrite_id.cmi
@@ -6358,6 +6359,7 @@ middle_end/flambda/simplify/env/continuation_uses_env_intf.cmo : \
     middle_end/flambda/simplify/env/continuation_use_kind.cmi \
     middle_end/flambda/simplify/env/continuation_env_and_param_types.cmi \
     middle_end/flambda/basic/continuation.cmi \
+    middle_end/flambda/types/structures/code_age_relation.cmi \
     middle_end/flambda/basic/apply_cont_rewrite_id.cmi
 middle_end/flambda/simplify/env/continuation_uses_env_intf.cmx : \
     middle_end/flambda/simplify/env/simplify_envs.cmx \
@@ -6366,6 +6368,7 @@ middle_end/flambda/simplify/env/continuation_uses_env_intf.cmx : \
     middle_end/flambda/simplify/env/continuation_use_kind.cmx \
     middle_end/flambda/simplify/env/continuation_env_and_param_types.cmx \
     middle_end/flambda/basic/continuation.cmx \
+    middle_end/flambda/types/structures/code_age_relation.cmx \
     middle_end/flambda/basic/apply_cont_rewrite_id.cmx
 middle_end/flambda/simplify/env/downwards_acc.cmo : \
     middle_end/flambda/basic/var_within_closure.cmi \
@@ -6541,11 +6544,9 @@ middle_end/flambda/simplify/env/upwards_acc.cmi : \
     middle_end/flambda/terms/flambda.cmx \
     middle_end/flambda/basic/continuation.cmx
 middle_end/flambda/simplify/typing_helpers/continuation_uses.cmo : \
-    middle_end/flambda/compilenv_deps/symbol.cmi \
     middle_end/flambda/simplify/env/simplify_envs.cmi \
     middle_end/flambda/basic/scope.cmi \
     middle_end/flambda/simplify/typing_helpers/one_continuation_use.cmi \
-    middle_end/flambda/basic/name.cmi \
     utils/misc.cmi \
     middle_end/flambda/types/flambda_type.cmi \
     middle_end/flambda/compilenv_deps/flambda_features.cmi \
@@ -6558,11 +6559,9 @@ middle_end/flambda/simplify/typing_helpers/continuation_uses.cmo : \
     middle_end/flambda/basic/apply_cont_rewrite_id.cmi \
     middle_end/flambda/simplify/typing_helpers/continuation_uses.cmi
 middle_end/flambda/simplify/typing_helpers/continuation_uses.cmx : \
-    middle_end/flambda/compilenv_deps/symbol.cmx \
     middle_end/flambda/simplify/env/simplify_envs.cmx \
     middle_end/flambda/basic/scope.cmx \
     middle_end/flambda/simplify/typing_helpers/one_continuation_use.cmx \
-    middle_end/flambda/basic/name.cmx \
     utils/misc.cmx \
     middle_end/flambda/types/flambda_type.cmx \
     middle_end/flambda/compilenv_deps/flambda_features.cmx \
@@ -6583,6 +6582,7 @@ middle_end/flambda/simplify/typing_helpers/continuation_uses.cmi : \
     middle_end/flambda/simplify/env/continuation_use_kind.cmi \
     middle_end/flambda/simplify/env/continuation_env_and_param_types.cmi \
     middle_end/flambda/basic/continuation.cmi \
+    middle_end/flambda/types/structures/code_age_relation.cmi \
     middle_end/flambda/basic/apply_cont_rewrite_id.cmi
 middle_end/flambda/simplify/typing_helpers/number_adjuncts.cmo : \
     utils/targetint.cmi \
@@ -6618,16 +6618,19 @@ middle_end/flambda/simplify/typing_helpers/number_adjuncts.cmi : \
     middle_end/flambda/types/kinds/flambda_kind.cmi \
     middle_end/flambda/terms/flambda.cmi
 middle_end/flambda/simplify/typing_helpers/one_continuation_use.cmo : \
+    middle_end/flambda/simplify/env/simplify_envs.cmi \
     middle_end/flambda/types/flambda_type.cmi \
     middle_end/flambda/simplify/env/continuation_use_kind.cmi \
     middle_end/flambda/basic/apply_cont_rewrite_id.cmi \
     middle_end/flambda/simplify/typing_helpers/one_continuation_use.cmi
 middle_end/flambda/simplify/typing_helpers/one_continuation_use.cmx : \
+    middle_end/flambda/simplify/env/simplify_envs.cmx \
     middle_end/flambda/types/flambda_type.cmx \
     middle_end/flambda/simplify/env/continuation_use_kind.cmx \
     middle_end/flambda/basic/apply_cont_rewrite_id.cmx \
     middle_end/flambda/simplify/typing_helpers/one_continuation_use.cmi
 middle_end/flambda/simplify/typing_helpers/one_continuation_use.cmi : \
+    middle_end/flambda/simplify/env/simplify_envs.cmi \
     middle_end/flambda/types/flambda_type.cmi \
     middle_end/flambda/simplify/env/continuation_use_kind.cmi \
     middle_end/flambda/basic/apply_cont_rewrite_id.cmi
@@ -8430,12 +8433,14 @@ middle_end/flambda/types/env/typing_env.rec.cmi : \
     middle_end/flambda/basic/apply_cont_rewrite_id.cmi
 middle_end/flambda/types/env/typing_env_extension.rec.cmo : \
     middle_end/flambda/compilenv_deps/variable.cmi \
+    middle_end/flambda/compilenv_deps/symbol.cmi \
     middle_end/flambda/naming/name_abstraction.cmi \
     middle_end/flambda/naming/bindable_variable_in_types.cmi \
     middle_end/flambda/basic/apply_cont_rewrite_id.cmi \
     middle_end/flambda/types/env/typing_env_extension.rec.cmi
 middle_end/flambda/types/env/typing_env_extension.rec.cmx : \
     middle_end/flambda/compilenv_deps/variable.cmx \
+    middle_end/flambda/compilenv_deps/symbol.cmx \
     middle_end/flambda/naming/name_abstraction.cmx \
     middle_end/flambda/naming/bindable_variable_in_types.cmx \
     middle_end/flambda/basic/apply_cont_rewrite_id.cmx \
@@ -8497,6 +8502,7 @@ middle_end/flambda/types/env/typing_env_level.rec.cmx : \
     middle_end/flambda/types/env/typing_env_level.rec.cmi
 middle_end/flambda/types/env/typing_env_level.rec.cmi : \
     middle_end/flambda/compilenv_deps/variable.cmi \
+    middle_end/flambda/compilenv_deps/symbol.cmi \
     middle_end/flambda/basic/simple.cmi \
     utils/printing_cache.cmi \
     middle_end/flambda/basic/name.cmi \

@@ -110,7 +110,8 @@ let simplify_named0 dacc (bindable_let_bound : Bindable_let_bound.t)
     if not (DE.at_unit_toplevel (DA.denv dacc)) then begin
       Misc.fatal_errorf "[Let] binding symbols is only allowed at the toplevel \
           of compilation units (not even at the toplevel of function \
-          bodies):@ %a"
+          bodies):@ %a@ =@ %a"
+        Bindable_let_bound.print bindable_let_bound
         Named.print named
     end;
     let non_closure_symbols_being_defined =

@@ -16,24 +16,24 @@
 
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
+module DE = Simplify_envs.Downwards_env
 module T = Flambda_type
-module TE = Flambda_type.Typing_env
 
 type t = {
   id : Apply_cont_rewrite_id.t;
   kind : Continuation_use_kind.t;
   arg_types : T.t list;
-  typing_env : TE.t;
+  env : DE.t;
 }
 
-let create kind ~typing_env_at_use:typing_env id ~arg_types =
+let create kind ~env_at_use:env id ~arg_types =
   { id;
     kind;
     arg_types;
-    typing_env;
+    env;
   }
 
-let print ppf { typing_env = _; id = _; kind = _; arg_types; } =
+let print ppf { env = _; id = _; kind = _; arg_types; } =
   Format.fprintf ppf "@[<hov 1>(\
       @[<hov 1>(arg_types@ %a)@]@ \
       )@]"
@@ -43,4 +43,4 @@ let print ppf { typing_env = _; id = _; kind = _; arg_types; } =
 let id t = t.id
 let use_kind t = t.kind
 let arg_types t = t.arg_types
-let typing_env_at_use t = t.typing_env
+let env_at_use t = t.env

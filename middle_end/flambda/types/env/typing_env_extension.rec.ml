@@ -100,13 +100,15 @@ let rec n_way_meet env ts =
   | [] -> empty ()
   | t::ts -> meet env t (n_way_meet env ts)
 
-let n_way_join ~env_at_fork envs_with_extensions ~params : t * _ =
+let n_way_join ~env_at_fork envs_with_extensions ~params
+      ~extra_lifted_consts_in_use_envs : t * _ =
   let abst, extra_cse_bindings =
     let rec open_binders envs_with_extensions envs_with_levels =
       match envs_with_extensions with
       | [] ->
         let level, extra_cse_bindings =
           Typing_env_level.n_way_join ~env_at_fork envs_with_levels ~params
+            ~extra_lifted_consts_in_use_envs
         in
         let abst =
           A.create (Typing_env_level.defined_vars level) level
@@ -138,9 +140,11 @@ let join env ~params ext1 ext2 =
   let right_env = Meet_or_join_env.right_join_env env in
   let env_at_fork = Meet_or_join_env.target_join_env env in
   let env_extension, _ =
-    n_way_join ~params ~env_at_fork [
-      left_env, Apply_cont_rewrite_id.create (), Non_inlinable, ext1;
-      right_env, Apply_cont_rewrite_id.create (), Non_inlinable, ext2;
-    ]
+    n_way_join ~params
+      ~extra_lifted_consts_in_use_envs:Symbol.Set.empty
+      ~env_at_fork
+      [ left_env, Apply_cont_rewrite_id.create (), Non_inlinable, ext1;
+        right_env, Apply_cont_rewrite_id.create (), Non_inlinable, ext2;
+      ]
   in
   env_extension

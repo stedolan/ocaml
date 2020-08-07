@@ -22,7 +22,7 @@ module TE = Flambda_type.Typing_env
 type t =
   | No_uses
   | Uses of {
-      handler_typing_env : TE.t;
+      handler_env : Simplify_envs.Downwards_env.t;
       arg_types_by_use_id : (TE.t * T.t) Apply_cont_rewrite_id.Map.t list;
       extra_params_and_args : Continuation_extra_params_and_args.t;
       is_single_inlinable_use : bool;

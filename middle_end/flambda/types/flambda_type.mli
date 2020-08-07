@@ -92,6 +92,8 @@ module Typing_env : sig
 
   val add_symbol_definition : t -> Symbol.t -> t
 
+  val add_symbol_definitions : t -> Symbol.Set.t -> t
+
   val add_equation : t -> Name.t -> flambda_type -> t
 
   val add_equations_on_params
@@ -145,6 +147,7 @@ module Typing_env : sig
     -> (t * Apply_cont_rewrite_id.t * Continuation_use_kind.t) list
     -> params:Kinded_parameter.t list
     -> unknown_if_defined_at_or_later_than:Scope.t
+    -> extra_lifted_consts_in_use_envs:Symbol.Set.t
     -> Typing_env_extension.t * Continuation_extra_params_and_args.t
 
   val free_names_transitive

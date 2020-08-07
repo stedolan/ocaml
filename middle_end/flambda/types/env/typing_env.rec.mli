@@ -137,11 +137,10 @@ val cut_and_n_way_join
   -> (t * Apply_cont_rewrite_id.t * Continuation_use_kind.t) list
   -> params:Kinded_parameter.t list
   -> unknown_if_defined_at_or_later_than:Scope.t
+  -> extra_lifted_consts_in_use_envs:Symbol.Set.t
   -> Typing_env_extension.t * Continuation_extra_params_and_args.t
 
 val free_names_transitive : t -> Type_grammar.t -> Name_occurrences.t
-
-val defined_symbols : t -> Symbol.Set.t
 
 val clean_for_export : t -> reachable_names:Name_occurrences.t -> t
 

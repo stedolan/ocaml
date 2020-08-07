@@ -38,9 +38,13 @@ include Identifiable.Make (struct
         (Format.pp_print_list ~pp_sep:Format.pp_print_space
           Var_in_binding_pos.print)
         closure_vars
-    | Symbols _ ->
-      Misc.fatal_error "Printing of [Symbols] in [Bindable_let_bound] \
-        not implemented"
+    | Symbols { bound_symbols; scoping_rule; } ->
+      Format.fprintf ppf "@[<hov 1>\
+          @[(bound_symbols@ %a)@]@ \
+          @[(scoping_rule@ %a)@]\
+          )@]"
+        Bound_symbols.print bound_symbols
+        Symbol_scoping_rule.print scoping_rule
 
   (* The following would only be required if using
      [Name_abstraction.Make_map], which we don't with this module. *)

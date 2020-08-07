@@ -19,3 +19,5 @@ type t =
   | Dominator
 
 val compare : t -> t -> int
+
+val print : Format.formatter -> t -> unit

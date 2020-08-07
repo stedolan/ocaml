@@ -111,6 +111,9 @@ end = struct
   let set_not_at_unit_toplevel t =
     { t with at_unit_toplevel = false; }
 
+  let set_at_unit_toplevel_state t at_unit_toplevel =
+    { t with at_unit_toplevel; }
+
   let get_inlining_depth_increment t = t.inlining_depth_increment
 
   let set_inlining_depth_increment t inlining_depth_increment =
@@ -410,14 +413,20 @@ end = struct
       code = from.code;
     }
 
-  let add_lifted_constants t lifted =
+  let add_lifted_constants ?maybe_already_defined t lifted =
     let module LC = Lifted_constant in
     let module LCS = Lifted_constant_state in
+    let maybe_already_defined =
+      match maybe_already_defined with
+      | None -> false
+      | Some () -> true
+    in
     let t =
       LCS.fold lifted ~init:t ~f:(fun t lifted_constant ->
         let types_of_symbols = LC.types_of_symbols lifted_constant in
         Symbol.Map.fold (fun sym (_denv, typ) t ->
-            define_symbol t sym (T.kind typ))
+            if maybe_already_defined && mem_symbol t sym then t
+            else define_symbol t sym (T.kind typ))
           types_of_symbols
           t)
     in
@@ -425,35 +434,39 @@ end = struct
       LCS.fold lifted ~init:t.typing_env ~f:(fun typing_env lifted_constant ->
         let types_of_symbols = LC.types_of_symbols lifted_constant in
         Symbol.Map.fold (fun sym (denv_at_definition, typ) typing_env ->
-            let sym = Name.symbol sym in
-            let env_extension =
-              (* CR mshinwell: Sometimes we might already have the types
-                 "made suitable" in the [closure_env] field of the typing
-                 environment, perhaps?  For example when lifted constants'
-                 types are coming out of a closure into the enclosing
-                 scope. *)
-              T.make_suitable_for_environment typ
-                denv_at_definition.typing_env
-                ~suitable_for:typing_env
-                ~bind_to:sym
-            in
-            TE.add_env_extension typing_env env_extension)
+            if maybe_already_defined && mem_symbol t sym then typing_env
+            else
+              let sym = Name.symbol sym in
+              let env_extension =
+                (* CR mshinwell: Sometimes we might already have the types
+                  "made suitable" in the [closure_env] field of the typing
+                  environment, perhaps?  For example when lifted constants'
+                  types are coming out of a closure into the enclosing
+                  scope. *)
+                T.make_suitable_for_environment typ
+                  denv_at_definition.typing_env
+                  ~suitable_for:typing_env
+                  ~bind_to:sym
+              in
+              TE.add_env_extension typing_env env_extension)
           types_of_symbols
           typing_env)
     in
     LCS.fold lifted ~init:(with_typing_env t typing_env)
-      ~f:(fun denv lifted_constant ->
+      ~f:(fun t lifted_constant ->
         let pieces_of_code =
           LC.defining_exprs lifted_constant
           |> Static_const.Group.pieces_of_code'
         in
-        List.fold_left (fun denv (code : Static_const.Code.t) ->
+        List.fold_left (fun t (code : Static_const.Code.t) ->
             match code.params_and_body with
             | Present params_and_body ->
-              define_code denv ?newer_version_of:code.newer_version_of
-                ~code_id:code.code_id ~params_and_body
-            | Deleted -> denv)
-          denv
+              if maybe_already_defined && mem_code t code.code_id then t
+              else
+                define_code t ?newer_version_of:code.newer_version_of
+                  ~code_id:code.code_id ~params_and_body
+            | Deleted -> t)
+          t
           pieces_of_code)
 
   let add_lifted_constant t const =
@@ -786,6 +799,9 @@ end = struct
       ~f:(fun types_of_symbols definition ->
         Symbol.Map.disjoint_union (Definition.types_of_symbols definition)
           types_of_symbols)
+
+  let all_defined_symbols t =
+    Symbol.Map.keys (types_of_symbols t)
 end and Lifted_constant_state : sig
   include I.Lifted_constant_state
     with type lifted_constant := Lifted_constant.t
@@ -828,7 +844,8 @@ end = struct
 
   let singleton const = Leaf const
 
-  let add t const = Union (t, Leaf const)
+  let add t const =
+    Union (t, Leaf const)
 
   let rec fold t ~init ~f =
     match t with
@@ -836,4 +853,9 @@ end = struct
     | Leaf const -> f init const
     | Union (t1, t2) -> fold t2 ~init:(fold t1 ~init ~f) ~f
     | Union_leaf (t, const) -> f (fold t ~init ~f) const
+
+  let all_defined_symbols t =
+    fold t ~init:Symbol.Set.empty ~f:(fun symbols const ->
+      Lifted_constant.all_defined_symbols const
+      |> Symbol.Set.union symbols)
 end

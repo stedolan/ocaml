@@ -28,7 +28,7 @@ module type S = sig
      : t
     -> Continuation.t
     -> Continuation_use_kind.t
-    -> typing_env_at_use:Flambda_type.Typing_env.t
+    -> env_at_use:Simplify_envs.Downwards_env.t
     -> arg_types:Flambda_type.t list
     -> t * Apply_cont_rewrite_id.t
 
@@ -41,10 +41,11 @@ module type S = sig
 
   val compute_handler_env
      : t
-    -> env_at_fork_plus_params_and_consts:Flambda_type.Typing_env.t
+    -> env_at_fork_plus_params_and_consts:Simplify_envs.Downwards_env.t
     -> consts_lifted_during_body:Simplify_envs.Lifted_constant_state.t
     -> Continuation.t
     -> params:Kinded_parameter.t list
+    -> code_age_relation_after_body:Code_age_relation.t
     -> Continuation_env_and_param_types.t
 
   val num_continuation_uses : t -> Continuation.t -> int

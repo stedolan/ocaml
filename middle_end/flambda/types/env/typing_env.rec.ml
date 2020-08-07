@@ -1150,7 +1150,8 @@ let cut t ~unknown_if_defined_at_or_later_than:min_scope =
       (Typing_env_level.empty ())
 
 let cut_and_n_way_join definition_typing_env ts_and_use_ids ~params
-      ~unknown_if_defined_at_or_later_than =
+      ~unknown_if_defined_at_or_later_than
+      ~extra_lifted_consts_in_use_envs =
   (* CR mshinwell: Can't [unknown_if_defined_at_or_later_than] just be
      computed by this function? *)
   let after_cuts =
@@ -1161,7 +1162,7 @@ let cut_and_n_way_join definition_typing_env ts_and_use_ids ~params
   in
   let level, extra_params_and_args =
     Typing_env_level.n_way_join ~env_at_fork:definition_typing_env
-      after_cuts ~params
+      after_cuts ~params ~extra_lifted_consts_in_use_envs
   in
   let env_extension = Typing_env_extension.create level in
   env_extension, extra_params_and_args

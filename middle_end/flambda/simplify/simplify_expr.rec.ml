@@ -396,6 +396,12 @@ and simplify_non_recursive_let_cont_handler
               DE.increment_continuation_scope_level denv_before_body
               |> DA.with_denv dacc
             in
+            (*
+            Format.eprintf "BEFORE BODY (level %a):@ %a\n%!"
+              Scope.print (DE.get_continuation_scope_level
+                (DA.denv dacc_for_body))
+              DE.print denv_before_body;
+            *)
             assert (DA.no_lifted_constants dacc_for_body);
             simplify_expr dacc_for_body body (fun dacc_after_body ->
               let cont_uses_env = DA.continuation_uses_env dacc_after_body in
@@ -405,39 +411,19 @@ and simplify_non_recursive_let_cont_handler
               let consts_lifted_during_body =
                 DA.get_lifted_constants dacc_after_body
               in
-              let dacc =
-                (* We need any lifted constant symbols and associated code IDs
-                   that were produced during simplification of the body to be
-                   defined in the fork environment passed to
-                   [compute_handler_env].
-                   The [DE] component of [dacc_after_body] is discarded since
-                   we have finished with the body now and will be moving into a
-                   different scope (that of the handler). *)
-                (* CR mshinwell: We don't actually need to add equations on
-                   the symbols here, since the equations giving joined types
-                   will supercede them in [compute_handler_env].  However
-                   we can't just define the symbols; we also need the code IDs
-                   as well (which live in [DE]; the code age relation in [TE]
-                   is dealt with below).
-                   mshinwell: This is no longer the case if we have a single
-                   inlinable use.  We copy the equations from [dacc] into
-                   the single use's environment (which might not contain them
-                   all already, somewhat counterintuitively) and return that
-                   as the handler env. *)
-                (* CR mshinwell: Exactly when does this weird situation
-                   occur? *)
-                consts_lifted_during_body
-                |> DE.add_lifted_constants denv_before_body
-                |> DE.with_code ~from:(DA.denv dacc_after_body)
-                |> DA.with_denv dacc_after_body
-              in
               let uses =
                 CUE.compute_handler_env cont_uses_env cont ~params
-                  ~env_at_fork_plus_params_and_consts:(DA.typing_env dacc)
+                  (* CR mshinwell: rename this parameter, the env does not
+                     have the constants in it now *)
+                  ~env_at_fork_plus_params_and_consts:denv_before_body
                   ~consts_lifted_during_body
+                  ~code_age_relation_after_body
               in
               let dacc =
-                DA.add_lifted_constants dacc prior_lifted_constants
+                (* CR mshinwell: Improve function names to clarify that this
+                   function (unlike the function of the same name in [DE])
+                   does not add to the environment, only to the accumulator. *)
+                DA.add_lifted_constants dacc_after_body prior_lifted_constants
               in
               let handler, user_data, uacc, is_single_inlinable_use,
                   is_single_use =
@@ -456,10 +442,24 @@ and simplify_non_recursive_let_cont_handler
                    we won't duplicate code (i.e. if there is only one use)
                    ---but this is not a normal "inlinable" position and cannot
                    be treated as such (e.g. for join calculations). *)
-                | Uses { handler_typing_env; arg_types_by_use_id;
+                | Uses { handler_env; arg_types_by_use_id;
                          extra_params_and_args; is_single_inlinable_use;
                          is_single_use; } ->
-                  let typing_env, extra_params_and_args =
+                  (* CR mshinwell: Finish this and do it for code IDs too
+                  Symbol.Set.iter (fun symbol ->
+                      if not (TE.mem handler_typing_env (Name.symbol symbol))
+                      then begin
+                        Misc.fatal_errorf "Missing lifted constant \
+                            symbol:@ %a@ handler_typing_env:@ %a@ \
+                            dacc:@ %a"
+                          Symbol.print symbol
+                          TE.print handler_typing_env
+                          DA.print dacc
+                      end)
+                    (LCS.all_defined_symbols
+                    *)
+                  let handler_typing_env, extra_params_and_args =
+                    let handler_typing_env = DE.typing_env handler_env in
                     (* Unbox the parameters of the continuation if possible.
                        Any such unboxing will induce a rewrite (or wrapper) on
                        the application sites of the continuation. *)
@@ -482,21 +482,24 @@ and simplify_non_recursive_let_cont_handler
                       assert is_exn_handler;
                       handler_typing_env, extra_params_and_args
                   in
-                  let dacc =
-                    DA.map_denv dacc ~f:(fun denv ->
-                      (* Ensure that during simplification of the handler we
-                         will know about any changes to the code age relation
-                         that arose during simplification of the body.
-                         Additionally, install the typing environment arising
-                         from the join into [dacc]. *)
-                      let typing_env =
-                        TE.with_code_age_relation typing_env
-                          code_age_relation_after_body
-                      in
-                      let denv = DE.with_typing_env denv typing_env in
-                      if at_unit_toplevel then denv
-                      else DE.set_not_at_unit_toplevel denv)
+                  let handler_env =
+                    DE.with_typing_env handler_env handler_typing_env
                   in
+                  let dacc =
+                    let denv =
+                      (* Install the environment arising from the join into
+                         [dacc].  Note that this environment doesn't just
+                         contain the joined types; it may also contain
+                         definitions of code that were produced during
+                         simplification of the body.  (The [DE] component of
+                         [dacc_after_body] is discarded since we are now
+                         moving into a different scope.) *)
+                      DE.set_at_unit_toplevel_state handler_env
+                        at_unit_toplevel
+                    in
+                    DA.with_denv dacc denv
+                  in
+                  (* CR mshinwell: This is currently disabled
                   let dacc, handler =
                     (* When still at toplevel, attempt to reify the types
                        of the continuation's parameters, to allow more lifting
@@ -513,7 +516,7 @@ and simplify_non_recursive_let_cont_handler
                       Lift_inconstants.
                         lift_via_reification_of_continuation_param_types dacc
                           ~params ~extra_params_and_args ~handler
-                  in
+                  in *)
                   try
                     let handler, user_data, uacc =
                       simplify_one_continuation_handler dacc cont Non_recursive
@@ -637,9 +640,9 @@ and simplify_recursive_let_cont_handlers
                  with an arbitrary argument! *)
               CUE.record_continuation_use cont_uses_env cont
                 Non_inlinable (* Maybe simpler ? *)
-                ~typing_env_at_use:(
+                ~env_at_use:(
                   (* not useful as we will have only top *)
-                  DE.typing_env definition_denv
+                  definition_denv
                 )
                 ~arg_types
             in
@@ -808,7 +811,7 @@ Format.eprintf "Simplifying inlined body with DE depth delta = %d\n%!"
       | Return apply_return_continuation ->
         let dacc, use_id =
           DA.record_continuation_use dacc apply_return_continuation Non_inlinable
-            ~typing_env_at_use:(DA.typing_env dacc)
+            ~env_at_use:(DA.denv dacc)
             ~arg_types:(T.unknown_types_from_arity result_arity)
         in
         dacc, Some use_id
@@ -817,7 +820,7 @@ Format.eprintf "Simplifying inlined body with DE depth delta = %d\n%!"
       DA.record_continuation_use dacc
         (Exn_continuation.exn_handler (Apply.exn_continuation apply))
         Non_inlinable
-        ~typing_env_at_use:(DA.typing_env dacc)
+        ~env_at_use:(DA.denv dacc)
         ~arg_types:(T.unknown_types_from_arity (
           Exn_continuation.arity (Apply.exn_continuation apply)))
     in
@@ -1105,12 +1108,12 @@ and simplify_function_call_where_callee's_type_unavailable
     | Return continuation -> continuation
   in
   let denv = DA.denv dacc in
-  let typing_env_at_use = DE.typing_env denv in
+  let env_at_use = denv in
   let dacc, exn_cont_use_id =
     DA.record_continuation_use dacc
       (Exn_continuation.exn_handler (Apply.exn_continuation apply))
       Non_inlinable
-      ~typing_env_at_use:(DA.typing_env dacc)
+      ~env_at_use:(DA.denv dacc)
       ~arg_types:(T.unknown_types_from_arity (
         Exn_continuation.arity (Apply.exn_continuation apply)))
   in
@@ -1125,7 +1128,7 @@ and simplify_function_call_where_callee's_type_unavailable
         Apply.print apply
     end;
 *)
-    DA.record_continuation_use dacc cont Non_inlinable ~typing_env_at_use
+    DA.record_continuation_use dacc cont Non_inlinable ~env_at_use
       ~arg_types:(T.unknown_types_from_arity return_arity)
   in
   let call_kind, use_id, dacc =
@@ -1133,7 +1136,7 @@ and simplify_function_call_where_callee's_type_unavailable
     | Indirect_unknown_arity ->
       let dacc, use_id =
         DA.record_continuation_use dacc cont Non_inlinable
-          ~typing_env_at_use ~arg_types:[T.any_value ()]
+          ~env_at_use ~arg_types:[T.any_value ()]
       in
       Call_kind.indirect_function_call_unknown_arity (), use_id, dacc
     | Indirect_known_arity { param_arity; return_arity; } ->
@@ -1346,14 +1349,14 @@ and simplify_method_call
   end;
   let dacc, use_id =
     DA.record_continuation_use dacc apply_cont Non_inlinable
-      ~typing_env_at_use:(DE.typing_env denv)
+      ~env_at_use:denv
       ~arg_types:[T.any_value ()]
   in
   let dacc, exn_cont_use_id =
     DA.record_continuation_use dacc
       (Exn_continuation.exn_handler (Apply.exn_continuation apply))
       Non_inlinable
-      ~typing_env_at_use:(DA.typing_env dacc)
+      ~env_at_use:(DA.denv dacc)
       ~arg_types:(T.unknown_types_from_arity (
         Exn_continuation.arity (Apply.exn_continuation apply)))
   in
@@ -1406,7 +1409,7 @@ and simplify_c_call
     | Return apply_continuation ->
       let dacc, use_id =
         DA.record_continuation_use dacc apply_continuation Non_inlinable
-          ~typing_env_at_use:(DA.typing_env dacc)
+          ~env_at_use:(DA.denv dacc)
           ~arg_types:(T.unknown_types_from_arity return_arity)
       in
       dacc, Some use_id
@@ -1418,7 +1421,7 @@ and simplify_c_call
     DA.record_continuation_use dacc
       (Exn_continuation.exn_handler (Apply.exn_continuation apply))
       Non_inlinable
-      ~typing_env_at_use:(DA.typing_env dacc)
+      ~env_at_use:(DA.denv dacc)
       ~arg_types:(T.unknown_types_from_arity (
         Exn_continuation.arity (Apply.exn_continuation apply)))
   in
@@ -1488,7 +1491,7 @@ and simplify_apply_cont
       DA.record_continuation_use dacc
         (AC.continuation apply_cont)
         use_kind
-        ~typing_env_at_use:(DA.typing_env dacc)
+        ~env_at_use:(DA.denv dacc)
         ~arg_types
     in
     let user_data, uacc = k dacc in
@@ -1641,15 +1644,16 @@ and simplify_switch
               Apply_cont.print action
               TEE.print env_extension;
 *)
-            let typing_env_at_use =
+            let env_at_use =
               TE.add_env_extension typing_env_at_use env_extension
+              |> DE.with_typing_env (DA.denv dacc)
             in
             let args = AC.args action in
             match args with
             | [] ->
               let dacc, rewrite_id =
                 DA.record_continuation_use dacc (AC.continuation action)
-                  Non_inlinable ~typing_env_at_use ~arg_types:[]
+                  Non_inlinable ~env_at_use ~arg_types:[]
               in
               let arms = Target_imm.Map.add arm (action, rewrite_id, []) arms in
               arms, dacc
@@ -1661,7 +1665,7 @@ and simplify_switch
                 let args, arg_types = List.split args_with_types in
                 let dacc, rewrite_id =
                   DA.record_continuation_use dacc (AC.continuation action)
-                    Non_inlinable ~typing_env_at_use ~arg_types
+                    Non_inlinable ~env_at_use ~arg_types
                 in
                 let arity = List.map T.kind arg_types in
                 let action = Apply_cont.update_args action ~args in
