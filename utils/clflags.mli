@@ -256,6 +256,7 @@ module Flambda : sig
     val fallback_inlining_heuristic : bool ref
     val inline_effects_in_cmm : bool ref
     val phantom_lets : bool ref
+    val max_inlining_depth : int ref
   end
 
   module Debug : sig

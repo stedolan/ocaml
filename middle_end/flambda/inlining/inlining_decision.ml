@@ -136,8 +136,11 @@ module Call_site_decision = struct
     | Inline { attribute = _; unroll_to; } -> Inline { unroll_to; }
 end
 
-(* CR mshinwell: These parameters need to be configurable *)
-let max_inlining_depth = 1
+(* CR mshinwell: Overhaul handling of the inlining depth tracking so that
+   it takes into account the depth of closures (or code), as per
+   conversation with lwhite. *)
+
+(* CR mshinwell: This parameter needs to be configurable *)
 let max_rec_depth = 1
 
 let make_decision_for_call_site denv ~function_decl_rec_info
@@ -156,7 +159,8 @@ let make_decision_for_call_site denv ~function_decl_rec_info
         else
           Inline { attribute = None; unroll_to = None; }
       | None ->
-        if apply_inlining_depth >= max_inlining_depth then
+        if apply_inlining_depth >= !Clflags.Flambda.Expert.max_inlining_depth
+        then
           Max_inlining_depth_exceeded
         else
           match inline with

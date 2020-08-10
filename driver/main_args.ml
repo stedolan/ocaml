@@ -987,6 +987,11 @@ let mk_no_flambda_expert_phantom_lets f =
   " Do not generate phantom lets even when -g is specified"
 ;;
 
+let mk_flambda_expert_max_inlining_depth f =
+  "-flambda-expert-max-inlining-depth", Arg.Int f,
+  " Set maximum inlining depth"
+;;
+
 let mk_flambda_debug_concrete_types_only_on_canonicals f =
   "-flambda-debug-concrete-types-only-on-canonicals", Arg.Unit f,
     " Check that concrete types are only assigned to canonical names"
@@ -1232,6 +1237,7 @@ module type Optcommon_options = sig
   val _no_flambda_expert_inline_effects_in_cmm : unit -> unit
   val _flambda_expert_phantom_lets : unit -> unit
   val _no_flambda_expert_phantom_lets : unit -> unit
+  val _flambda_expert_max_inlining_depth : int -> unit
   val _flambda_debug_concrete_types_only_on_canonicals : unit -> unit
   val _no_flambda_debug_concrete_types_only_on_canonicals : unit -> unit
 
@@ -1597,6 +1603,8 @@ struct
       F._flambda_expert_phantom_lets;
     mk_no_flambda_expert_phantom_lets
       F._no_flambda_expert_phantom_lets;
+    mk_flambda_expert_max_inlining_depth
+      F._flambda_expert_max_inlining_depth;
     mk_flambda_debug_concrete_types_only_on_canonicals
       F._flambda_debug_concrete_types_only_on_canonicals;
     mk_no_flambda_debug_concrete_types_only_on_canonicals
@@ -1756,6 +1764,8 @@ module Make_opttop_options (F : Opttop_options) = struct
       F._flambda_expert_phantom_lets;
     mk_no_flambda_expert_phantom_lets
       F._no_flambda_expert_phantom_lets;
+    mk_flambda_expert_max_inlining_depth
+      F._flambda_expert_max_inlining_depth;
     mk_flambda_debug_concrete_types_only_on_canonicals
       F._flambda_debug_concrete_types_only_on_canonicals;
     mk_no_flambda_debug_concrete_types_only_on_canonicals
@@ -2081,6 +2091,8 @@ module Default = struct
       set Flambda.Expert.phantom_lets
     let _no_flambda_expert_phantom_lets =
       clear Flambda.Expert.phantom_lets
+    let _flambda_expert_max_inlining_depth depth =
+      Flambda.Expert.max_inlining_depth := depth
 
     let _flambda_debug_concrete_types_only_on_canonicals =
       set Flambda.Debug.concrete_types_only_on_canonicals

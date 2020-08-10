@@ -436,6 +436,7 @@ module Flambda = struct
     let fallback_inlining_heuristic = ref false
     let inline_effects_in_cmm = ref false
     let phantom_lets = ref true
+    let max_inlining_depth = ref 1
   end
 
   module Debug = struct
