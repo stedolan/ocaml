@@ -383,6 +383,9 @@ and simplify_non_recursive_let_cont_handler
            [prior_lifted_constants] back into [dacc] later. *)
         DA.get_and_clear_lifted_constants dacc
       in
+      let inlining_depth_increment_at_let_cont =
+        DE.get_inlining_depth_increment (DA.denv dacc)
+      in
       let body, handler, user_data, uacc =
         let body, (result, uenv', user_data), uacc =
           let scope = DE.get_continuation_scope_level (DA.denv dacc) in
@@ -496,6 +499,17 @@ and simplify_non_recursive_let_cont_handler
                          moving into a different scope.) *)
                       DE.set_at_unit_toplevel_state handler_env
                         at_unit_toplevel
+                    in
+                    let denv =
+                      (* In the case where the continuation is going to be
+                         inlined, [denv] is basically the use environment,
+                         which might have a deeper inlining depth increment
+                         (e.g. where an [Apply] was inlined, revealing the
+                         linear inlinable use of the continuation).  We need
+                         to make sure the handler is simplified using the
+                         depth at the [Let_cont]. *)
+                      DE.set_inlining_depth_increment denv
+                        inlining_depth_increment_at_let_cont
                     in
                     DA.with_denv dacc denv
                   in
