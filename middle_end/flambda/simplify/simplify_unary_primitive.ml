@@ -366,6 +366,11 @@ let simplify_boolean_not dacc ~original_term ~arg:_ ~arg_ty ~result_var =
   let denv = DA.denv dacc in
   let typing_env = DE.typing_env denv in
   let proof = T.prove_equals_tagged_immediates typing_env arg_ty in
+  let result_unknown () =
+    let ty = T.unknown K.value in
+    let env_extension = TEE.one_equation result ty in
+    Reachable.reachable original_term, env_extension, dacc
+  in
   let result_invalid () =
     let ty = T.bottom K.value in
     let env_extension = TEE.one_equation result ty in
@@ -379,7 +384,7 @@ let simplify_boolean_not dacc ~original_term ~arg:_ ~arg_ty ~result_var =
             || Target_imm.equal imm Target_imm.one)
         imms
     in
-    if not imms_ok then result_invalid ()
+    if not imms_ok then result_unknown ()
     else
       let imms =
         Target_imm.Set.map (fun imm ->
