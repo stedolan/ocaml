@@ -36,6 +36,9 @@ val transl_extension_constructor: scopes:lambda_scopes ->
   Env.t -> Path.t option ->
   extension_constructor -> lambda
 
+val transl_scoped_exp : scopes:lambda_scopes -> ?scope:lambda_scope_item
+                        -> expression -> lambda
+
 type error =
     Free_super_var
   | Unreachable_reached

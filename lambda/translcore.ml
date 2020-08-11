@@ -258,9 +258,7 @@ and transl_exp0 ~scopes e =
       transl_let ~scopes rec_flag pat_expr_list
         (event_before ~scopes body (transl_exp ~scopes body))
   | Texp_function { arg_label = _; param; cases; partial; } ->
-      let scopes =
-        if e.exp_loc.loc_ghost then scopes
-        else Ls_anonymous_function :: scopes in
+      let scopes = Ls_anonymous_function :: scopes in
       transl_function ~scopes e param cases partial
   | Texp_apply({ exp_desc = Texp_ident(path, _, {val_kind = Val_prim p});
                 exp_type = prim_type } as funct, oargs)
@@ -912,6 +910,17 @@ and transl_function ~scopes e param cases partial =
   let lam = Lfunction{kind; params; return; body; attr; loc} in
   Translattribute.add_function_attributes lam e.exp_loc e.exp_attributes
 
+(* Like transl_exp, but used when introducing a new scope.
+   Goes to some trouble to avoid introducing many new anonymous function
+   scopes, as `let f a b = ...` is desugared to several Pexp_fun *)
+and transl_scoped_exp ~scopes ?scope expr =
+  match scope, expr.exp_desc with
+  | Some s, Texp_function { arg_label = _; param; cases; partial } ->
+     transl_function ~scopes:(s::scopes) expr param cases partial
+  | Some s, _ ->
+     transl_exp ~scopes:(s::scopes) expr
+  | None, _ ->
+     transl_exp ~scopes expr
 
 (*
   Notice: transl_let consumes (ie compiles) its pat_expr_list argument,
@@ -921,20 +930,12 @@ and transl_function ~scopes e param cases partial =
 *)
 and transl_let ~scopes ?(in_structure=false) rec_flag pat_expr_list =
   let transl_bound_exp pat expr =
-    match pat_bound_idents pat, expr, scopes with
-    | (id :: _),
-      {exp_desc = Texp_function { arg_label = _; param; cases; partial }; _},
-      scopes ->
-      (* A named function *)
-      transl_function ~scopes:(Ls_value_definition id :: scopes)
-        expr param cases partial
-    | (id :: _), expr, scopes when in_structure ->
-      (* A module-level named value *)
-      transl_exp ~scopes:(Ls_value_definition id :: scopes) expr
-    | _, expr, scopes ->
-      (* Everything else *)
-      transl_exp ~scopes expr in
-
+    let scope =
+      match pat_bound_idents pat, expr.exp_desc with
+      | (id :: _), Texp_function _ -> Some (Ls_value_definition id)
+      | (id :: _), _ when in_structure -> Some (Ls_value_definition id)
+      | _, _ -> None in
+    transl_scoped_exp ~scopes ?scope expr in
   match rec_flag with
     Nonrecursive ->
       let rec transl = function

@@ -327,8 +327,9 @@ let rec build_class_init ~scopes cla cstr super inh_init cl_init msubst top cl =
               ->
                 (inh_init, cl_init, methods, values)
             | Tcf_method (name, _, Tcfk_concrete (_, exp)) ->
-                let scopes = Ls_method_definition name :: scopes in
-                let met_code = msubst true (transl_exp ~scopes exp) in
+                let scope = Ls_method_definition name in
+                let met_code =
+                  msubst true (transl_scoped_exp ~scopes ~scope exp) in
                 let met_code =
                   if !Clflags.native_code && List.length met_code = 1 then
                     (* Force correct naming of method for profiles *)
