@@ -386,6 +386,9 @@ and simplify_non_recursive_let_cont_handler
       let inlining_depth_increment_at_let_cont =
         DE.get_inlining_depth_increment (DA.denv dacc)
       in
+      let inlined_debuginfo_at_let_cont =
+        DE.get_inlined_debuginfo (DA.denv dacc)
+      in
       let body, handler, user_data, uacc =
         let body, (result, uenv', user_data), uacc =
           let scope = DE.get_continuation_scope_level (DA.denv dacc) in
@@ -510,6 +513,11 @@ and simplify_non_recursive_let_cont_handler
                          depth at the [Let_cont]. *)
                       DE.set_inlining_depth_increment denv
                         inlining_depth_increment_at_let_cont
+                    in
+                    let denv =
+                      (* Likewise, the inlined debuginfo may need restoring. *)
+                      DE.set_inlined_debuginfo denv
+                        inlined_debuginfo_at_let_cont
                     in
                     DA.with_denv dacc denv
                   in

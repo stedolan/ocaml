@@ -177,6 +177,8 @@ module type Downwards_env = sig
 
   val add_inlined_debuginfo' : t -> Debuginfo.t -> Debuginfo.t
 
+  val get_inlined_debuginfo : t -> Debuginfo.t
+
   val round : t -> int
 
   (** Prevent function inlining from occurring in the given environment. *)
