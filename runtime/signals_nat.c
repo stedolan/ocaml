@@ -100,7 +100,7 @@ void caml_garbage_collection(void)
 
 void caml_poll(void)
 {
-  caml_gc_dispatch();
+  caml_process_pending_actions();
 }
 
 DECLARE_SIGNAL_HANDLER(handle_signal)
