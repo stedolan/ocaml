@@ -92,28 +92,28 @@ let allocates_unconditionally (i : Mach.instruction) =
   | NoAllocation | Exited -> false
 
 let is_leaf_func_without_loops (fun_body : Mach.instruction) =
-  let rec contains_calls (i : Mach.instruction) =
+  let rec contains_calls_or_loops (i : Mach.instruction) =
   match i.desc with
   | Iifthenelse (_, ifso, ifnot) ->
-    (contains_calls ifso) || (contains_calls ifnot) || contains_calls i.next
+    (contains_calls_or_loops ifso) || (contains_calls_or_loops ifnot) || contains_calls_or_loops i.next
   | Iswitch (_, cases) ->
-    (Array.exists (fun c -> contains_calls c) cases) || contains_calls i.next
+    (Array.exists (fun c -> contains_calls_or_loops c) cases) || contains_calls_or_loops i.next
   | Icatch (rec_flag, handlers, body) ->
     begin
       match rec_flag with 
     | Recursive ->
       true
     | Nonrecursive ->
-      (List.exists (fun (_, h) -> contains_calls h) handlers) || contains_calls body || contains_calls i.next
+      (List.exists (fun (_, h) -> contains_calls_or_loops h) handlers) || contains_calls_or_loops body || contains_calls_or_loops i.next
     end
   | Itrywith (body, handler) ->
-    (contains_calls body) || (contains_calls handler) || contains_calls i.next
+    (contains_calls_or_loops body) || (contains_calls_or_loops handler) || contains_calls_or_loops i.next
   | Iend -> false
   | Iop(Iextcall _ | Icall_ind _ | Icall_imm _ | Itailcall_imm _ | Itailcall_ind _) ->
       true
   | Ireturn | Iexit _| Iraise _ -> false
-  | Iop _ -> contains_calls i.next
-  in not(contains_calls fun_body)
+  | Iop _ -> contains_calls_or_loops i.next
+  in not(contains_calls_or_loops fun_body)
 
 (* finds_rec_handlers *)
 let rec find_rec_handlers (f : Mach.instruction) =
