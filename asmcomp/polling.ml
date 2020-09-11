@@ -7,7 +7,7 @@ end
 module IntSet = Set.Make (IntArg)
 
 let add_iteration_counter_before (f : Mach.instruction) : Mach.instruction =
-  let new_live = Reg.Set.union f.live (Reg.Set.of_seq (Array.to_seq f.arg)) in
+  let new_live = Reg.Set.empty in
   {
     desc = Iop Ipoll;
     next = f;
