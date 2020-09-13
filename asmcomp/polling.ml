@@ -1,17 +1,18 @@
+open Mach
+
 let add_iteration_counter_before (f : Mach.instruction) counter_reg : Mach.instruction =
-  let new_live = Reg.Set.empty in
   {
-    desc = Iop (Iconst_int 0n);
+    desc = Iop (Iconst_int 32n);
     next = f;
     arg = Array.make 0 Reg.dummy;
     res = [| counter_reg |];
     dbg = f.dbg;
-    live = new_live;
+    live = Reg.Set.empty;
     available_before = f.available_before;
     available_across = f.available_across;
   }
 
-let add_poll_before (f : Mach.instruction) : Mach.instruction =
+(*let add_poll_before (f : Mach.instruction) : Mach.instruction =
   let new_live = Reg.Set.union f.live (Reg.Set.of_seq (Array.to_seq f.arg)) in
   {
     desc = Iop Ipoll;
@@ -22,7 +23,22 @@ let add_poll_before (f : Mach.instruction) : Mach.instruction =
     live = new_live;
     available_before = f.available_before;
     available_across = f.available_across;
-  }
+  }*)
+
+let add_conditional_poll_before_exit (f : Mach.instruction) (counter_reg: Reg.t) : Mach.instruction =
+  let poll_branch = {
+    desc = Iop Ipoll;
+    next = Mach.end_instr ();
+    arg = Array.make 0 Reg.dummy;
+    res = Array.make 0 Reg.dummy;
+    dbg = f.dbg;
+    live = Reg.Set.empty;
+    available_before = f.available_before;
+    available_across = f.available_across;
+  } in
+  let new_if = Mach.instr_cons (Iifthenelse (Iinttest_imm (Iunsigned (Ceq), 0), poll_branch, Mach.end_instr ())) [| counter_reg |] [||] f in
+    let sub = Mach.instr_cons (Iop(Iintop_imm(Isub, 1))) [| counter_reg |] [| counter_reg |] new_if in
+      sub
 
 type allocation_result = Allocation | NoAllocation | Exited
 
@@ -85,7 +101,7 @@ and check_path (f : Mach.instruction) : allocation_result =
   | Iop (Itailcall_imm _)
   | Iraise _ ->
       Exited
-  | Iend | Iexit _ | Ipolledexit _ -> NoAllocation
+  | Iend | Iexit _ -> NoAllocation
   | Iop (Ialloc _) -> Allocation
   | Iop _ -> check_path f.next
 
@@ -116,7 +132,7 @@ let is_leaf_func_without_loops (fun_body : Mach.instruction) =
   | Iend -> false
   | Iop(Iextcall _ | Icall_ind _ | Icall_imm _ | Itailcall_imm _ | Itailcall_ind _) ->
       true
-  | Ireturn | Iexit _ | Ipolledexit _ | Iraise _ -> false
+  | Ireturn | Iexit _ | Iraise _ -> false
   | Iop _ -> contains_calls_or_loops i.next
   in not(contains_calls_or_loops fun_body)
 
@@ -163,7 +179,7 @@ let rec find_rec_handlers (f : Mach.instruction) =
       let handler_rec_handler = find_rec_handlers handler in
       let body_rec_handlers = find_rec_handlers body in
         body_rec_handlers @ handler_rec_handler @ (find_rec_handlers f.next)
-  | Iexit _ | Ipolledexit _ | Iend | Ireturn
+  | Iexit _ | Iend | Ireturn
   | Iop (Itailcall_ind _)
   | Iop (Itailcall_imm _)
   | Iraise _ ->
@@ -215,12 +231,13 @@ let instrument_loops_with_polls (rec_handlers : (int * Reg.t) list) (i : Mach.in
         next = instrument_loops f.next;
       }
   | Iexit id ->
-        let new_f = match List.assoc_opt id rec_handlers with 
-        | Some(_) -> add_poll_before f
-        | None -> f
-        in
-        { new_f with next = { f with next = instrument_loops f.next } }
-  | Iend | Ireturn | Iop (Itailcall_ind _) | Iop (Itailcall_imm _) | Iraise _ | Ipolledexit _ ->
+      let new_f = { f with next = instrument_loops f.next } in
+      begin
+        match List.assoc_opt id rec_handlers with 
+        | Some(counter_reg) -> add_conditional_poll_before_exit new_f counter_reg
+        | None -> new_f
+      end
+  | Iend | Ireturn | Iop (Itailcall_ind _) | Iop (Itailcall_imm _) | Iraise _ ->
       f
   | Iop _ -> { f with next = instrument_loops f.next }
   in instrument_loops i
