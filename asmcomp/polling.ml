@@ -1,18 +1,10 @@
-module IntArg = struct
-  type t = int
-
-  let compare (x : int) (y : int) = if x < y then -1 else if x > y then 1 else 0
-end
-
-module IntSet = Set.Make (IntArg)
-
-let add_iteration_counter_before (f : Mach.instruction) : Mach.instruction =
+let add_iteration_counter_before (f : Mach.instruction) counter_reg : Mach.instruction =
   let new_live = Reg.Set.empty in
   {
-    desc = Iop Ipoll;
+    desc = Iop (Iconst_int 0n);
     next = f;
     arg = Array.make 0 Reg.dummy;
-    res = Array.make 0 Reg.dummy;
+    res = [| counter_reg |];
     dbg = f.dbg;
     live = new_live;
     available_before = f.available_before;
@@ -93,7 +85,7 @@ and check_path (f : Mach.instruction) : allocation_result =
   | Iop (Itailcall_imm _)
   | Iraise _ ->
       Exited
-  | Iend | Iexit _ -> NoAllocation
+  | Iend | Iexit _ | Ipolledexit _ -> NoAllocation
   | Iop (Ialloc _) -> Allocation
   | Iop _ -> check_path f.next
 
@@ -124,70 +116,61 @@ let is_leaf_func_without_loops (fun_body : Mach.instruction) =
   | Iend -> false
   | Iop(Iextcall _ | Icall_ind _ | Icall_imm _ | Itailcall_imm _ | Itailcall_ind _) ->
       true
-  | Ireturn | Iexit _| Iraise _ -> false
+  | Ireturn | Iexit _ | Ipolledexit _ | Iraise _ -> false
   | Iop _ -> contains_calls_or_loops i.next
   in not(contains_calls_or_loops fun_body)
 
 (* finds_rec_handlers *)
 let rec find_rec_handlers (f : Mach.instruction) =
   match f.desc with
-  | Iifthenelse (_, i0, i1) ->
-      let i0_rec_handlers = find_rec_handlers i0 in
-      let i1_rec_handlers = find_rec_handlers i1 in
+  | Iifthenelse (_, ifso, ifnot) ->
+      let ifso_rec_handlers = find_rec_handlers ifso in
+      let ifnot_rec_handlers = find_rec_handlers ifnot in
       let next_rec_handlers = find_rec_handlers f.next in
-      IntSet.(union (union i0_rec_handlers i1_rec_handlers) next_rec_handlers)
+        ifso_rec_handlers @ ifnot_rec_handlers @ next_rec_handlers
   | Iswitch (_, cases) ->
       let case_rec_handlers =
         Array.fold_left
-          (fun int_set case -> IntSet.union int_set (find_rec_handlers case))
-          IntSet.empty cases
+          (fun agg_rec_handlers case -> agg_rec_handlers @ (find_rec_handlers case))
+          [] cases
       in
-      IntSet.union case_rec_handlers (find_rec_handlers f.next)
+      case_rec_handlers @ (find_rec_handlers f.next)
   | Icatch (rec_flag, handlers, body) -> (
       match rec_flag with
       | Recursive ->
           let rec_handlers =
-            List.fold_left
-              (fun int_set (id, handler) ->
+            List.map
+              (fun (id, handler) ->
                 let inner_rec_handlers = find_rec_handlers handler in
                 let current_rec_handlers = if not (allocates_unconditionally handler) then
-                  IntSet.add id int_set
-                else int_set in
-                IntSet.union inner_rec_handlers current_rec_handlers)
-              IntSet.empty handlers
+                  [(id, Reg.create Int)]
+                else [] in
+                inner_rec_handlers @ current_rec_handlers)
+              handlers |> List.flatten
           in
           let body_rec_handlers = find_rec_handlers body in
-          IntSet.(
-            union
-              (union body_rec_handlers rec_handlers)
-              (find_rec_handlers f.next))
+            body_rec_handlers @ rec_handlers @ (find_rec_handlers f.next)
       | Nonrecursive ->
           let non_rec_catch_handlers =
             List.fold_left
-              (fun int_set (_, handler) ->
-                IntSet.union int_set (find_rec_handlers handler))
-              IntSet.empty handlers
+              (fun tmp_rec_handlers (_, handler) ->
+                tmp_rec_handlers @ (find_rec_handlers handler))
+              [] handlers
           in
           let body_rec_handlers = find_rec_handlers body in
-          IntSet.(
-            union
-              (union body_rec_handlers non_rec_catch_handlers)
-              (find_rec_handlers f.next)) )
+            body_rec_handlers @ non_rec_catch_handlers @ (find_rec_handlers f.next))
   | Itrywith (body, handler) ->
       let handler_rec_handler = find_rec_handlers handler in
       let body_rec_handlers = find_rec_handlers body in
-      IntSet.(
-        union
-          (union body_rec_handlers handler_rec_handler)
-          (find_rec_handlers f.next))
-  | Iexit _ | Iend | Ireturn
+        body_rec_handlers @ handler_rec_handler @ (find_rec_handlers f.next)
+  | Iexit _ | Ipolledexit _ | Iend | Ireturn
   | Iop (Itailcall_ind _)
   | Iop (Itailcall_imm _)
   | Iraise _ ->
-      IntSet.empty
+      []
   | Iop _ -> find_rec_handlers f.next
 
-let instrument_loops_with_polls (rec_handlers : IntSet.t) (i : Mach.instruction) =
+let instrument_loops_with_polls (rec_handlers : (int * Reg.t) list) (i : Mach.instruction) =
   let rec instrument_loops (f : Mach.instruction) =
   match f.desc with
   | Iifthenelse (test, i0, i1) ->
@@ -204,7 +187,7 @@ let instrument_loops_with_polls (rec_handlers : IntSet.t) (i : Mach.instruction)
         next = instrument_loops f.next;
       }
   | Icatch (rec_flag, handlers, body) ->
-      let new_f = {
+    let new_f = {
         f with
         desc =
           Icatch
@@ -214,8 +197,16 @@ let instrument_loops_with_polls (rec_handlers : IntSet.t) (i : Mach.instruction)
                 handlers,
               instrument_loops body );
         next = instrument_loops f.next;
-      } in
-        add_iteration_counter_before new_f
+    } in
+    (match rec_flag with 
+    | Recursive ->
+      List.fold_left (fun fa (i, _) -> 
+        match List.assoc_opt i rec_handlers with
+        | Some(reg) -> add_iteration_counter_before fa reg
+        | None -> fa)
+      new_f handlers
+    | Nonrecursive ->
+      new_f)
   | Itrywith (body, handler) ->
       {
         f with
@@ -224,10 +215,12 @@ let instrument_loops_with_polls (rec_handlers : IntSet.t) (i : Mach.instruction)
         next = instrument_loops f.next;
       }
   | Iexit id ->
-        let new_f = if IntSet.mem id rec_handlers then add_poll_before f else f 
+        let new_f = match List.assoc_opt id rec_handlers with 
+        | Some(_) -> add_poll_before f
+        | None -> f
         in
         { new_f with next = { f with next = instrument_loops f.next } }
-  | Iend | Ireturn | Iop (Itailcall_ind _) | Iop (Itailcall_imm _) | Iraise _ ->
+  | Iend | Ireturn | Iop (Itailcall_ind _) | Iop (Itailcall_imm _) | Iraise _ | Ipolledexit _ ->
       f
   | Iop _ -> { f with next = instrument_loops f.next }
   in instrument_loops i
@@ -236,3 +229,6 @@ let funcdecl (i : Mach.fundecl) : Mach.fundecl =
   let f = i.fun_body in
   let rec_handlers = find_rec_handlers f in
   { i with fun_body = instrument_loops_with_polls rec_handlers f }
+
+(* What you need to do next is in the catch, you need to check if it's rec and if it is rec
+   then for each of the handler ids you need to initialise a constant before the catch *)
