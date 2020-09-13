@@ -91,11 +91,10 @@ let compile_fundecl ~ppf_dump fd_cmm =
   ++ Profile.record ~accumulate:true "liveness" liveness
   ++ Profile.record ~accumulate:true "deadcode" Deadcode.fundecl
   ++ Profile.record ~accumulate:true "polling" Polling.funcdecl
-  ++ Profile.record ~accumulate:true "liveness" liveness
   ++ pass_dump_if ppf_dump dump_live "Liveness analysis"
   ++ Profile.record ~accumulate:true "spill" Spill.fundecl
-  ++ Profile.record ~accumulate:true "liveness" liveness
   ++ pass_dump_if ppf_dump dump_spill "After spilling"
+  ++ Profile.record ~accumulate:true "liveness" liveness
   ++ Profile.record ~accumulate:true "split" Split.fundecl
   ++ pass_dump_if ppf_dump dump_split "After live range splitting"
   ++ Profile.record ~accumulate:true "liveness" liveness
