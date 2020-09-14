@@ -28,6 +28,9 @@ type integer_operation =
   | Icheckbound of { label_after_error : label option;
         spacetime_index : int; }
 
+type mutating_test =
+  Ideceq | Idecneq
+
 type float_comparison = Cmm.float_comparison
 
 type test =
@@ -35,6 +38,7 @@ type test =
   | Ifalsetest
   | Iinttest of integer_comparison
   | Iinttest_imm of integer_comparison * int
+  | Imuttest of mutating_test * int
   | Ifloattest of float_comparison
   | Ioddtest
   | Ieventest

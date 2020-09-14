@@ -73,6 +73,10 @@ let intcomp = function
   | Isigned c -> Printf.sprintf " %ss " (Printcmm.integer_comparison c)
   | Iunsigned c -> Printf.sprintf " %su " (Printcmm.integer_comparison c)
 
+let muttest = function
+  | Ideceq -> "-- == "
+  | Idecneq -> "-- != "
+
 let floatcomp c =
     Printf.sprintf " %sf " (Printcmm.float_comparison c)
 
@@ -107,6 +111,7 @@ let test tst ppf arg =
   | Ifalsetest -> fprintf ppf "not %a" reg arg.(0)
   | Iinttest cmp -> fprintf ppf "%a%s%a" reg arg.(0) (intcomp cmp) reg arg.(1)
   | Iinttest_imm(cmp, n) -> fprintf ppf "%a%s%i" reg arg.(0) (intcomp cmp) n
+  | Imuttest(mutating_test,n) -> fprintf ppf "%a%s%i" reg arg.(0) (muttest mutating_test) n
   | Ifloattest cmp ->
       fprintf ppf "%a%s%a"
        reg arg.(0) (floatcomp cmp) reg arg.(1)

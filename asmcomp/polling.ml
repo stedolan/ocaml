@@ -1,8 +1,10 @@
 open Mach
 
-let add_iteration_counter_before (f : Mach.instruction) counter_reg : Mach.instruction =
+let max_mach_ops_between_polls = 250
+
+let add_iteration_counter_before (f : Mach.instruction) iterations_per_poll counter_reg : Mach.instruction =
   {
-    desc = Iop (Iconst_int 32n);
+    desc = Iop (Iconst_int (Nativeint.of_int iterations_per_poll));
     next = f;
     arg = Array.make 0 Reg.dummy;
     res = [| counter_reg |];
@@ -12,7 +14,7 @@ let add_iteration_counter_before (f : Mach.instruction) counter_reg : Mach.instr
     available_across = f.available_across;
   }
 
-(*let add_poll_before (f : Mach.instruction) : Mach.instruction =
+let add_poll_before (f : Mach.instruction) : Mach.instruction =
   let new_live = Reg.Set.union f.live (Reg.Set.of_seq (Array.to_seq f.arg)) in
   {
     desc = Iop Ipoll;
@@ -23,22 +25,15 @@ let add_iteration_counter_before (f : Mach.instruction) counter_reg : Mach.instr
     live = new_live;
     available_before = f.available_before;
     available_across = f.available_across;
-  }*)
+  }
 
-let add_conditional_poll_before_exit (f : Mach.instruction) (counter_reg: Reg.t) : Mach.instruction =
-  let poll_branch = {
-    desc = Iop Ipoll;
-    next = Mach.end_instr ();
-    arg = Array.make 0 Reg.dummy;
-    res = Array.make 0 Reg.dummy;
-    dbg = f.dbg;
-    live = Reg.Set.empty;
-    available_before = f.available_before;
-    available_across = f.available_across;
-  } in
-  let new_if = Mach.instr_cons (Iifthenelse (Iinttest_imm (Iunsigned (Ceq), 0), poll_branch, Mach.end_instr ())) [| counter_reg |] [||] f in
-    let sub = Mach.instr_cons (Iop(Iintop_imm(Isub, 1))) [| counter_reg |] [| counter_reg |] new_if in
-      sub
+let add_conditional_poll_before_exit (f : Mach.instruction) iterations_per_poll (counter_reg: Reg.t) : Mach.instruction =
+  let reset_poll_instr = Mach.instr_cons (Iop (Iconst_int (Nativeint.of_int iterations_per_poll))) [||] [| counter_reg |] (Mach.end_instr ()) in
+    let poll_instr = Mach.instr_cons (Iop Ipoll) [||] [||] reset_poll_instr in
+  let new_if = Mach.instr_cons (Iifthenelse (Imuttest (Ideceq, 0), poll_instr, Mach.end_instr ())) [| counter_reg |] [||] f in
+      new_if
+
+type loop_poll_type = PollPerIteration | ConditionalPoll of (int * Reg.t)
 
 type allocation_result = Allocation | NoAllocation | Exited
 
@@ -112,6 +107,30 @@ let allocates_unconditionally (i : Mach.instruction) =
   | Allocation -> true
   | NoAllocation | Exited -> false
 
+let handler_body_size (body : Mach.instruction) =
+  let rec body_size (i : Mach.instruction) =
+  match i.desc with
+  | Iifthenelse (_, ifso, ifnot) ->
+    (max (body_size ifso) (body_size ifnot)) + body_size i.next
+  | Iswitch (_, cases) ->
+    (Array.fold_left (fun a f -> max (body_size f) a) 0 cases) + body_size i.next
+  | Icatch (rec_flag, handlers, body) ->
+    begin
+      match rec_flag with 
+    | Recursive ->
+      max_mach_ops_between_polls
+    | Nonrecursive ->
+      (List.fold_left (fun a (_, f) -> max (body_size f) a) 0 handlers) + body_size body + body_size i.next
+    end
+  | Itrywith (body, handler) ->
+    body_size body + body_size handler + body_size i.next
+  | Iend -> 0
+  | Iop(Iextcall _ | Icall_ind _ | Icall_imm _ | Itailcall_imm _ | Itailcall_ind _) ->
+      1
+  | Ireturn | Iexit _ | Iraise _ -> 0
+  | Iop _ -> 1 + body_size i.next
+  in body_size body
+
 let is_leaf_func_without_loops (fun_body : Mach.instruction) =
   let rec contains_calls_or_loops (i : Mach.instruction) =
   match i.desc with
@@ -159,7 +178,12 @@ let rec find_rec_handlers (f : Mach.instruction) =
               (fun (id, handler) ->
                 let inner_rec_handlers = find_rec_handlers handler in
                 let current_rec_handlers = if not (allocates_unconditionally handler) then
-                  [(id, Reg.create Int)]
+                  let handler_size = handler_body_size handler in
+                  if handler_size < max_mach_ops_between_polls/2 then
+                    let iterations_per_poll = max_mach_ops_between_polls / handler_size in
+                      [(id, ConditionalPoll(iterations_per_poll, Reg.create Int))]
+                  else
+                    [(id, PollPerIteration)]
                 else [] in
                 inner_rec_handlers @ current_rec_handlers)
               handlers |> List.flatten
@@ -186,7 +210,7 @@ let rec find_rec_handlers (f : Mach.instruction) =
       []
   | Iop _ -> find_rec_handlers f.next
 
-let instrument_loops_with_polls (rec_handlers : (int * Reg.t) list) (i : Mach.instruction) =
+let instrument_loops_with_polls (rec_handlers : (int * loop_poll_type) list) (i : Mach.instruction) =
   let rec instrument_loops (f : Mach.instruction) =
   match f.desc with
   | Iifthenelse (test, i0, i1) ->
@@ -218,8 +242,10 @@ let instrument_loops_with_polls (rec_handlers : (int * Reg.t) list) (i : Mach.in
     | Recursive ->
       List.fold_left (fun fa (i, _) -> 
         match List.assoc_opt i rec_handlers with
-        | Some(reg) -> add_iteration_counter_before fa reg
-        | None -> fa)
+        | Some(PollPerIteration) | None -> fa
+        | Some(ConditionalPoll(iterations_per_poll, reg)) ->
+          add_iteration_counter_before fa iterations_per_poll reg
+        )
       new_f handlers
     | Nonrecursive ->
       new_f)
@@ -234,7 +260,8 @@ let instrument_loops_with_polls (rec_handlers : (int * Reg.t) list) (i : Mach.in
       let new_f = { f with next = instrument_loops f.next } in
       begin
         match List.assoc_opt id rec_handlers with 
-        | Some(counter_reg) -> add_conditional_poll_before_exit new_f counter_reg
+        | Some(PollPerIteration) -> add_poll_before new_f
+        | Some(ConditionalPoll(iterations_per_poll, counter_reg)) -> add_conditional_poll_before_exit new_f iterations_per_poll counter_reg
         | None -> new_f
       end
   | Iend | Ireturn | Iop (Itailcall_ind _) | Iop (Itailcall_imm _) | Iraise _ ->

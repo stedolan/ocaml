@@ -35,6 +35,9 @@ type integer_operation =
         second being the pointer to the trie node for the current function
         (and the first being as per non-Spacetime mode). *)
 
+type mutating_test =
+  Ideceq | Idecneq
+
 type float_comparison = Cmm.float_comparison
 
 type test =
@@ -42,6 +45,7 @@ type test =
   | Ifalsetest
   | Iinttest of integer_comparison
   | Iinttest_imm of integer_comparison * int
+  | Imuttest of mutating_test * int  
   | Ifloattest of float_comparison
   | Ioddtest
   | Ieventest

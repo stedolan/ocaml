@@ -831,6 +831,17 @@ let emit_instr fallthrough i =
       | Iinttest_imm(cmp, n) ->
           I.cmp (int n) (arg i 0);
           I.j (cond cmp) lbl
+      | Imuttest(mut_test, n) ->
+        begin
+          I.dec (arg i 0);
+          if n != 0 then
+            I.test (arg i 0) (int n);
+          match mut_test with
+          | Ideceq ->
+            I.je lbl
+          | Idecneq ->
+            I.jne lbl
+        end    
       | Ifloattest cmp ->
           emit_float_test cmp i lbl
       | Ioddtest ->
