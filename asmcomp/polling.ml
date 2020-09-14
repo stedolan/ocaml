@@ -124,10 +124,10 @@ let handler_body_size (body : Mach.instruction) =
     end
   | Itrywith (body, handler) ->
     body_size body + body_size handler + body_size i.next
-  | Iend -> 0
+  | Iend -> 1
   | Iop(Iextcall _ | Icall_ind _ | Icall_imm _ | Itailcall_imm _ | Itailcall_ind _) ->
       1
-  | Ireturn | Iexit _ | Iraise _ -> 0
+  | Ireturn | Iexit _ | Iraise _ -> 1
   | Iop _ -> 1 + body_size i.next
   in body_size body
 
