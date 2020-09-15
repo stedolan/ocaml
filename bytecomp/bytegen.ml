@@ -226,6 +226,36 @@ let rec size_of_lambda env = function
   | Lsequence (_lam, lam') -> size_of_lambda env lam'
   | _ -> RHS_nonrec
 
+(**** Sharing repeated location strings ****)
+
+module StringTbl = Hashtbl.Make (struct
+  type t = string
+  let hash = Hashtbl.hash
+  let equal = String.equal
+end)
+
+type string_cache = string StringTbl.t
+let active_cache : string_cache option ref = ref None
+
+let with_string_cache f =
+  assert (!active_cache = None);
+  active_cache := Some (StringTbl.create 20);
+  Fun.protect ~finally:(fun () -> active_cache := None) f
+
+let cache_string s =
+  let tbl = match !active_cache with Some c -> c | None -> assert false in
+  match StringTbl.find tbl s with
+  | s' -> s'
+  | exception Not_found ->
+     StringTbl.add tbl s s;
+     s
+
+let string_of_scoped_location l =
+  cache_string (string_of_scoped_location l)
+
+let string_of_scopes l =
+  cache_string (string_of_scopes l)
+
 (**** Merging consecutive events ****)
 
 let copy_event ev kind info repr =
@@ -1086,20 +1116,22 @@ let compile_implementation modulename expr =
   label_counter := 0;
   sz_static_raises := [] ;
   compunit_name := modulename;
-  let init_code = comp_block empty_env expr 0 [] in
-  if Stack.length functions_to_compile > 0 then begin
-    let lbl_init = new_label() in
-    Kbranch lbl_init :: comp_remainder (Klabel lbl_init :: init_code)
-  end else
-    init_code
+  with_string_cache (fun () ->
+    let init_code = comp_block empty_env expr 0 [] in
+    if Stack.length functions_to_compile > 0 then begin
+      let lbl_init = new_label() in
+      Kbranch lbl_init :: comp_remainder (Klabel lbl_init :: init_code)
+    end else
+      init_code)
 
 let compile_phrase expr =
   Stack.clear functions_to_compile;
   label_counter := 0;
   sz_static_raises := [] ;
-  let init_code = comp_block empty_env expr 1 [Kreturn 1] in
-  let fun_code = comp_remainder [] in
-  (init_code, fun_code)
+  with_string_cache (fun () ->
+    let init_code = comp_block empty_env expr 1 [Kreturn 1] in
+    let fun_code = comp_remainder [] in
+    (init_code, fun_code))
 
 let reset () =
   label_counter := 0;
