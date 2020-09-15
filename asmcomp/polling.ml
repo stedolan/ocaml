@@ -211,7 +211,8 @@ let rec find_rec_handlers (f : Mach.instruction) =
   | Iop _ -> find_rec_handlers f.next
 
 let instrument_loops_with_polls (rec_handlers : (int * loop_poll_type) list) (i : Mach.instruction) =
-  let rec instrument_loops (f : Mach.instruction) =
+  let rec do_loops (current_handlers : int list) (f : Mach.instruction) =
+  let instrument_loops i = do_loops current_handlers i in
   match f.desc with
   | Iifthenelse (test, i0, i1) ->
       {
@@ -233,7 +234,7 @@ let instrument_loops_with_polls (rec_handlers : (int * loop_poll_type) list) (i 
           Icatch
             ( rec_flag,
               List.map
-                (fun (idx, instrs) -> (idx, instrument_loops instrs))
+                (fun (idx, instrs) -> (idx, do_loops (idx::current_handlers) instrs))
                 handlers,
               instrument_loops body );
         next = instrument_loops f.next;
@@ -259,15 +260,18 @@ let instrument_loops_with_polls (rec_handlers : (int * loop_poll_type) list) (i 
   | Iexit id ->
       let new_f = { f with next = instrument_loops f.next } in
       begin
-        match List.assoc_opt id rec_handlers with 
-        | Some(PollPerIteration) -> add_poll_before new_f
-        | Some(ConditionalPoll(iterations_per_poll, counter_reg)) -> add_conditional_poll_before_exit new_f iterations_per_poll counter_reg
-        | None -> new_f
+        if List.mem id current_handlers then
+          match List.assoc_opt id rec_handlers with 
+          | Some(PollPerIteration) -> add_poll_before new_f
+          | Some(ConditionalPoll(iterations_per_poll, counter_reg)) -> add_conditional_poll_before_exit new_f iterations_per_poll counter_reg
+          | None -> new_f
+        else
+          new_f
       end
   | Iend | Ireturn | Iop (Itailcall_ind _) | Iop (Itailcall_imm _) | Iraise _ ->
       f
   | Iop _ -> { f with next = instrument_loops f.next }
-  in instrument_loops i
+  in do_loops [] i
 
 let funcdecl (i : Mach.fundecl) : Mach.fundecl =
   let f = i.fun_body in
