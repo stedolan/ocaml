@@ -112,6 +112,11 @@ let test tst ppf arg =
   | Iinttest cmp -> fprintf ppf "%a%s%a" reg arg.(0) (intcomp cmp) reg arg.(1)
   | Iinttest_imm(cmp, n) -> fprintf ppf "%a%s%i" reg arg.(0) (intcomp cmp) n
   | Imuttest(mutating_test,n) -> fprintf ppf "%a%s%i" reg arg.(0) (muttest mutating_test) n
+  | Ipolltest(test_type) -> begin
+    match test_type with
+    | Ipollpending -> fprintf ppf "poll pending"
+    | Ipollnotpending -> fprintf ppf "no poll pending"
+    end
   | Ifloattest cmp ->
       fprintf ppf "%a%s%a"
        reg arg.(0) (floatcomp cmp) reg arg.(1)

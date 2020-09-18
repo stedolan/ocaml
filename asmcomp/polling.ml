@@ -15,17 +15,8 @@ let add_iteration_counter_before (f : Mach.instruction) iterations_per_poll coun
   }
 
 let add_poll_before (f : Mach.instruction) : Mach.instruction =
-  let new_live = Reg.Set.union f.live (Reg.Set.of_seq (Array.to_seq f.arg)) in
-  {
-    desc = Iop Ipoll;
-    next = f;
-    arg = Array.make 0 Reg.dummy;
-    res = Array.make 0 Reg.dummy;
-    dbg = f.dbg;
-    live = new_live;
-    available_before = f.available_before;
-    available_across = f.available_across;
-  }
+  let poll_instr = Mach.instr_cons (Iop Ipoll) [||] [||] (Mach.end_instr ()) in
+    Mach.instr_cons (Iifthenelse ((Ipolltest Ipollpending), poll_instr, Mach.end_instr ())) [||] [||] f
 
 let add_conditional_poll_before_exit (f : Mach.instruction) iterations_per_poll (counter_reg: Reg.t) : Mach.instruction =
   let reset_poll_instr = Mach.instr_cons (Iop (Iconst_int (Nativeint.of_int iterations_per_poll))) [||] [| counter_reg |] (Mach.end_instr ()) in
@@ -131,8 +122,7 @@ let handler_body_size (body : Mach.instruction) =
   | Iop _ -> 1 + body_size i.next
   in body_size body
 
-let is_leaf_func_without_loops (fun_body : Mach.instruction) =
-  let rec contains_calls_or_loops (i : Mach.instruction) =
+let rec contains_calls_or_loops (i : Mach.instruction) =
   match i.desc with
   | Iifthenelse (_, ifso, ifnot) ->
     (contains_calls_or_loops ifso) || (contains_calls_or_loops ifnot) || contains_calls_or_loops i.next
@@ -153,7 +143,9 @@ let is_leaf_func_without_loops (fun_body : Mach.instruction) =
       true
   | Ireturn | Iexit _ | Iraise _ -> false
   | Iop _ -> contains_calls_or_loops i.next
-  in not(contains_calls_or_loops fun_body)
+
+let is_leaf_func_without_loops (fun_body : Mach.instruction) =
+  not(contains_calls_or_loops fun_body)
 
 (* finds_rec_handlers *)
 let rec find_rec_handlers (f : Mach.instruction) =
@@ -179,7 +171,8 @@ let rec find_rec_handlers (f : Mach.instruction) =
                 let inner_rec_handlers = find_rec_handlers handler in
                 let current_rec_handlers = if not (allocates_unconditionally handler) then
                   let handler_size = handler_body_size handler in
-                  if handler_size < max_mach_ops_between_polls/2 then
+                  let handler_calls_or_loops = contains_calls_or_loops handler in
+                  if handler_size < max_mach_ops_between_polls/2 && not(handler_calls_or_loops) then
                     let iterations_per_poll = max_mach_ops_between_polls / handler_size in
                       [(id, ConditionalPoll(iterations_per_poll, Reg.create Int))]
                   else

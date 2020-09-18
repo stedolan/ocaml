@@ -38,6 +38,9 @@ type integer_operation =
 type mutating_test =
   Ideceq | Idecneq
 
+type poll_test_type =
+  Ipollpending | Ipollnotpending
+
 type float_comparison = Cmm.float_comparison
 
 type test =
@@ -45,7 +48,8 @@ type test =
   | Ifalsetest
   | Iinttest of integer_comparison
   | Iinttest_imm of integer_comparison * int
-  | Imuttest of mutating_test * int  
+  | Imuttest of mutating_test * int
+  | Ipolltest of poll_test_type
   | Ifloattest of float_comparison
   | Ioddtest
   | Ieventest

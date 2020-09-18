@@ -70,12 +70,17 @@ let invert_mutating_test = function
     Ideceq -> Idecneq
   | Idecneq -> Ideceq
 
+let invert_poll_test = function
+    Ipollpending -> Ipollnotpending
+  | Ipollnotpending -> Ipollpending 
+
 let invert_test = function
     Itruetest -> Ifalsetest
   | Ifalsetest -> Itruetest
   | Iinttest(cmp) -> Iinttest(invert_integer_test cmp)
   | Iinttest_imm(cmp, n) -> Iinttest_imm(invert_integer_test cmp, n)
   | Imuttest(mutating_test, n) -> Imuttest(invert_mutating_test mutating_test, n)
+  | Ipolltest(test_type) -> Ipolltest (invert_poll_test test_type)
   | Ifloattest(cmp) -> Ifloattest(Cmm.negate_float_comparison cmp)
   | Ieventest -> Ioddtest
   | Ioddtest -> Ieventest

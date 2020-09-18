@@ -841,7 +841,16 @@ let emit_instr fallthrough i =
             I.je lbl
           | Idecneq ->
             I.jne lbl
-        end    
+        end
+      | Ipolltest(poll_test_type) ->
+        begin
+          I.cmp (domain_field Domainstate.Domain_young_limit) r15;
+          match poll_test_type with
+          | Ipollpending ->
+            I.jbe lbl;
+          | Ipollnotpending ->
+            I.jg lbl;
+        end
       | Ifloattest cmp ->
           emit_float_test cmp i lbl
       | Ioddtest ->
