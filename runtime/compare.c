@@ -22,6 +22,7 @@
 #include "caml/memory.h"
 #include "caml/misc.h"
 #include "caml/mlvalues.h"
+#include "caml/signals.h"
 
 /* Structural comparison on trees. */
 
@@ -86,16 +87,26 @@ static struct compare_item * compare_resize_stack(struct compare_stack* stk,
 
 
 static intnat do_compare_val(struct compare_stack* stk,
-                             value v1, value v2, int total);
+                             value v1, value v2, int total,
+                             int* interrupted);
 
 static intnat compare_val(value v1, value v2, int total)
 {
   struct compare_stack stk;
   intnat res;
-  stk.stack = stk.init_stack;
-  stk.limit = stk.stack + COMPARE_STACK_INIT_SIZE;
-  res = do_compare_val(&stk, v1, v2, total);
-  compare_free_stack(&stk);
+  int interrupted;
+  do {
+    interrupted = 0;
+    stk.stack = stk.init_stack;
+    stk.limit = stk.stack + COMPARE_STACK_INIT_SIZE;
+    res = do_compare_val(&stk, v1, v2, total, &interrupted);
+    compare_free_stack(&stk);
+    if (interrupted) {
+      CAMLparam2(v1, v2);
+      caml_process_pending_actions();
+      CAMLdrop;
+    }
+  } while (interrupted);
   return res;
 }
 
@@ -114,7 +125,7 @@ static intnat compare_val(value v1, value v2, int total)
       UNORDERED           v1 and v2 cannot be compared */
 
 static intnat do_compare_val(struct compare_stack* stk,
-                             value v1, value v2, int total)
+                             value v1, value v2, int total, int* interrupted)
 {
   struct compare_item * sp;
   tag_t t1, t2;
@@ -167,6 +178,10 @@ static intnat do_compare_val(struct compare_stack* stk,
         default: /*fallthrough*/;
         }
       return GREATER;            /* v1 block > v2 long */
+    }
+    if (caml_check_pending_actions()) {
+      *interrupted = 1;
+      return 0;
     }
     /* If one of the objects is outside the heap (but is not an atom),
        use address comparison. Since both addresses are 2-aligned,
