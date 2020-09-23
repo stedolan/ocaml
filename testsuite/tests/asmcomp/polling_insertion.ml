@@ -1,5 +1,6 @@
 (* TEST
    modules = "polling.c"
+   compare_programs = "false"
    * native
 *)
 
