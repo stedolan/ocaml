@@ -1,30 +1,8 @@
 open Mach
 
-let max_mach_ops_between_polls = 250
-
-let add_iteration_counter_before (f : Mach.instruction) iterations_per_poll counter_reg : Mach.instruction =
-  {
-    desc = Iop (Iconst_int (Nativeint.of_int iterations_per_poll));
-    next = f;
-    arg = Array.make 0 Reg.dummy;
-    res = [| counter_reg |];
-    dbg = f.dbg;
-    live = Reg.Set.empty;
-    available_before = f.available_before;
-    available_across = f.available_across;
-  }
-
 let add_poll_before (f : Mach.instruction) : Mach.instruction =
   let poll_instr = Mach.instr_cons (Iop Ipoll) [||] [||] (Mach.end_instr ()) in
     Mach.instr_cons (Iifthenelse ((Ipolltest Ipollpending), poll_instr, Mach.end_instr ())) [||] [||] f
-
-let add_conditional_poll_before_exit (f : Mach.instruction) iterations_per_poll (counter_reg: Reg.t) : Mach.instruction =
-  let reset_poll_instr = Mach.instr_cons (Iop (Iconst_int (Nativeint.of_int iterations_per_poll))) [||] [| counter_reg |] (Mach.end_instr ()) in
-    let poll_instr = Mach.instr_cons (Iop Ipoll) [||] [||] reset_poll_instr in
-  let new_if = Mach.instr_cons (Iifthenelse (Imuttest (Ideceq, 0), poll_instr, Mach.end_instr ())) [| counter_reg |] [||] f in
-      new_if
-
-type loop_poll_type = PollPerIteration | ConditionalPoll of (int * Reg.t)
 
 type allocation_result = Allocation | NoAllocation | Exited
 
@@ -98,30 +76,6 @@ let allocates_unconditionally (i : Mach.instruction) =
   | Allocation -> true
   | NoAllocation | Exited -> false
 
-let handler_body_size (body : Mach.instruction) =
-  let rec body_size (i : Mach.instruction) =
-  match i.desc with
-  | Iifthenelse (_, ifso, ifnot) ->
-    (max (body_size ifso) (body_size ifnot)) + body_size i.next
-  | Iswitch (_, cases) ->
-    (Array.fold_left (fun a f -> max (body_size f) a) 0 cases) + body_size i.next
-  | Icatch (rec_flag, handlers, body) ->
-    begin
-      match rec_flag with 
-    | Recursive ->
-      max_mach_ops_between_polls
-    | Nonrecursive ->
-      (List.fold_left (fun a (_, f) -> max (body_size f) a) 0 handlers) + body_size body + body_size i.next
-    end
-  | Itrywith (body, handler) ->
-    body_size body + body_size handler + body_size i.next
-  | Iend -> 1
-  | Iop(Iextcall _ | Icall_ind _ | Icall_imm _ | Itailcall_imm _ | Itailcall_ind _) ->
-      1
-  | Ireturn | Iexit _ | Iraise _ -> 1
-  | Iop _ -> 1 + body_size i.next
-  in body_size body
-
 let rec contains_calls_or_loops (i : Mach.instruction) =
   match i.desc with
   | Iifthenelse (_, ifso, ifnot) ->
@@ -170,13 +124,7 @@ let rec find_rec_handlers (f : Mach.instruction) =
               (fun (id, handler) ->
                 let inner_rec_handlers = find_rec_handlers handler in
                 let current_rec_handlers = if not (allocates_unconditionally handler) then
-                  let handler_size = handler_body_size handler in
-                  let handler_calls_or_loops = contains_calls_or_loops handler in
-                  if handler_size < max_mach_ops_between_polls/2 && not(handler_calls_or_loops) then
-                    let iterations_per_poll = max_mach_ops_between_polls / handler_size in
-                      [(id, ConditionalPoll(iterations_per_poll, Reg.create Int))]
-                  else
-                    [(id, PollPerIteration)]
+                    [id]
                 else [] in
                 inner_rec_handlers @ current_rec_handlers)
               handlers |> List.flatten
@@ -203,7 +151,7 @@ let rec find_rec_handlers (f : Mach.instruction) =
       []
   | Iop _ -> find_rec_handlers f.next
 
-let instrument_loops_with_polls (rec_handlers : (int * loop_poll_type) list) (i : Mach.instruction) =
+let instrument_loops_with_polls (rec_handlers : int list) (i : Mach.instruction) =
   let rec do_loops (current_handlers : int list) (f : Mach.instruction) =
   let instrument_loops i = do_loops current_handlers i in
   match f.desc with
@@ -221,7 +169,7 @@ let instrument_loops_with_polls (rec_handlers : (int * loop_poll_type) list) (i 
         next = instrument_loops f.next;
       }
   | Icatch (rec_flag, handlers, body) ->
-    let new_f = {
+    {
         f with
         desc =
           Icatch
@@ -231,18 +179,7 @@ let instrument_loops_with_polls (rec_handlers : (int * loop_poll_type) list) (i 
                 handlers,
               instrument_loops body );
         next = instrument_loops f.next;
-    } in
-    (match rec_flag with 
-    | Recursive ->
-      List.fold_left (fun fa (i, _) -> 
-        match List.assoc_opt i rec_handlers with
-        | Some(PollPerIteration) | None -> fa
-        | Some(ConditionalPoll(iterations_per_poll, reg)) ->
-          add_iteration_counter_before fa iterations_per_poll reg
-        )
-      new_f handlers
-    | Nonrecursive ->
-      new_f)
+    }
   | Itrywith (body, handler) ->
       {
         f with
@@ -253,11 +190,8 @@ let instrument_loops_with_polls (rec_handlers : (int * loop_poll_type) list) (i 
   | Iexit id ->
       let new_f = { f with next = instrument_loops f.next } in
       begin
-        if List.mem id current_handlers then
-          match List.assoc_opt id rec_handlers with 
-          | Some(PollPerIteration) -> add_poll_before new_f
-          | Some(ConditionalPoll(iterations_per_poll, counter_reg)) -> add_conditional_poll_before_exit new_f iterations_per_poll counter_reg
-          | None -> new_f
+        if List.mem id current_handlers && List.mem id rec_handlers then
+          add_poll_before new_f
         else
           new_f
       end
@@ -270,6 +204,3 @@ let funcdecl (i : Mach.fundecl) : Mach.fundecl =
   let f = i.fun_body in
   let rec_handlers = find_rec_handlers f in
   { i with fun_body = instrument_loops_with_polls rec_handlers f }
-
-(* What you need to do next is in the catch, you need to check if it's rec and if it is rec
-   then for each of the handler ids you need to initialise a constant before the catch *)

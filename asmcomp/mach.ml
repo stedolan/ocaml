@@ -28,9 +28,6 @@ type integer_operation =
   | Icheckbound of { label_after_error : label option;
         spacetime_index : int; }
 
-type mutating_test =
-  Ideceq | Idecneq
-
 type poll_test_type =
   Ipollpending | Ipollnotpending
 
@@ -41,7 +38,6 @@ type test =
   | Ifalsetest
   | Iinttest of integer_comparison
   | Iinttest_imm of integer_comparison * int
-  | Imuttest of mutating_test * int
   | Ipolltest of poll_test_type
   | Ifloattest of float_comparison
   | Ioddtest
