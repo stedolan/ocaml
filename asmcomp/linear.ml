@@ -67,8 +67,8 @@ let invert_integer_test = function
   | Iunsigned cmp -> Iunsigned(Cmm.negate_integer_comparison cmp)
 
 let invert_poll_test = function
-    Ipollpending -> Ipollnotpending
-  | Ipollnotpending -> Ipollpending 
+    Ipending -> Inotpending
+  | Inotpending -> Ipending 
 
 let invert_test = function
     Itruetest -> Ifalsetest

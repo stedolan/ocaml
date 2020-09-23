@@ -410,7 +410,7 @@ method mark_instr = function
       self#mark_call
   | Iop (Itailcall_ind _ | Itailcall_imm _) ->
       self#mark_tailcall
-  | Iop (Ialloc _) | Iop (Ipoll) ->
+  | Iop (Ialloc _) | Iop (Ipollcall _) ->
       self#mark_call (* caml_alloc*, caml_poll, caml_garbage_collection *)
   | Iop (Iintop (Icheckbound _) | Iintop_imm(Icheckbound _, _)) ->
       self#mark_c_tailcall (* caml_ml_array_bound_error *)
@@ -1275,7 +1275,7 @@ method emit_fundecl f =
     self#insert_prologue f ~loc_arg ~rarg ~spacetime_node_hole ~env
   in
   if not(Polling.allocates_unconditionally body || Polling.is_leaf_func_without_loops body) then
-    self#insert env (Iop(Ipoll)) [||] [||];
+    self#insert env (Iop(Ipollcall { label_after_call_gc = None; check_young_limit = true })) [||] [||];
   let body = self#extract_core ~end_instr:body in
   instr_iter (fun instr -> self#mark_instr instr.Mach.desc) body;
   { fun_name = f.Cmm.fun_name;

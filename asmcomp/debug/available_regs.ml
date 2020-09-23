@@ -197,7 +197,7 @@ let rec available_regs (instr : M.instruction)
            [Available_ranges.Make_ranges.end_pos_offset]. *)
         let made_unavailable_2 =
           match op with
-          | Icall_ind _ | Icall_imm _ | Ialloc _ | Ipoll ->
+          | Icall_ind _ | Icall_imm _ | Ialloc _ | Ipollcall _ ->
             RD.Set.filter (fun reg ->
                 let holds_immediate = RD.holds_non_pointer reg in
                 let on_stack = RD.assigned_to_stack reg in

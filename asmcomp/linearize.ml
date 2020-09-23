@@ -145,6 +145,8 @@ let linear i n contains_calls =
     | Iop(Imove | Ireload | Ispill)
       when i.Mach.arg.(0).loc = i.Mach.res.(0).loc ->
         linear i.Mach.next n
+    | Iop(Ipollcall { label_after_call_gc = Some(lbl); check_young_limit = do_check }) ->
+      copy_instr (Lop (Ipollcall { label_after_call_gc = Some(lbl); check_young_limit = do_check })) i n
     | Iop op ->
         copy_instr (Lop op) i (linear i.Mach.next n)
     | Ireturn ->
@@ -175,6 +177,10 @@ let linear i n contains_calls =
         | Iend, _, _ ->
             let (lbl_end, n2) = get_label n1 in
             copy_instr (Lcondbranch(test, lbl_end)) i (linear ifnot n2)
+        | Iop(Ipollcall { label_after_call_gc = _; check_young_limit = do_check }),  Iend, _ ->
+            let (lbl_end, n2) = get_label n1 in
+            copy_instr (Lcondbranch(invert_test test, lbl_end)) i
+                       (linear {ifso with Mach.desc = Iop(Ipollcall { label_after_call_gc = Some(lbl_end); check_young_limit = do_check})} n2)            
         | _,  Iend, _ ->
             let (lbl_end, n2) = get_label n1 in
             copy_instr (Lcondbranch(invert_test test, lbl_end)) i

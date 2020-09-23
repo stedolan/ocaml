@@ -109,8 +109,8 @@ let test tst ppf arg =
   | Iinttest_imm(cmp, n) -> fprintf ppf "%a%s%i" reg arg.(0) (intcomp cmp) n
   | Ipolltest(test_type) -> begin
     match test_type with
-    | Ipollpending -> fprintf ppf "poll pending"
-    | Ipollnotpending -> fprintf ppf "no poll pending"
+    | Ipending -> fprintf ppf "poll pending"
+    | Inotpending -> fprintf ppf "no poll pending"
     end
   | Ifloattest cmp ->
       fprintf ppf "%a%s%a"
@@ -170,7 +170,15 @@ let operation op arg ppf res =
       reg arg.(0)
   | Ispecific op ->
       Arch.print_specific_operation reg op ppf arg
-  | Ipoll -> fprintf ppf "poll"
+  | Ipollcall { label_after_call_gc = lbl_opt; check_young_limit = check } -> 
+    fprintf ppf "poll ";
+    if check then
+      fprintf ppf "check+call"
+    else
+      fprintf ppf "call";
+    match lbl_opt with 
+    | Some(lbl) -> fprintf ppf "return L%s" (Int.to_string lbl)
+    | None -> ()
 
 let rec instr ppf i =
   if !Clflags.dump_live then begin

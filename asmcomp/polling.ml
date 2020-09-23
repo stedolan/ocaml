@@ -1,8 +1,8 @@
 open Mach
 
 let add_poll_before (f : Mach.instruction) : Mach.instruction =
-  let poll_instr = Mach.instr_cons (Iop Ipoll) [||] [||] (Mach.end_instr ()) in
-    Mach.instr_cons (Iifthenelse ((Ipolltest Ipollpending), poll_instr, Mach.end_instr ())) [||] [||] f
+  let poll_instr = Mach.instr_cons (Iop (Ipollcall { label_after_call_gc = None; check_young_limit = false })) [||] [||] (Mach.end_instr ()) in
+    Mach.instr_cons (Iifthenelse ((Ipolltest Ipending), poll_instr, Mach.end_instr ())) [||] [||] f
 
 type allocation_result = Allocation | NoAllocation | Exited
 
