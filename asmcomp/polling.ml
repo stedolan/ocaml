@@ -200,7 +200,15 @@ let instrument_loops_with_polls (rec_handlers : int list) (i : Mach.instruction)
   | Iop _ -> { f with next = instrument_loops f.next }
   in do_loops [] i
 
+(* adding a poll to these functions is rarely what we want *)
+let ignored_functions = ["caml_apply2"; "caml_apply3"]
+let is_ignored_function s = 
+  List.exists (fun x -> String.equal x s) ignored_functions
+
 let funcdecl (i : Mach.fundecl) : Mach.fundecl =
-  let f = i.fun_body in
-  let rec_handlers = find_rec_handlers f in
-  { i with fun_body = instrument_loops_with_polls rec_handlers f }
+  if is_ignored_function i.fun_name then
+    i
+  else
+    let f = i.fun_body in
+    let rec_handlers = find_rec_handlers f in
+    { i with fun_body = instrument_loops_with_polls rec_handlers f }
