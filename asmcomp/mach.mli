@@ -74,7 +74,7 @@ type operation =
   | Ispecific of Arch.specific_operation
   | Iname_for_debugger of { ident : Backend_var.t; which_parameter : int option;
       provenance : unit option; is_assignment : bool; }
-  | Ipollcall of { check_young_limit: bool; label_after_call_gc: label option }
+  | Ipollcall of { check_young_limit: bool }
 
 
 type instruction =

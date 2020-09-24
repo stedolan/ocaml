@@ -938,17 +938,19 @@ let emit_instr fallthrough i =
           I.pop r11;
           I.jmp r11
       end
-  | Lop(Ipollcall { label_after_call_gc = label_opt ; check_young_limit = do_check }) ->
+  | Lop(Ipollcall { check_young_limit = do_check }) ->
       if do_check then
-        I.cmp (domain_field Domainstate.Domain_young_limit) r15;
+          I.cmp (domain_field Domainstate.Domain_young_limit) r15;
       let gc_call_label = new_label () in  
-      let label_after_gc = match label_opt with
-      | Some(lbl) -> lbl
-      | None -> new_label () in
+      let label_after_gc = new_label() in
       let lbl_frame =
         record_frame_label ?label:None i.live (Dbg_other i.dbg)
       in
-      I.jbe (label gc_call_label);
+      begin
+        match do_check with
+        | true -> I.jbe (label gc_call_label)
+        | false -> I.jmp (label gc_call_label)
+      end;
       call_gc_sites :=
         { gc_lbl = gc_call_label;
           gc_return_lbl = label_after_gc;

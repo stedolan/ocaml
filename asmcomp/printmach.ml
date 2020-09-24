@@ -170,15 +170,12 @@ let operation op arg ppf res =
       reg arg.(0)
   | Ispecific op ->
       Arch.print_specific_operation reg op ppf arg
-  | Ipollcall { label_after_call_gc = lbl_opt; check_young_limit = check } -> 
+  | Ipollcall { check_young_limit = check } -> 
     fprintf ppf "poll ";
     if check then
       fprintf ppf "check+call"
     else
-      fprintf ppf "call";
-    match lbl_opt with 
-    | Some(lbl) -> fprintf ppf "return L%s" (Int.to_string lbl)
-    | None -> ()
+      fprintf ppf "call"
 
 let rec instr ppf i =
   if !Clflags.dump_live then begin
