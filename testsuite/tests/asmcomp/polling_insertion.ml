@@ -222,6 +222,22 @@ let polls_added_to_recursive_functions () =
     let minors_after = minor_gcs () in
       assert(minors_before+5 == minors_after)
 
+
+(* this set of functions tests whether polls are added before raises *)
+exception TestException
+
+let func_that_raises () =
+  raise TestException
+
+let polls_added_before_raises () =
+  let minors_before = minor_gcs () in
+    request_minor_gc ();
+    try 
+      func_that_raises ()
+    with TestException ->
+      let minors_after = minor_gcs () in
+        assert(minors_before+1 == minors_after)
+
 let () =
   polls_added_to_loops (); (* relies on there being some minor heap usage *)
   ignore(Sys.opaque_identity(ref 41));
@@ -233,4 +249,6 @@ let () =
   ignore(Sys.opaque_identity(ref 41));
   polls_not_added_to_allocating_loops ();
   ignore(Sys.opaque_identity(ref 41));
-  polls_not_added_to_leaf_functions ()
+  polls_not_added_to_leaf_functions ();
+  ignore(Sys.opaque_identity(ref 41));
+  polls_added_before_raises ()
