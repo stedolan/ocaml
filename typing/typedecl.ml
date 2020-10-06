@@ -1569,12 +1569,13 @@ let transl_with_constraint id row_path ~sig_env ~sig_decl ~outer_env sdecl =
 
 (* Approximate a type declaration: just make all types abstract *)
 
-let abstract_type_decl arity =
-  let rec make_params n =
-    if n <= 0 then [] else Ctype.newvar() :: make_params (n-1) in
+let abstract_type_decl params layout =
+  let make_param p =
+    Ctype.newvar ~layout:(transl_layout p.ptp_layout) () in
+  let arity = List.length params in
   Ctype.begin_def();
   let decl =
-    { type_params = make_params arity;
+    { type_params = List.map make_param params;
       type_arity = arity;
       type_kind = Type_abstract;
       type_private = Public;
@@ -1588,7 +1589,7 @@ let abstract_type_decl arity =
       type_immediate = Unknown;
       type_unboxed = unboxed_false_default_false;
       type_uid = Uid.internal_not_actually_unique;
-      type_layout = Layout.any;
+      type_layout = transl_layout layout;
      } in
   Ctype.end_def();
   generalize_decl decl;
@@ -1599,7 +1600,7 @@ let approx_type_decl sdecl_list =
   List.map
     (fun sdecl ->
       (Ident.create_scoped ~scope sdecl.ptype_name.txt,
-       abstract_type_decl (List.length sdecl.ptype_params)))
+       abstract_type_decl sdecl.ptype_params sdecl.ptype_layout))
     sdecl_list
 
 (* Variant of check_abbrev_recursion to check the well-formedness
