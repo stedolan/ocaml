@@ -241,9 +241,10 @@ let transl_labels env closed lbls =
       lbls in
   lbls, lbls'
 
-let transl_constructor_arguments env closed ?bindings = function
+let transl_constructor_arguments env closed ?(bindings = empty_var_bindings) =
+  function
   | Pcstr_tuple l ->
-      let l = List.map (transl_simple_type env ?bindings closed) l in
+      let l = List.map (transl_simple_type env ~bindings closed) l in
       List.iter (fun t ->
         try Ctype.constrain_layout env t.ctyp_type Layout.value
         with Ctype.Unify _ ->
@@ -251,7 +252,7 @@ let transl_constructor_arguments env closed ?bindings = function
       Types.Cstr_tuple (List.map (fun t -> t.ctyp_type) l),
       Cstr_tuple l
   | Pcstr_record l ->
-      assert (bindings = None); (* FIXME_layout *)
+      assert (bindings = empty_var_bindings); (* FIXME_layout *)
       let lbls, lbls' = transl_labels env closed l in
       Types.Cstr_record lbls',
       Cstr_record lbls

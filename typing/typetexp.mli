@@ -22,6 +22,7 @@ val valid_tyvar_name : string -> bool
 val transl_layout:
         Parsetree.layout option -> Types.layout
 type var_bindings_list
+val empty_var_bindings : var_bindings_list
 val transl_type_var_bindings :
         Parsetree.newtype list ->
         (string * Location.t * Types.layout) list * var_bindings_list

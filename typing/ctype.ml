@@ -2038,7 +2038,7 @@ let polyfy env ty vars =
   let subst_univar scope (ty, tylayout) =
     let ty = repr ty in
     match ty.desc with
-    | Tvar {name; layout} when ty.level = generic_level 
+    | Tvar {name; layout} when ty.level = generic_level
       (*FIXME_layout: equality or sub here? *) && layout = tylayout ->
         For_copy.save_desc scope ty ty.desc;
         let t = newty (Tunivar {name; layout}) in
@@ -2567,6 +2567,25 @@ let rec cmp_layout env may_refine_var may_refine_env ty layout =
     end
   | Tconstr (path, tl, _abbrev) ->
     begin match Env.find_type path !env with
+    | exception Not_found when !env = Env.empty ->
+      (* Destructive substitutions cannot break layout constraints, but
+         are performed in the empty environment which means those constraints
+         can't be checked, either. So, ignore layout constraint violations
+         arising in the empty environment, which is never otherwise used.
+         (cf. ctype_apply_env_empty, Subst.typexp) *)
+      ()
+    | exception Not_found when Layout.subset layout Layout.value ->
+      let rec str_of_path : Path.t -> string = function
+        | Pident i -> Ident.name i
+        | Pdot (t, s) -> str_of_path t ^ "." ^ s
+        | Papply (f, _) -> str_of_path f ^ "(..)" in
+      let s = Printf.sprintf "%s: %s\n" (Sys.getcwd ()) (str_of_path path) in
+      (match str_of_path path with "unit" | "list" | "int" | "string" | "option" -> failwith "wtf?" | _ -> ());
+      let fd = open_out_gen [Open_append; Open_creat] 0o666 "/tmp/missing.txt" in
+      output_string fd s;
+      Printexc.get_callstack 10000 |> Printexc.print_raw_backtrace fd;
+      close_out fd;
+      ()  (* FIXME_layout: unsound hack *)
     | exception Not_found ->
       fail Layout.any layout
     | { type_layout; _ } when Layout.subset type_layout layout ->
@@ -2999,7 +3018,7 @@ and unify_row env row1 row2 =
     | Some _, Some _ -> if rm2.level < rm1.level then rm2 else rm1
     | Some _, None -> rm1
     | None, Some _ -> rm2
-    | None, None -> 
+    | None, None ->
        newty2 (min rm1.level rm2.level)
          (Tvar {name = None; layout = Layout.value})
   in

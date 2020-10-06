@@ -672,6 +672,7 @@ let globalize_used_variables env ?(bindings = TyVarMap.empty) fixed =
       !r
 
 type var_bindings_list = (type_expr * Location.t * layout) TyVarMap.t
+let empty_var_bindings : var_bindings_list = TyVarMap.empty
 
 let transl_type_var_bindings (vars : newtype list) =
   let vars = List.map (fun (name, layout) ->
