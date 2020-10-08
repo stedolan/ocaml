@@ -1,5 +1,7 @@
 open Mach
 
+(* Add a poll test and polling instruction before [f]. In the later linearisation
+   pass this will simplify in to a conditional and backwards jump pair *)
 let add_fused_poll_before (f : Mach.instruction) : Mach.instruction =
   let poll_instr =
     Mach.instr_cons
@@ -10,19 +12,27 @@ let add_fused_poll_before (f : Mach.instruction) : Mach.instruction =
     (Iifthenelse (Ipolltest Ipending, poll_instr, Mach.end_instr ()))
     [||] [||] f
 
+(* Add a poll instruction which checks the young limit itself before [f] *)
 let add_checked_poll_before do_young_limit_check (f : Mach.instruction) : Mach.instruction =
     Mach.instr_cons
       (Iop (Ipollcall { check_young_limit = do_young_limit_check }))
       [||] [||] f
 
+(* The result of a sequence of instructions *)
 type allocation_result = Allocation | NoAllocation | Exited
 
+(* The combined result of two sequences of instructions *)
 let combine_paths p0 p1 =
   match (p0, p1) with
+  (* both paths allocate, might not need to poll *)
   | Allocation, Allocation -> Allocation
+  (* one path exits without allocating *)
   | Exited, _ | _, Exited -> Exited
+  (* no allocation happens in one of the paths *)
   | NoAllocation, _ | _, NoAllocation -> NoAllocation
 
+(* Check each sequence of instructions in the array [arr] and
+   combine their allocation results *)
 let rec reduce_paths_array arr =
   let rec red_arr acc arr n =
     match n with
@@ -38,7 +48,8 @@ let rec reduce_paths_array arr =
   in
   let res = red_arr None arr (Array.length arr - 1) in
   match res with None -> NoAllocation | Some v -> v
-
+(* Check each sequence of isntructions in the list [l] and
+   combine their allocation results *)
 and reduce_paths_list l =
   let rec red_list acc l =
     match l with
@@ -54,7 +65,8 @@ and reduce_paths_list l =
   in
   let res = red_list None l in
   match res with None -> NoAllocation | Some v -> v
-
+(* Check a sequence of instructions from [f] and return whether
+   they allocate, don't allocate or exit with allocation *)
 and check_path (f : Mach.instruction) : allocation_result =
   match f.desc with
   | Iifthenelse (_, i0, i1) -> (
@@ -85,6 +97,8 @@ and check_path (f : Mach.instruction) : allocation_result =
 let allocates_unconditionally (i : Mach.instruction) =
   match check_path i with Allocation -> true | NoAllocation | Exited -> false
 
+(* checks whether from Mach instruction [i] the sequence of isntructions
+   makes a call or contains a loop *)
 let rec contains_calls_or_loops (i : Mach.instruction) =
   match i.desc with
   | Iifthenelse (_, ifso, ifnot) ->
@@ -113,10 +127,14 @@ let rec contains_calls_or_loops (i : Mach.instruction) =
   | Ireturn | Iexit _ | Iraise _ -> false
   | Iop _ -> contains_calls_or_loops i.next
 
+(* checks whether function body [fun_body] is a leaf function. That is
+   it does not contain calls or loops *)
 let is_leaf_func_without_loops (fun_body : Mach.instruction) =
   not (contains_calls_or_loops fun_body)
 
-(* finds_rec_handlers *)
+(* returns a list of ids for the handlers of recursive catches from
+   Mach instruction [f]. These are used to later add polls before
+   exits to them. *)
 let rec find_rec_handlers (f : Mach.instruction) =
   match f.desc with
   | Iifthenelse (_, ifso, ifnot) ->
@@ -169,8 +187,12 @@ let rec find_rec_handlers (f : Mach.instruction) =
       []
   | Iop _ -> find_rec_handlers f.next
 
+(* given the list of handler ids [rec_handelrs] for recursive catches, add polls before
+   backwards edges starting from Mach instruction [i] *)
 let instrument_body_with_polls (rec_handlers : int list) (i : Mach.instruction)
     =
+  (* the [current_handlers] list allows for an optimisation which avoids putting a poll
+    before the first jump in to a loop *)
   let rec instrument_body (current_handlers : int list) (f : Mach.instruction) =
     let instrument_with_handlers i = instrument_body current_handlers i in
     match f.desc with
@@ -222,6 +244,7 @@ let instrument_body_with_polls (rec_handlers : int list) (i : Mach.instruction)
 (* adding a poll to these functions is rarely what we want *)
 let ignored_functions = [ "caml_apply2"; "caml_apply3" ]
 
+(* is the function name [s] in the list of functions to ignore adding polls to? *)
 let is_ignored_function s =
   List.exists (fun x -> String.equal x s) ignored_functions
 
