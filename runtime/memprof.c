@@ -635,7 +635,7 @@ static void entry_array_oldify_young_roots(struct entry_array *ea, void *data)
 {
   uintnat i;
   (void)data;
-  /* This loop should always have a small number of iteration (when
+  /* This loop should always have a small number of iterations (when
      compared to the size of the minor heap), because the young_idx
      pointer should always be close to the end of the array. Indeed,
      it is only moved back when returning from a callback triggered by
@@ -681,7 +681,7 @@ void caml_memprof_minor_update(void)
 {
   if (callback_idx > entries_global.young_idx) {
     /* The entries after [entries_global.young_idx] will possibly get
-       promoted. Hence, there might pending promotion callbacks. */
+       promoted. Hence, there might be pending promotion callbacks. */
     callback_idx = entries_global.young_idx;
     check_action_pending();
   }
