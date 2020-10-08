@@ -455,6 +455,7 @@ Caml_inline value run_callback_exn(
   /* The call above can move the tracked entry and thus invalidate
      [t_idx] and [t]. */
   if (ea == &entries_global) {
+    CAMLassert(local->callback_status >= 0 && local->callback_status < ea->len);
     t_idx = local->callback_status;
     t = &ea->t[t_idx];
   }
@@ -474,6 +475,19 @@ Caml_inline value run_callback_exn(
     if (Is_block(t->user_data) && Is_young(t->user_data) &&
         t_idx < ea->young_idx)
       ea->young_idx = t_idx;
+
+    // If the following condition are met:
+    //   - we are running a promotion callback,
+    //   - the corresponding block is deallocated,
+    //   - another thread is running callbacks in
+    //     [caml_memprof_handle_postponed_exn],
+    // then [callback_idx] may have moved forward during this callback,
+    // which means that we may forget to run the deallocation callback.
+    // Hence, we reset [callback_idx] if appropriate.
+    if (ea == &entries_global && t->deallocated && !t->cb_dealloc_called &&
+        callback_idx > t_idx)
+      callback_idx = t_idx;
+
     return Val_unit;
   }
 }
