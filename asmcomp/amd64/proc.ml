@@ -307,14 +307,17 @@ let destroyed_by_spacetime_at_alloc =
   else
     [| |]
 
+let destroyed_at_poll =
+  if X86_proc.use_plt then
+    destroyed_by_plt_stub
+  else
+    [||]
+
 let destroyed_at_alloc =
-  let regs =
-    if X86_proc.use_plt then
-      destroyed_by_plt_stub
-    else
-      [| r11 |]
-  in
-  Array.concat [regs; destroyed_by_spacetime_at_alloc]
+  if X86_proc.use_plt then
+    destroyed_by_plt_stub
+  else
+    [| r11 |]
 
 let destroyed_at_oper = function
     Iop(Icall_ind _ | Icall_imm _ | Iextcall { alloc = true; }) ->
@@ -323,7 +326,8 @@ let destroyed_at_oper = function
   | Iop(Iintop(Idiv | Imod)) | Iop(Iintop_imm((Idiv | Imod), _))
         -> [| rax; rdx |]
   | Iop(Istore(Single, _, _)) -> [| rxmm15 |]
-  | Iop(Ialloc _) | Iop(Ipollcall _) -> destroyed_at_alloc (* TODO: Could we loosen this in the non-PLT case for poll? *)
+  | Iop(Ialloc _) -> destroyed_at_alloc
+  | Iop(Ipollcall _) -> destroyed_at_poll
   | Iop(Iintop(Imulh | Icomp _) | Iintop_imm((Icomp _), _))
         -> [| rax |]
   | Iop (Iintop (Icheckbound _)) when Config.spacetime ->
