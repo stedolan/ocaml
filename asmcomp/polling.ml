@@ -1,3 +1,17 @@
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*                Sadiq Jaffer, Ocaml Labs Consultancy Ltd                *)
+(*                                                                        *)
+(*   Copyright 2020 OCaml Labs Consultancy Ltd                           *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
+
 open Mach
 
 (* Add a poll test and polling instruction before [f]. In the later linearisation
