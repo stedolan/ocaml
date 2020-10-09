@@ -13,9 +13,9 @@ let add_fused_poll_before (f : Mach.instruction) : Mach.instruction =
     [||] [||] f
 
 (* Add a poll instruction which checks the young limit itself before [f] *)
-let add_checked_poll_before do_young_limit_check (f : Mach.instruction) : Mach.instruction =
+let add_checked_poll_before check_young_limit (f : Mach.instruction) : Mach.instruction =
     Mach.instr_cons
-      (Iop (Ipollcall { check_young_limit = do_young_limit_check }))
+      (Iop (Ipollcall { check_young_limit }))
       [||] [||] f
 
 (* The result of a sequence of instructions *)
@@ -47,7 +47,9 @@ let rec reduce_paths_array arr =
         red_arr (Some new_acc) arr (n - 1)
   in
   let res = red_arr None arr (Array.length arr - 1) in
-  match res with None -> NoAllocation | Some v -> v
+  match res with 
+  | None -> NoAllocation 
+  | Some v -> v
 (* Check each sequence of isntructions in the list [l] and
    combine their allocation results *)
 and reduce_paths_list l =
@@ -92,10 +94,12 @@ and check_path (f : Mach.instruction) : allocation_result =
   | Iop (Ialloc _) -> Allocation
   | Iop _ -> check_path f.next
 
-(* this determines whether from a given instruction we unconditionally
+(* This determines whether from a given instruction we unconditionally
    allocate and this is used to avoid adding polls unnecessarily *)
 let allocates_unconditionally (i : Mach.instruction) =
-  match check_path i with Allocation -> true | NoAllocation | Exited -> false
+  match check_path i with 
+  | Allocation -> true 
+  | NoAllocation | Exited -> false
 
 (* checks whether from Mach instruction [i] the sequence of isntructions
    makes a call or contains a loop *)

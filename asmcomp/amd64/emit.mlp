@@ -835,10 +835,8 @@ let emit_instr fallthrough i =
         begin
           I.cmp (domain_field Domainstate.Domain_young_limit) r15;
           match poll_test_type with
-          | Ipending ->
-            I.jbe lbl;
-          | Inotpending ->
-            I.jg lbl;
+          | Ipending -> I.jbe lbl
+          | Inotpending -> I.jg lbl
         end
       | Ifloattest cmp ->
           emit_float_test cmp i lbl
@@ -938,7 +936,7 @@ let emit_instr fallthrough i =
           I.pop r11;
           I.jmp r11
       end
-  | Lop(Ipollcall { check_young_limit = do_check }) ->
+  | Lop(Ipollcall { check_young_limit }) ->
       if do_check then
           I.cmp (domain_field Domainstate.Domain_young_limit) r15;
       let gc_call_label = new_label () in  
@@ -947,7 +945,7 @@ let emit_instr fallthrough i =
         record_frame_label ?label:None i.live (Dbg_other i.dbg)
       in
       begin
-        match do_check with
+        match check_young_limit with
         | true -> I.jbe (label gc_call_label)
         | false -> I.jmp (label gc_call_label)
       end;
