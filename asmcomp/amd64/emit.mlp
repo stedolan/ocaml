@@ -937,7 +937,7 @@ let emit_instr fallthrough i =
           I.jmp r11
       end
   | Lop(Ipollcall { check_young_limit }) ->
-      if do_check then
+      if check_young_limit then
           I.cmp (domain_field Domainstate.Domain_young_limit) r15;
       let gc_call_label = new_label () in  
       let label_after_gc = new_label() in

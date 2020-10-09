@@ -301,12 +301,6 @@ let destroyed_at_c_call =
        100;101;102;103;104;105;106;107;
        108;109;110;111;112;113;114;115])
 
-let destroyed_by_spacetime_at_alloc =
-  if Config.spacetime then
-    [| loc_spacetime_node_hole |]
-  else
-    [| |]
-
 let destroyed_at_poll =
   if X86_proc.use_plt then
     destroyed_by_plt_stub
