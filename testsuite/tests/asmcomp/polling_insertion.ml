@@ -29,7 +29,7 @@ let polls_added_to_loops () =
   request_minor_gc ();
   for a = 0 to 1 do
     let minors_now = minor_gcs () in
-    if a == 0 then
+    if a = 0 then
       (* No polls on the entry to the loop *)
       assert (minors_before == minors_now)
     else
@@ -59,7 +59,7 @@ let func_with_added_poll_because_allocation_is_conditional n =
   (* since this is not a leaf, it will have a poll if there are
      no unconditional allocations. We use the if here to ensure
      the allocation is conditional. *)
-  if n == 0 then
+  if n = 0 then
     ignore(Sys.opaque_identity(ref 42))
   else
     ()
