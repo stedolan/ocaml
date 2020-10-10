@@ -31,11 +31,11 @@ let polls_added_to_loops () =
     let minors_now = minor_gcs () in
     if a = 0 then
       (* No polls on the entry to the loop *)
-      assert (minors_before == minors_now)
+      assert (minors_before = minors_now)
     else
       (* We should have hit a poll on the jump at the end of the
          first iteration *)
-      assert (minors_before + 1 == minors_now)
+      assert (minors_before + 1 = minors_now)
   done
 
 (* This next pair of functions test that polls are added to the prologue 
@@ -71,21 +71,21 @@ let polls_added_to_functions () =
   request_minor_gc ();
   func_with_added_poll_because_loop ();
   let minors_now = minor_gcs () in
-  assert (minors_before + 1 == minors_now);
+  assert (minors_before + 1 = minors_now);
 
   ignore(Sys.opaque_identity(ref 41));
   let minors_before = minor_gcs () in
   request_minor_gc ();
   func_with_added_poll_because_call ();
   let minors_now = minor_gcs () in
-  assert (minors_before +1 == minors_now);
+  assert (minors_before +1 = minors_now);
 
   ignore(Sys.opaque_identity(ref 41));
   let minors_before = minor_gcs () in
   request_minor_gc ();
   func_with_added_poll_because_allocation_is_conditional 1;
   let minors_now = minor_gcs () in
-  assert (minors_before +1 == minors_now)
+  assert (minors_before +1 = minors_now)
 
 (* These next functions test that polls are not added to functions that
    unconditionally allocate. We need the empty loop to avoid these functions
@@ -95,11 +95,11 @@ let polls_added_to_functions () =
    on two separate branches *)
 let allocating_func minors_before =
   let minors_now = minor_gcs () in
-  assert (minors_before == minors_now);
+  assert (minors_before = minors_now);
   (* No poll yet *)
   ignore (Sys.opaque_identity (ref 42));
   let minors_now2 = minor_gcs () in
-  assert (minors_before + 1 == minors_now2);
+  assert (minors_before + 1 = minors_now2);
   (* Polled at alloc *)
   for a = 0 to 0 do
     ignore (Sys.opaque_identity 0)
@@ -108,12 +108,12 @@ let allocating_func minors_before =
 
 let allocating_func_if minors_before =
   let minors_now = minor_gcs () in
-  assert (minors_before == minors_now);
+  assert (minors_before = minors_now);
   (* No poll yet *)
   if minors_before > 0 then ignore (Sys.opaque_identity (ref 42))
   else ignore (Sys.opaque_identity (ref 42));
   let minors_now2 = minor_gcs () in
-  assert (minors_before + 1 == minors_now2);
+  assert (minors_before + 1 = minors_now2);
   (* Polled at alloc *)
   for a = 0 to 0 do
     ignore (Sys.opaque_identity 0)
@@ -122,7 +122,7 @@ let allocating_func_if minors_before =
 
 let allocating_func_nested_ifs minors_before =
   let minors_now = minor_gcs () in
-  assert (minors_before == minors_now);
+  assert (minors_before = minors_now);
   (* No poll yet *)
   if minors_before > 0 then 
     if minors_before > 1 then
@@ -135,7 +135,7 @@ let allocating_func_nested_ifs minors_before =
     else
       ignore (Sys.opaque_identity (ref 42));
   let minors_now2 = minor_gcs () in
-  assert (minors_before + 1 == minors_now2);
+  assert (minors_before + 1 = minors_now2);
   (* Polled at alloc *)
   for a = 0 to 0 do
     ignore (Sys.opaque_identity 0)
@@ -144,13 +144,13 @@ let allocating_func_nested_ifs minors_before =
 
 let allocating_func_match minors_before =
   let minors_now = minor_gcs () in
-  assert (minors_before == minors_now);
+  assert (minors_before = minors_now);
   (* No poll yet *)
   match minors_before with
   | 0 -> ignore (Sys.opaque_identity (ref 42))
   | _ -> ignore (Sys.opaque_identity (ref 42));
   let minors_now2 = minor_gcs () in
-  assert (minors_before + 1 == minors_now2);
+  assert (minors_before + 1 = minors_now2);
   (* Polled at alloc *)
   for a = 0 to 0 do
     ignore (Sys.opaque_identity 0)
@@ -183,10 +183,10 @@ let polls_not_added_to_allocating_loops () =
   for a = 0 to 1 do
     (* Since the loop body allocates there should be no poll points *)
     let minors_now = minor_gcs () in
-      assert(minors_now == !current_minors);
+      assert(minors_now = !current_minors);
       ignore(Sys.opaque_identity(ref 42));
       let minors_now2 = minor_gcs () in
-        assert(minors_now+1 == minors_now2);
+        assert(minors_now+1 = minors_now2);
         current_minors := minors_now2;
         ignore(Sys.opaque_identity(ref 41));
         request_minor_gc ()
@@ -203,7 +203,7 @@ let polls_not_added_to_leaf_functions () =
   request_minor_gc ();
   leaf_func ();
   let minors_now = minor_gcs () in
-  assert(minors_before == minors_now)
+  assert(minors_before = minors_now)
 
 (* this next set of functions tests that tail recursive functions
    have polls added correctly *)
@@ -220,7 +220,7 @@ let polls_added_to_recursive_functions () =
   let minors_before = minor_gcs () in
     ignore(rec_func 5);
     let minors_after = minor_gcs () in
-      assert(minors_before+5 == minors_after)
+      assert(minors_before+5 = minors_after)
 
 
 (* this set of functions tests whether polls are added before raises *)
@@ -236,7 +236,7 @@ let polls_added_before_raises () =
       func_that_raises ()
     with TestException ->
       let minors_after = minor_gcs () in
-        assert(minors_before+1 == minors_after)
+        assert(minors_before+1 = minors_after)
 
 let () =
   polls_added_to_loops (); (* relies on there being some minor heap usage *)
