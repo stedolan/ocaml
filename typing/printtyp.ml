@@ -1310,11 +1310,18 @@ let rec tree_of_type_decl id decl =
         None,
         decl.type_private
   in
+  (* [@@immediate] implies layout = "immediate",
+     so discard the layout attribute if both are present *)
+  let immediate = Type_immediacy.of_attributes decl.type_attributes in
+  let layout = match layout, immediate with
+    | Some ["immediate"], Always -> None
+    | l, _ -> l
+  in
     { otype_name = name;
       otype_params = args;
       otype_type = ty;
       otype_private = priv;
-      otype_immediate = Type_immediacy.of_attributes decl.type_attributes;
+      otype_immediate = immediate;
       otype_unboxed = decl.type_unboxed.unboxed;
       otype_layout = layout;
       otype_cstrs = constraints }

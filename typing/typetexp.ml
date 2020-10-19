@@ -643,7 +643,8 @@ let make_fixed_univars ty =
 
 let create_package_mty = create_package_mty false
 
-let globalize_used_variables env ?(bindings = TyVarMap.empty) fixed =
+let globalize_used_variables
+      env ?(allow_any_layout=false) ?(bindings = TyVarMap.empty) fixed =
   let r = ref [] in
   TyVarMap.iter
     (fun name (ty, loc) ->
@@ -658,7 +659,11 @@ let globalize_used_variables env ?(bindings = TyVarMap.empty) fixed =
         let layout =
           match TyVarMap.find name bindings with
           | _, _, l -> l
-          | exception Not_found -> Layout.value in
+          | exception Not_found ->
+            let l = Ctype.layout_supremum env v in
+            if allow_any_layout then l
+            else Layout.approx_compilable l
+        in
         let v2 = new_global_var layout in
         r := (loc, v, v2) :: !r;
         type_variables := TyVarMap.add name v2 !type_variables)
@@ -733,7 +738,14 @@ let transl_type_scheme env styp =
     | {ptyp_desc = Ptyp_poly (vars, styp); _} -> vars, styp
     | _ -> [], styp in
   let vars, bindings = transl_type_var_bindings vars in
-  let typ = transl_simple_type env ~bindings false styp in
+  let typ = begin
+    univars := [];
+    used_variables := TyVarMap.map (fun (t,l,_v) -> t,l) bindings;
+    let typ = transl_type env Extensible styp in
+    globalize_used_variables env ~allow_any_layout:true ~bindings false ();
+    make_fixed_univars typ.ctyp_type;
+    typ
+  end in
   end_def();
   tighten_contravariant_layouts env typ.ctyp_type;
   generalize typ.ctyp_type;

@@ -2,6 +2,43 @@
    * expect
 *)
 
+(* Schemes.
+   Unannotated type variables quantify over any_layout if used only covariantly,
+   but quantify over value if used contravariantly *)
+module type I1 = sig val id : 'a -> 'a end
+module type I2 = sig val id : ('a : value) . 'a -> 'a end
+module I_12 (X : I1) : I2 = X
+module I_21 (X : I2) : I1 = X
+[%%expect{|
+module type I1 = sig val id : 'a -> 'a end
+module type I2 = sig val id : 'a -> 'a end
+module I_12 : functor (X : I1) -> I2
+module I_21 : functor (X : I2) -> I1
+|}]
+
+module type C1 = sig val co : unit -> 'a end
+module type C2 = sig val co : ('a : any_layout) . unit -> 'a end
+module C_12 (X : C2) : C1 = X
+module C_21 (X : C1) : C2 = X
+[%%expect{|
+module type C1 = sig val co : unit -> 'a end
+module type C2 = sig val co : ('a : any_layout). unit -> 'a end
+module C_12 : functor (X : C2) -> C1
+Line 4, characters 28-29:
+4 | module C_21 (X : C1) : C2 = X
+                                ^
+Error: Signature mismatch:
+       Modules do not match:
+         sig val co : unit -> 'a end
+       is not included in
+         C2
+       Values do not match:
+         val co : unit -> 'a
+       is not included in
+         val co : ('a : any_layout). unit -> 'a
+|}]
+
+
 type ('a : immediate) imm = 'a
 
 (* FIXME_layout: should this refine the value layout to immediate here?
