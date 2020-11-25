@@ -78,7 +78,7 @@ let rec regalloc ~ppf_dump round fd =
 
 let (++) x f = f x
 
-let compile_fundecl ~ppf_dump fd_cmm =
+let compile_fundecl ~ppf_dump ~funcnames fd_cmm =
   Proc.init ();
   Reg.reset();
   fd_cmm
@@ -90,7 +90,7 @@ let compile_fundecl ~ppf_dump fd_cmm =
   ++ pass_dump_if ppf_dump dump_cse "After CSE"
   ++ Profile.record ~accumulate:true "liveness" liveness
   ++ Profile.record ~accumulate:true "deadcode" Deadcode.fundecl
-  ++ Profile.record ~accumulate:true "polling" Polling.funcdecl
+  ++ Profile.record ~accumulate:true "polling" (Polling.instrument_fundecl ~future_funcnames:funcnames)
   ++ pass_dump_if ppf_dump dump_live "Liveness analysis"
   ++ Profile.record ~accumulate:true "spill" Spill.fundecl
   ++ pass_dump_if ppf_dump dump_spill "After spilling"
@@ -106,12 +106,30 @@ let compile_fundecl ~ppf_dump fd_cmm =
   ++ pass_dump_linear_if ppf_dump dump_scheduling "After instruction scheduling"
   ++ emit_fundecl
 
-let compile_phrase ~ppf_dump p =
-  if !dump_cmm then fprintf ppf_dump "%a@." Printcmm.phrase p;
-  match p with
-  | Cfunction fd -> compile_fundecl ~ppf_dump fd
-  | Cdata dl -> emit_data dl
+module StringSet = Set.Make (String)
+let compile_phrases ~ppf_dump ps =
+  let funcnames =
+    List.fold_left (fun s p ->
+      match p with
+      | Cfunction fd -> StringSet.add fd.fun_name s
+      | Cdata _ -> s) StringSet.empty ps in
+  let rec compile ~funcnames ps =
+    match ps with
+    | [] -> ()
+    | p :: ps ->
+       if !dump_cmm then fprintf ppf_dump "%a@." Printcmm.phrase p;
+       match p with
+       | Cfunction fd ->
+          compile_fundecl ~ppf_dump ~funcnames fd;
+          compile ~funcnames:(StringSet.remove fd.fun_name funcnames) ps
+       | Cdata dl ->
+          emit_data dl; 
+          compile ~funcnames ps
+  in
+  compile ~funcnames ps
 
+let compile_phrase ~ppf_dump p =
+  compile_phrases ~ppf_dump [p]
 
 (* For the native toplevel: generates generic functions unless
    they are already available in the process *)
@@ -153,7 +171,7 @@ let end_gen_implementation ?toplevel ~ppf_dump
   emit_begin_assembly ();
   clambda
   ++ Profile.record "cmm" Cmmgen.compunit
-  ++ Profile.record "compile_phrases" (List.iter (compile_phrase ~ppf_dump))
+  ++ Profile.record "compile_phrases" (compile_phrases ~ppf_dump)
   ++ (fun () -> ());
   (match toplevel with None -> () | Some f -> compile_genfuns ~ppf_dump f);
   (* We add explicit references to external primitive symbols.  This

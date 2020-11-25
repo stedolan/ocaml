@@ -23,7 +23,7 @@ let fatal_errorf fmt =
     Format.err_formatter
     ("@?>> Fatal error: " ^^ fmt ^^ "@.")
 
-let fatal_error msg = fatal_errorf "%s" msg
+let[@inline never] fatal_error msg = fatal_errorf "%s" msg
 
 (* Exceptions *)
 

@@ -14,6 +14,15 @@
 
 open Mach
 
+(* An expression has *enough polling* if its evaluation is guaranteed
+   to do one of the following within a finite period of time:
+     - return a value
+     - terminate with an exception
+     - allocate
+     - poll
+*)
+
+
 (* Add a poll test and polling instruction before [f]. In the later linearisation
    pass this will simplify in to a conditional and backwards jump pair *)
 let add_fused_poll_before (f : Mach.instruction) : Mach.instruction =
@@ -31,6 +40,75 @@ let add_checked_poll_before check_young_limit (f : Mach.instruction) : Mach.inst
     Mach.instr_cons
       (Iop (Ipollcall { check_young_limit }))
       [||] [||] f
+
+module StringSet = Set.Make (String)
+
+let insert_poll_before i =
+  { i with next = i; desc = Iop (Ipollcall { check_young_limit = true });
+           res = [| |]; arg = [| |] }
+
+let rec maybe_insert_poll recfn reclbl i =
+  let i, enough = add_polling recfn reclbl i in
+  if enough then i else insert_poll_before i
+
+and add_polling recfn reclbl i =
+  match i.desc with
+  | Iend | Ireturn -> i, true
+  | Iifthenelse (t, ifso, ifnot) ->
+     let next, pnext = add_polling recfn reclbl i.next in
+     let ifso, pso = add_polling recfn reclbl ifso in
+     let ifnot, pnot = add_polling recfn reclbl ifnot in
+     { i with next; desc = Iifthenelse (t, ifso, ifnot) },
+     pso && pnot && pnext
+  | Iswitch (cases, acts) ->
+     let next, pnext = add_polling recfn reclbl i.next in
+     let acts_p = Array.map (add_polling recfn reclbl) acts in
+     let acts = Array.map fst acts_p in
+     { i with next; desc = Iswitch(cases, acts) },
+     Array.for_all snd acts_p && pnext
+  | Itrywith (body, handler) ->
+     let next, pnext = add_polling recfn reclbl i.next in
+     let body, pbody = add_polling recfn reclbl body in
+     let handler, phandler = add_polling recfn reclbl handler in
+     { i with next; desc = Itrywith(body, handler) },
+     pbody && phandler && pnext
+  | Iraise _ -> i, true
+  | Icatch (rf, handlers, body) ->
+     let next, pnext = add_polling recfn reclbl i.next in
+     let body, pbody = add_polling recfn reclbl body in
+     let handlers, phandlers =
+       match rf with
+       | Recursive ->
+          let reclbl = reclbl @ List.map fst handlers in
+          List.map (fun (lbl, code) ->
+            lbl, maybe_insert_poll recfn reclbl code) handlers,
+          true
+       | Nonrecursive ->
+          let handlers = handlers |> List.map (fun (lbl, code) ->
+            let code, pcode = add_polling recfn reclbl code in
+            (lbl, code), pcode) in
+          List.map fst handlers,
+          List.for_all snd handlers
+     in
+     { i with next; desc = Icatch (Recursive, handlers, body) },
+     phandlers && pbody && pnext
+  | Iexit n -> i, not (List.mem n reclbl)
+  | Iop (Ialloc _ | Ipollcall _ ) ->
+     let next, _ = add_polling recfn reclbl i.next in
+     { i with next }, true
+
+  | Iop ((*Icall_imm { func; _ } | *)Itailcall_imm { func; _ }) ->
+     let not_self = not (StringSet.mem func recfn) in
+     let next, pnext = add_polling recfn reclbl i.next in
+     { i with next }, not_self && pnext
+  | Iop ((*Icall_ind _ | *)Itailcall_ind _) ->
+     (* Indirect calls can in general be self calls, using fixpoint operators *)
+     let next, _ = add_polling recfn reclbl i.next in
+     { i with next }, false
+  | Iop _ ->
+     (* Other operations neither poll nor diverge *)
+     let next, pnext = add_polling recfn reclbl i.next in
+     { i with next }, pnext
 
 (* The result of a sequence of instructions *)
 type allocation_result = Allocation | NoAllocation | Exited
@@ -272,3 +350,10 @@ let funcdecl (i : Mach.fundecl) : Mach.fundecl =
     let f = i.fun_body in
     let rec_handlers = find_rec_handlers f in
     { i with fun_body = instrument_body_with_polls rec_handlers f }
+
+let instrument_fundecl ~future_funcnames (fd : Mach.fundecl) : Mach.fundecl =
+  assert (StringSet.mem fd.fun_name future_funcnames);
+  let body = maybe_insert_poll future_funcnames [] fd.fun_body in
+  { fd with fun_body = body }
+(*
+  { fd with fun_body = maybe_insert_poll future_funcnames [] fd.fun_body }*)
