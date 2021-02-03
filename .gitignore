@@ -1,1 +1,4 @@
 _build
+ocaml/_install
+Makefile.config
+.merlin
