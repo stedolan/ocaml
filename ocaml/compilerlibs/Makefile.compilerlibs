@@ -85,14 +85,14 @@ COMP=\
   driver/main_args.cmo driver/compmisc.cmo \
   driver/makedepend.cmo \
   driver/compile_common.cmo
-COMP_CMI=\
-  file_formats/cmo_format.cmi \
-  file_formats/cmx_format.cmi \
-  file_formats/cmxs_format.cmi
+# COMP_CMI=\
+#   file_formats/cmo_format.cmi \
+#   file_formats/cmx_format.cmi \
+#   file_formats/cmxs_format.cmi
 # All file format descriptions (including cmx{,s}) are in the
 # ocamlcommon library so that ocamlobjinfo can depend on them.
 
-COMMON_CMI=$(UTILS_CMI) $(PARSING_CMI) $(TYPING_CMI) $(LAMBDA_CMI) $(COMP_CMI)
+COMMON_CMI=$(UTILS_CMI) $(PARSING_CMI) $(TYPING_CMI) $(LAMBDA_CMI)
 
 COMMON=$(UTILS) $(PARSING) $(TYPING) $(LAMBDA) $(COMP)
 
