@@ -20,27 +20,45 @@ open Builtin_actions
 open Ocaml_actions
 
 let bytecode =
-  let opt_actions =
+  let test_actions =
+    ( if Ocamltest_config.native_compiler then
+        [ setup_ocamlc_opt_build_env;
+          ocamlc_opt;
+          check_ocamlc_opt_output ]
+      else
+        [ setup_ocamlc_byte_build_env;
+          ocamlc_byte;
+          check_ocamlc_byte_output ])
+    @ [ run; check_program_output ] in
+
+(*  let opt_actions =
   [
     setup_ocamlc_opt_build_env;
     ocamlc_opt;
     check_ocamlc_opt_output;
     compare_bytecode_programs
-  ] in
+  ] in *)
 {
   test_name = "bytecode";
   test_run_by_default = true;
-  test_actions =
+  test_actions (* =
   [
     setup_ocamlc_byte_build_env;
     ocamlc_byte;
     check_ocamlc_byte_output;
     run;
     check_program_output;
-  ] @ (if Ocamltest_config.native_compiler then opt_actions else [])
+  ] @ (if Ocamltest_config.native_compiler then opt_actions else [])*)
 }
 
 let native =
+  let test_actions =
+    [ setup_ocamlopt_opt_build_env;
+      ocamlopt_opt;
+      check_ocamlopt_opt_output;
+      run;
+      check_program_output ] in
+(*
   let opt_actions =
   [
     setup_ocamlopt_byte_build_env;
@@ -51,12 +69,12 @@ let native =
     setup_ocamlopt_opt_build_env;
     ocamlopt_opt;
     check_ocamlopt_opt_output;
-  ] in
+  ] in *)
   {
     test_name = "native";
     test_run_by_default = true;
-    test_actions =
-      (if Ocamltest_config.native_compiler then opt_actions else [skip])
+    test_actions (*=
+      (if Ocamltest_config.native_compiler then opt_actions else [skip])*)
   }
 
 let toplevel = {

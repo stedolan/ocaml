@@ -41,12 +41,12 @@ class compiler
 
   method program_variable =
     if Ocaml_backends.is_native host
-    then Builtin_variables.program2
+    then Builtin_variables.program
     else Builtin_variables.program
 
   method program_output_variable =
     if Ocaml_backends.is_native host
-    then None
+    then Some Builtin_variables.output
     else Some Builtin_variables.output
 
   method ! reference_file env prefix =
@@ -75,8 +75,8 @@ let ocamlc_opt = new compiler
   ~flags: ""
   ~directory: "ocamlc.opt"
   ~exit_status_variable: Ocaml_variables.ocamlc_opt_exit_status
-  ~reference_variable: Ocaml_variables.compiler_reference2
-  ~output_variable: Ocaml_variables.compiler_output2
+  ~reference_variable: Ocaml_variables.compiler_reference
+  ~output_variable: Ocaml_variables.compiler_output
   ~host: Ocaml_backends.Native
   ~target: Ocaml_backends.Bytecode
 
@@ -95,7 +95,7 @@ let ocamlopt_opt = new compiler
   ~flags: ""
   ~directory: "ocamlopt.opt"
   ~exit_status_variable: Ocaml_variables.ocamlopt_opt_exit_status
-  ~reference_variable: Ocaml_variables.compiler_reference2
-  ~output_variable: Ocaml_variables.compiler_output2
+  ~reference_variable: Ocaml_variables.compiler_reference
+  ~output_variable: Ocaml_variables.compiler_output
   ~host: Ocaml_backends.Native
   ~target: Ocaml_backends.Native
