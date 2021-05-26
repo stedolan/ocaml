@@ -241,11 +241,15 @@ endif
 
 OCAMLOBJINFO=$(ROOTDIR)/compilerlibs/ocamlcommon.cma \
              $(ROOTDIR)/compilerlibs/ocamlbytecomp.cma \
-             $(ROOTDIR)/compilerlibs/ocamlmiddleend.cma \
              objinfo.cmo
 
-ocamlobjinfo$(EXE): $(OCAMLOBJINFO)
-ocamlobjinfo.opt$(EXE): $(call byte2native, $(OCAMLOBJINFO))
+ocamlobjinfo$(EXE): $(OCAMLOBJINFO) objinfo_byt.ml
+ocamlobjinfo.opt$(EXE): \
+  $(call byte2native, $(OCAMLOBJINFO)) \
+  $(ROOTDIR)/compilerlibs/ocamloptcomp.cmxa objinfo_nat.ml
+ocamloptobjinfo$(EXE): \
+  $(OCAMLOBJINFO) $(ROOTDIR)/compilerlibs/ocamloptcomp.cma objinfo_nat.ml
+	$(CAMLC) $(LINKFLAGS) -I $(ROOTDIR) -o $@ $(filter-out %.cmi,$^)
 
 PRIMREQ=$(ROOTDIR)/compilerlibs/ocamlcommon.cma \
         $(ROOTDIR)/compilerlibs/ocamlbytecomp.cma \

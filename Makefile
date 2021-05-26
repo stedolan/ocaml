@@ -1003,7 +1003,7 @@ lintapidiff:
 # Tools
 
 .PHONY: ocamltools
-ocamltools: ocamlc ocamllex compilerlibs/ocamlmiddleend.cma
+ocamltools: ocamlc ocamllex
 	$(MAKE) -C tools all
 
 .PHONY: ocamltoolsopt
@@ -1011,7 +1011,7 @@ ocamltoolsopt: ocamlopt
 	$(MAKE) -C tools opt
 
 .PHONY: ocamltoolsopt.opt
-ocamltoolsopt.opt: ocamlc.opt ocamllex.opt compilerlibs/ocamlmiddleend.cmxa
+ocamltoolsopt.opt: ocamlc.opt ocamllex.opt compilerlibs/ocamloptcomp.cmxa
 	$(MAKE) -C tools opt.opt
 
 partialclean::
