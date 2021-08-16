@@ -241,6 +241,10 @@ let warning_scope ?ppwarning attrs f =
     Warnings.restore prev;
     raise exn
 
+let warning_scope ?ppwarning attrs f =
+  match attrs with
+  | [] -> f ()
+  | _ -> warning_scope ?ppwarning attrs f
 
 let warn_on_literal_pattern =
   List.exists

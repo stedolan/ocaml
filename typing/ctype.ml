@@ -1591,6 +1591,7 @@ let check_abbrev_env env =
    4. The expansion requires the expansion of another abbreviation,
       and this other expansion fails.
 *)
+
 let expand_abbrev_gen kind find_type_expansion env ty =
   check_abbrev_env env;
   match ty with
@@ -2589,6 +2590,10 @@ let record_equation t1 t2 =
   | Forbidden -> assert false
   | Allowed { equated_types } -> TypePairs.add equated_types (t1, t2) ()
 
+let unify_hits = ref 0 and unifys = ref 0 and unify_ex = ref 0
+let () =
+  at_exit (fun () -> Printf.fprintf stderr "UNIFY: %d %d %d (%.1f%%)\n%!" !unifys !unify_hits !unify_ex (100. *. float_of_int !unify_ex /. float_of_int !unifys))
+
 let rec unify (env:Env.t ref) t1 t2 =
   (* First step: special cases (optimizations) *)
   if t1 == t2 then () else
@@ -2596,7 +2601,6 @@ let rec unify (env:Env.t ref) t1 t2 =
   let t2 = repr t2 in
   if unify_eq t1 t2 then () else
   let reset_tracing = check_trace_gadt_instances !env in
-
   try
     type_changed := true;
     begin match (t1.desc, t2.desc) with
@@ -2635,6 +2639,37 @@ let rec unify (env:Env.t ref) t1 t2 =
         with Cannot_expand ->
           unify2 env t1 t2
         end
+    (* FIXME eq by normalise path? *)
+    | Tconstr (p1, tl1, _a1), Tconstr (p2, tl2, _a2) ->
+       let unify_same_path p =
+         incr unify_hits;
+         match Env.find_type p !env with
+         | exception Not_found ->
+            unify2 env t1 t2
+         | { type_variance = var; _ } ->
+            assert (List.length var = List.length tl1 &&
+                      List.length var = List.length tl2);
+            if List.for_all (fun v -> Variance.mem Inj v) var then begin
+              incr unify_ex;
+              update_level !env t1.level t2;
+              update_scope t1.scope t2;
+              link_type t1 t2;
+              unify_list env tl1 tl2
+            end
+            else
+              unify2 env t1 t2
+       in
+       incr unifys;
+       if Path.same p1 p2 then
+         unify_same_path p1
+       else
+         (* FIXME: Can these paths contain Papply? *)
+         let p1 = Env.normalize_type_path None !env p1 in
+         let p2 = Env.normalize_type_path None !env p2 in
+         if Path.same p1 p2 then
+           unify_same_path p1
+         else
+           unify2 env t1 t2
     | _ ->
         unify2 env t1 t2
     end;

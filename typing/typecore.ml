@@ -2573,6 +2573,7 @@ and type_expect ?in_function ?recarg env sexp ty_expected_explained =
   Cmt_format.set_saved_types
     (Cmt_format.Partial_expression exp :: previous_saved_types);
   exp
+  
 
 and with_explanation explanation f =
   match explanation with
@@ -4518,6 +4519,9 @@ and type_statement ?explanation env sexp =
   end
 
 and type_unpacks ?in_function env unpacks sbody expected_ty =
+if unpacks = [] then
+  type_expect ?in_function env sbody expected_ty
+else
   let ty = newvar() in
   (* remember original level *)
   let extended_env, tunpacks =
