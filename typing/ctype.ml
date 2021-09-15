@@ -3812,6 +3812,69 @@ let moregen inst_nongen type_pairs env patt subj =
   univar_pairs := [];
   moregen inst_nongen type_pairs env patt subj
 
+let n_moregeneral = ref 0 and n_quick = ref 0 and n_extra = ref 0
+let () = at_exit (fun () ->
+  if Sys.getenv_opt "MOREGEN" <> None then
+    Printf.fprintf stderr "%d/%d (%.1f%%); %d extra\n" !n_quick !n_moregeneral (100. *. float_of_int !n_quick /. float_of_int !n_moregeneral) !n_extra) 
+
+exception Complicated_moregen
+
+let rec unify_args_suffices env p =
+  match Env.find_type p env with
+  | exception Not_found -> true
+  | { type_manifest = None; } | { type_private = Private; _ } ->
+     (* Cannot expand *)
+     true
+  | { type_manifest = Some ty; type_private = Public; _ } as decl ->
+     begin match get_desc ty with
+     | Tconstr (p', tl, _) when tl == decl.type_params ->
+        (* type (...) t = (...) p', arising from e.g. Mtype.strengthen *)
+        unify_args_suffices env p'
+     | _ ->
+        List.for_all (Variance.mem Inj) decl.type_variance
+     end
+
+let quick_moregeneral env patt subst subj =
+  if !Clflags.recursive_types then raise Complicated_moregen;
+  For_copy.with_scope (fun scope ->
+    let rec mgen t1 t2 =
+      match get_desc t1, get_desc t2 with
+      | Tsubst (ty, _), _ when eq_type ty t2 -> ()
+      | Tvar _, _ when get_level t1 = generic_level ->
+         For_copy.redirect_desc scope t1 (Tsubst (t2, None))
+      | Tarrow (l1, t1, u1, _), Tarrow (l2, t2, u2, _) when l1 = l2 ->
+         mgen t1 t2; mgen u1 u2
+      | Ttuple tl1, Ttuple tl2 ->
+         List.iter2 mgen tl1 tl2
+      | Tconstr (p1, tl1, _), Tconstr (p2, tl2, _) ->
+         let p2 =
+           try Subst.type_path subst p2
+           with Subst.Not_path -> raise_notrace Complicated_moregen
+         in
+         let p =
+           if Path.same p1 p2 then p1
+           else begin
+             let p1 = Env.normalize_type_path None env p1 in
+             let p2 = Env.normalize_type_path None env p2 in
+             if Path.same p1 p2 then p1
+             else raise_notrace Complicated_moregen
+           end
+         in
+         if (tl1 = [] && tl2 = []) || unify_args_suffices env p then
+           List.iter2 mgen tl1 tl2
+         else begin
+           incr n_extra;
+           Format.fprintf Format.err_formatter "type: %a@." Path.print p;
+           raise_notrace Complicated_moregen
+         end
+      | _, _ ->
+         raise_notrace Complicated_moregen
+    in
+    match mgen patt subj with
+    | () -> true
+    | exception Complicated_moregen -> false)
+
+
 (*
    Non-generic variable can be instantiated only if [inst_nongen] is
    true. So, [inst_nongen] should be set to false if the subject might
@@ -3820,7 +3883,10 @@ let moregen inst_nongen type_pairs env patt subj =
    Usually, the subject is given by the user, and the pattern
    is unimportant.  So, no need to propagate abbreviations.
 *)
-let moregeneral env inst_nongen pat_sch subj_sch =
+let moregeneral env inst_nongen pat_sch subst subj_sch =
+  incr n_moregeneral;
+  if quick_moregeneral env pat_sch subst subj_sch then incr n_quick else begin
+  let subj_sch = Subst.type_expr subst subj_sch in
   let old_level = !current_level in
   current_level := generic_level - 1;
   (*
@@ -3852,9 +3918,10 @@ let moregeneral env inst_nongen pat_sch subj_sch =
          generalize subj_inst;
          raise (Moregen (expand_to_moregen_error env trace)))
     ~always:(fun () -> current_level := old_level)
+  end
 
 let is_moregeneral env inst_nongen pat_sch subj_sch =
-  match moregeneral env inst_nongen pat_sch subj_sch with
+  match moregeneral env inst_nongen pat_sch Subst.identity subj_sch with
   | () -> true
   | exception Moregen _ -> false
 

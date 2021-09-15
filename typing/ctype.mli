@@ -236,8 +236,9 @@ val filter_method: Env.t -> string -> type_expr -> type_expr
            [Filter_method_failed] instead of [Unify]. *)
 val occur_in: Env.t -> type_expr -> type_expr -> bool
 val deep_occur: type_expr -> type_expr -> bool
-val moregeneral: Env.t -> bool -> type_expr -> type_expr -> unit
-        (* Check if the first type scheme is more general than the second. *)
+val moregeneral: Env.t -> bool -> type_expr -> Subst.t -> type_expr -> unit
+        (* [moregeneral _ _ t1 s t2] checks whether t1 is more general
+           than s(t2) *)
 val is_moregeneral: Env.t -> bool -> type_expr -> type_expr -> bool
 val rigidify: type_expr -> type_expr list
         (* "Rigidify" a type and return its type variable *)

@@ -47,6 +47,7 @@ val reset_for_saving: unit -> unit
 val change_locs: t -> Location.t -> t
 
 val module_path: t -> Path.t -> Path.t
+exception Not_path
 val type_path: t -> Path.t -> Path.t
 val modtype_path: t -> Path.t -> Path.t
 

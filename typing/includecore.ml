@@ -72,14 +72,14 @@ exception Dont_match of value_mismatch
 
 let value_descriptions ~loc env name
     (vd1 : Types.value_description)
-    (vd2 : Types.value_description) =
+    subst2 (vd2 : Types.value_description) =
   Builtin_attributes.check_alerts_inclusion
     ~def:vd1.val_loc
     ~use:vd2.val_loc
     loc
     vd1.val_attributes vd2.val_attributes
     name;
-  match Ctype.moregeneral env true vd1.val_type vd2.val_type with
+  match Ctype.moregeneral env true vd1.val_type subst2 vd2.val_type with
   | exception Ctype.Moregen err -> raise (Dont_match (Type err))
   | () -> begin
       match (vd1.val_kind, vd2.val_kind) with
@@ -90,7 +90,7 @@ let value_descriptions ~loc env name
         end
       | (Val_prim p, _) ->
           let pc =
-            { pc_desc = p; pc_type = vd2.Types.val_type;
+            { pc_desc = p; pc_type = Subst.type_expr subst2 vd2.Types.val_type;
               pc_env = env; pc_loc = vd1.Types.val_loc; }
           in
           Tcoerce_primitive pc

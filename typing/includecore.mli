@@ -98,7 +98,7 @@ type type_mismatch =
 
 val value_descriptions:
   loc:Location.t -> Env.t -> string ->
-  value_description -> value_description -> module_coercion
+  value_description -> Subst.t -> value_description -> module_coercion
 
 val type_declarations:
   ?equality:bool ->
