@@ -382,15 +382,16 @@ and record_representation =
   | Record_inlined of int               (* Inlined record *)
   | Record_extension of Path.t          (* Inlined record under extension *)
 
-and nonlocal_flag =
+and global_flag =
+  | Global
   | Nonlocal
-  | Not_nonlocal
+  | Unrestricted
 
 and label_declaration =
   {
     ld_id: Ident.t;
     ld_mutable: mutable_flag;
-    ld_nonlocal: nonlocal_flag;
+    ld_global: global_flag;
     ld_type: type_expr;
     ld_loc: Location.t;
     ld_attributes: Parsetree.attributes;
@@ -578,7 +579,7 @@ type label_description =
     lbl_res: type_expr;                 (* Type of the result *)
     lbl_arg: type_expr;                 (* Type of the argument *)
     lbl_mut: mutable_flag;              (* Is this a mutable field? *)
-    lbl_nonlocal: nonlocal_flag;        (* Is this a nonlocal field? *)
+    lbl_global: global_flag;        (* Is this a nonlocal field? *)
     lbl_pos: int;                       (* Position in block *)
     lbl_all: label_description array;   (* All the labels in this type *)
     lbl_repres: record_representation;  (* Representation for this record *)
@@ -600,11 +601,13 @@ module Alloc_mode : sig
 
   (* Modes are ordered so that [heap] is a submode of [local] *)
   type t = alloc_mode
-  type alloc_mode_const = Heap | Local
+  type const = Global | Local
 
-  val heap : t
+  val global : t
+
   val local : t
-  val of_const : alloc_mode_const -> t
+
+  val of_const : const -> t
 
   val min_mode : t
 
@@ -612,17 +615,140 @@ module Alloc_mode : sig
 
   val submode : t -> t -> (unit, unit) result
 
+  val submode_exn : t -> t -> unit
+
   val equate : t -> t -> (unit, unit) result
 
   val join : t list -> t
 
   (* Force a mode variable to its upper bound *)
-  val constrain_upper : t -> alloc_mode_const
+  val constrain_upper : t -> const
 
-  (* Force a mode variable to its upper bound *)
-  val constrain_lower : t -> alloc_mode_const
+  (* Force a mode variable to its lower bound *)
+  val constrain_lower : t -> const
 
   val newvar : unit -> t
 
-  val check_const : t -> alloc_mode_const option
+  val check_const : t -> const option
+
+  val print : Format.formatter -> t -> unit
+
+end
+
+module Value_mode : sig
+
+ type const =
+   | Global
+   | Regional
+   | Local
+
+  type t
+
+  val global : t
+
+  val regional : t
+
+  val local : t
+
+  val of_const : const -> t
+
+  val max_mode : t
+
+  val min_mode : t
+
+  (** Injections from [Alloc_mode.t] into [Value_mode.t] *)
+
+  (** Injection avoiding [local]:
+
+     {[
+       Global --> Global
+       Local --> Regional
+     ]} *)
+  val of_alloc_nonlocal : Alloc_mode.t -> t
+
+  (** Injection avoiding [regional]:
+
+      {[
+       Global --> Global
+       Local --> Local
+     ]} *)
+  val of_alloc_nonregional : Alloc_mode.t -> t
+
+  (** Injection avoiding [global]:
+
+      {[
+       Global --> Regional
+       Local --> Local
+     ]} *)
+  val of_alloc_nonglobal : Alloc_mode.t -> t
+
+  (** Adjoints of injections:
+
+      of_alloc_nonlocal
+        -| to_alloc_nonlocal
+        -| of_alloc_nonregional
+        -| to_alloc_nonregional
+        -| of_alloc_nonglobal
+  *)
+
+  (** Right adjoint of [of_alloc_nonlocal] and left adjoint of
+      [of_alloc_nonregional]:
+
+      {[
+       Global --> Global
+       Regional --> Local
+       Local --> Local
+     ]} *)
+  val to_alloc_nonlocal : t -> Alloc_mode.t
+
+  (** Right adjoint of [of_alloc_nonregional] and left adjoint of
+      [of_alloc_nonglobal].
+
+     {[
+       Global --> Global
+       Regional --> Global
+       Local --> Local
+     ]} *)
+  val to_alloc_nonregional : t -> Alloc_mode.t
+
+  (** Kernal operators *)
+
+  (** The kernel operator [nonlocal t] is
+      [of_alloc_nonlocal (to_alloc_nonlocal t)]:
+
+      {[
+         Global --> Global
+         Regional --> Regional
+         Local --> Regional
+      ]} *)
+  val nonlocal : t -> t
+
+  (** The kernel operator [nonregional t] is
+      [of_alloc_nonregional (to_alloc_nonregional t)]:
+
+      {[
+         Global --> Global
+         Regional --> Global
+         Local --> Local
+      ]} *)
+  val nonregional : t -> t
+
+  type error =
+    | Regionality
+    | Locality
+
+  val submode : t -> t -> (unit, error) result
+
+  val join : t list -> t
+
+  val constrain_upper : t -> const
+
+  val constrain_lower : t -> const
+
+  val newvar : unit -> t
+
+  val check_const : t -> const option
+
+  val print : Format.formatter -> t -> unit
+
 end
