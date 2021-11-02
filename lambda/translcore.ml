@@ -85,7 +85,7 @@ let extract_float = function
   | _ -> fatal_error "Translcore.extract_float"
 
 let transl_value_mode mode : Lambda.alloc_mode =
-  let alloc_mode = Value_mode.to_alloc_nonregional mode in
+  let alloc_mode = Value_mode.allocation_mode mode in
   match Types.Alloc_mode.constrain_upper alloc_mode with
   | Global -> Alloc_heap
   | Local -> Alloc_local

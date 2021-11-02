@@ -744,24 +744,19 @@ module Value_mode = struct
     let nonregional = Alloc_mode.min_mode in
     { nonlocal; nonregional }
 
-  let of_alloc_nonlocal mode =
+  let of_alloc_regional mode =
     let nonlocal = mode in
     let nonregional = Alloc_mode.global in
     { nonlocal; nonregional }
 
-  let of_alloc_nonregional mode =
+  let of_alloc_local mode =
     let nonlocal = mode in
     let nonregional = mode in
     { nonlocal; nonregional }
 
-  let of_alloc_nonglobal mode =
-    let nonlocal = Alloc_mode.local in
-    let nonregional = mode in
-    { nonlocal; nonregional }
+  let allocation_mode t = t.nonregional
 
-  let to_alloc_nonregional t = t.nonregional
-
-  let to_alloc_nonlocal t = t.nonlocal
+  let binding_mode t = t.nonlocal
 
   let nonregional t = { t with nonlocal = t.nonregional }
 

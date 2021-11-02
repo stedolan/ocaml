@@ -2985,7 +2985,7 @@ and type_expect_
       let funct_mode, funct_expected_mode =
         match expected_mode.position with
         | Tail ->
-          let mode = Value_mode.of_alloc_nonlocal (Alloc_mode.newvar ()) in
+          let mode = Value_mode.of_alloc_regional (Alloc_mode.newvar ()) in
           mode, mode_tailcall_function mode
         | Nontail ->
           let mode = Value_mode.newvar () in
@@ -3807,7 +3807,7 @@ and type_expect_
         exp_env = env;
       }
   | Pexp_lazy e ->
-      let alloc_mode = Value_mode.to_alloc_nonregional expected_mode.mode in
+      let alloc_mode = Value_mode.allocation_mode expected_mode.mode in
       let ty = newgenvar () in
       let to_unify = Predef.type_lazy_t ty in
       with_explanation (fun () ->
@@ -4122,7 +4122,7 @@ and type_binding_op_ident env s =
 and type_function ?in_function loc attrs env expected_mode
       ty_expected_explained l has_local caselist =
   let { ty = ty_expected; explanation } = ty_expected_explained in
-  let alloc_mode = Value_mode.to_alloc_nonregional expected_mode.mode in
+  let alloc_mode = Value_mode.allocation_mode expected_mode.mode in
   let (loc_fun, ty_fun) =
     match in_function with
     | Some (loc_fun, ty_fun, _) -> (loc_fun, ty_fun)
@@ -4192,16 +4192,16 @@ and type_function ?in_function loc attrs env expected_mode
       env, region_locked
   in
   let arg_value_mode =
-    if region_locked then Value_mode.of_alloc_nonlocal arg_mode
-    else Value_mode.of_alloc_nonregional arg_mode
+    if region_locked then Value_mode.of_alloc_regional arg_mode
+    else Value_mode.of_alloc_local arg_mode
   in
   let cases_expected_mode =
     if uncurried_function then
-      mode_nontail (Value_mode.of_alloc_nonregional ret_mode)
+      mode_nontail (Value_mode.of_alloc_local ret_mode)
     else begin
       let value_mode =
-        if region_locked then Value_mode.of_alloc_nonlocal ret_mode
-        else Value_mode.of_alloc_nonregional ret_mode
+        if region_locked then Value_mode.of_alloc_regional ret_mode
+        else Value_mode.of_alloc_local ret_mode
       in
       mode_tail value_mode
     end
@@ -4588,7 +4588,7 @@ and type_argument ?explanation ?recarg env mode sarg ty_expected' ty_expected =
       let rec make_args args ty_fun =
         match (expand_head env ty_fun).desc with
         | Tarrow ((l,marg,_mret),ty_arg,ty_fun,_) when is_optional l ->
-            let marg = Value_mode.of_alloc_nonregional marg in
+            let marg = Value_mode.of_alloc_local marg in
             let ty = option_none env (instance ty_arg) marg sarg.pexp_loc in
             make_args ((l, Some ty) :: args) ty_fun
         | Tarrow ((l,_,_),_,ty_res',_) when l = Nolabel || !Clflags.classic ->
@@ -4627,10 +4627,10 @@ and type_argument ?explanation ?recarg env mode sarg ty_expected' ty_expected =
          exp_desc =
          Texp_ident(Path.Pident id, mknoloc (Longident.Lident name), desc)}
       in
-      let eta_mode = Value_mode.of_alloc_nonlocal marg in
+      let eta_mode = Value_mode.of_alloc_regional marg in
       let eta_pat, eta_var = var_pair ~mode:eta_mode "eta" ty_arg in
       let func texp =
-        let ret_mode = Value_mode.of_alloc_nonregional mret in
+        let ret_mode = Value_mode.of_alloc_local mret in
         let e =
           {texp with exp_type = ty_res; exp_mode = ret_mode; exp_desc =
            Texp_apply
@@ -4691,11 +4691,11 @@ and type_application env app_loc expected_mode funct funct_mode sargs =
     List.iter
       (fun (marg, sarg) ->
          submode ~loc:sarg.pexp_loc ~env
-           (Value_mode.of_alloc_nonregional marg)
+           (Value_mode.of_alloc_local marg)
            (mode_partial_application expected_mode))
       mclargs;
     submode ~loc:app_loc ~env
-      (Value_mode.of_alloc_nonregional mclos)
+      (Value_mode.of_alloc_local mclos)
       expected_mode;
     ty_fun
   in
@@ -4715,9 +4715,9 @@ and type_application env app_loc expected_mode funct funct_mode sargs =
   let argument_mode m_arg =
     match expected_mode.position, !omitted_parameters with
     | Nontail, _ | _, _ :: _->
-        mode_nontail (Value_mode.of_alloc_nonregional m_arg)
+        mode_nontail (Value_mode.of_alloc_local m_arg)
     | Tail, [] ->
-        mode_tailcall_argument (Value_mode.of_alloc_nonlocal m_arg)
+        mode_tailcall_argument (Value_mode.of_alloc_regional m_arg)
   in
   let type_unknown_arg (ty_fun, typed_args, mclos) (lbl, sarg) =
     let (m_param, ty_arg, m_ret, ty_res) =
@@ -4912,7 +4912,7 @@ and type_application env app_loc expected_mode funct funct_mode sargs =
         filter_arrow env (instance funct.exp_type) Nolabel
       in
       submode ~loc:app_loc ~env
-        (Value_mode.of_alloc_nonregional mres) expected_mode;
+        (Value_mode.of_alloc_local mres) expected_mode;
       let marg = argument_mode marg in
       let exp = type_expect env marg sarg (mk_expected ty_arg) in
       check_partial_application false exp;
@@ -4920,7 +4920,7 @@ and type_application env app_loc expected_mode funct funct_mode sargs =
   | _ ->
     let ty = funct.exp_type in
     type_args [] ty (instance ty) sargs
-      (Value_mode.to_alloc_nonregional funct_mode)
+      (Value_mode.allocation_mode funct_mode)
 
 and type_construct env expected_mode loc lid sarg ty_expected_explained attrs =
   let { ty = ty_expected; explanation } = ty_expected_explained in

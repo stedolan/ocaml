@@ -658,63 +658,37 @@ module Value_mode : sig
 
   (** Injections from [Alloc_mode.t] into [Value_mode.t] *)
 
-  (** Injection avoiding [local]:
+  (** [of_alloc_local] and [of_alloc_regional] both map [Global] to
+      [Global], but map [Local] to [Local] and [Regional] respectively. *)
+  val of_alloc_local : Alloc_mode.t -> t
+  val of_alloc_regional : Alloc_mode.t -> t
 
-     {[
-       Global --> Global
-       Local --> Regional
-     ]} *)
-  val of_alloc_nonlocal : Alloc_mode.t -> t
+  (** [allocation_mode] and [binding_mode] both map [Global] and
+      [Local] to the corresponding [Alloc_mode.t], but differ on
+      [Regional].
 
-  (** Injection avoiding [regional]:
+      To allocate into an unknown region, the only safe thing to do is
+      to allocate it globally, so [allocation_mode Regional = Global].
 
-      {[
-       Global --> Global
-       Local --> Local
-     ]} *)
-  val of_alloc_nonregional : Alloc_mode.t -> t
-
-  (** Injection avoiding [global]:
-
-      {[
-       Global --> Regional
-       Local --> Local
-     ]} *)
-  val of_alloc_nonglobal : Alloc_mode.t -> t
+      To accept a value from an unknown region, the only safe thing to
+      do is to assume it may be local, so [binding_mode Regional = Local]. *)
+  val binding_mode : t -> Alloc_mode.t
+  val allocation_mode : t -> Alloc_mode.t
 
   (** Adjoints of injections:
 
-      of_alloc_nonlocal
-        -| to_alloc_nonlocal
-        -| of_alloc_nonregional
-        -| to_alloc_nonregional
-        -| of_alloc_nonglobal
-  *)
+      of_alloc_regional -| binding_mode -| of_alloc_local -| allocation_mode
 
-  (** Right adjoint of [of_alloc_nonlocal] and left adjoint of
-      [of_alloc_nonregional]:
+      Equivalently,
+        of_alloc_regional a <= b iff a <= binding_mode b
+             binding_mode a <= b iff a <= of_alloc_local b
+           of_alloc_local a <= b iff a <= allocation_mode b   *)
 
-      {[
-       Global --> Global
-       Regional --> Local
-       Local --> Local
-     ]} *)
-  val to_alloc_nonlocal : t -> Alloc_mode.t
 
-  (** Right adjoint of [of_alloc_nonregional] and left adjoint of
-      [of_alloc_nonglobal].
-
-     {[
-       Global --> Global
-       Regional --> Global
-       Local --> Local
-     ]} *)
-  val to_alloc_nonregional : t -> Alloc_mode.t
-
-  (** Kernal operators *)
+  (** Kernel operators *)
 
   (** The kernel operator [nonlocal t] is
-      [of_alloc_nonlocal (to_alloc_nonlocal t)]:
+      [of_alloc_regional (binding_mode t)]:
 
       {[
          Global --> Global
@@ -724,7 +698,7 @@ module Value_mode : sig
   val nonlocal : t -> t
 
   (** The kernel operator [nonregional t] is
-      [of_alloc_nonregional (to_alloc_nonregional t)]:
+      [of_alloc_local (allocation_mode t)]:
 
       {[
          Global --> Global

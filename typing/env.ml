@@ -2430,7 +2430,7 @@ let lock_mode ~errors ~loc env id vmode locks =
     if List.exists is_region_lock locks then Value_mode.nonlocal vmode
     else vmode
   in
-  let vmode_nonlocal = Value_mode.to_alloc_nonlocal vmode in
+  let vmode_nonlocal = Value_mode.binding_mode vmode in
   List.iter
     (function
       | Region_lock -> ()
