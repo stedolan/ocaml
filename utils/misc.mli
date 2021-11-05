@@ -686,3 +686,18 @@ module Magic_number : sig
 
   val all_kinds : kind list
 end
+
+module Local : sig
+  module List : sig
+    include (module type of List)
+    val fold_left : local_ ('a -> 'b -> 'a) -> 'a -> 'b t -> 'a
+    val map : local_ ('a -> 'b) -> 'a t -> 'b t
+    val iter : local_ ('a -> unit) -> 'a t -> unit
+    val filter_map : local_ ('a -> 'b option) -> 'a list -> 'b list
+  end
+  module Option : sig
+    include (module type of Option)
+    val map : local_ ('a -> 'b) -> 'a option -> 'b option
+    val iter : local_ ('a -> unit) -> 'a option -> unit
+  end
+end

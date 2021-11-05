@@ -1185,3 +1185,37 @@ module Magic_number = struct
            | Error err -> Error (Unexpected_error err)
            | Ok () -> Ok info
 end
+
+module Local = struct
+  module List = struct
+    include List
+    let rec fold_left (local_ f) accu l =
+      match l with
+        [] -> accu
+      | a::l -> fold_left f (f accu a) l
+    let rec map f = function
+      | [] -> []
+      | x :: xs -> f x :: map f xs
+    let rec iter f = function
+      | [] -> ()
+      | x :: xs -> f x; iter f xs; ()
+    let filter_map f xs =
+      let rec aux accu = function
+        | [] -> rev accu
+        | x :: l ->
+            match f x with
+            | None -> let r = aux accu l in r
+            | Some v -> let r = aux (v :: accu) l in r
+      in
+      let r = aux [] xs in r
+  end
+  module Option = struct
+    include Option
+    let map (local_ f) = function
+      | None -> None
+      | Some x -> Some (f x)
+    let iter (local_ f) = function
+      | None -> ()
+      | Some x -> f x
+  end
+end

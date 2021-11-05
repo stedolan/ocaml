@@ -102,13 +102,13 @@ val is_constr_row: allow_ident:bool -> type_expr -> bool
 
 (**** Utilities for type traversal ****)
 
-val iter_type_expr: (type_expr -> unit) -> type_expr -> unit
+val iter_type_expr: local_ (type_expr -> unit) -> type_expr -> unit
         (* Iteration on types *)
-val fold_type_expr: ('a -> type_expr -> 'a) -> 'a -> type_expr -> 'a
-val iter_row: (type_expr -> unit) -> row_desc -> unit
+val fold_type_expr: local_ ('a -> type_expr -> 'a) -> 'a -> type_expr -> 'a
+val iter_row: local_ (type_expr -> unit) -> row_desc -> unit
         (* Iteration on types in a row *)
-val fold_row: ('a -> type_expr -> 'a) -> 'a -> row_desc -> 'a
-val iter_abbrev: (type_expr -> unit) -> abbrev_memo -> unit
+val fold_row: local_ ('a -> type_expr -> 'a) -> 'a -> row_desc -> 'a
+val iter_abbrev: local_ (type_expr -> unit) -> abbrev_memo -> unit
         (* Iteration on types in an abbreviation list *)
 
 type type_iterators =
@@ -135,10 +135,10 @@ val unmark_iterators: type_iterators
         (* Unmark any structure containing types. See [unmark_type] below. *)
 
 val copy_type_desc:
-    ?keep_names:bool -> (type_expr -> type_expr) -> type_desc -> type_desc
+    ?keep_names:bool -> local_ (type_expr -> type_expr) -> type_desc -> type_desc
         (* Copy on types *)
 val copy_row:
-    (type_expr -> type_expr) ->
+    local_ (type_expr -> type_expr) ->
     bool -> row_desc -> bool -> type_expr -> row_desc
 val copy_kind: field_kind -> field_kind
 
@@ -151,13 +151,13 @@ module For_copy : sig
            While it is possible to circumvent that discipline in various
            ways, you should NOT do that. *)
 
-  val save_desc: copy_scope -> type_expr -> type_desc -> unit
+  val save_desc: local_ copy_scope -> type_expr -> type_desc -> unit
         (* Save a type description *)
 
-  val dup_kind: copy_scope -> field_kind option ref -> unit
+  val dup_kind: local_ copy_scope -> field_kind option ref -> unit
         (* Save a None field_kind, and make it point to a fresh Fvar *)
 
-  val with_scope: (copy_scope -> 'a) -> 'a
+  val with_scope: local_ (local_ copy_scope -> 'a) -> 'a
         (* [with_scope f] calls [f] and restores saved type descriptions
            before returning its result. *)
 end
@@ -249,7 +249,7 @@ val print_raw: (Format.formatter -> type_expr -> unit) ref
 
 val iter_type_expr_kind: (type_expr -> unit) -> (type_kind -> unit)
 
-val iter_type_expr_cstr_args: (type_expr -> unit) ->
-  (constructor_arguments -> unit)
-val map_type_expr_cstr_args: (type_expr -> type_expr) ->
-  (constructor_arguments -> constructor_arguments)
+val iter_type_expr_cstr_args: local_ (type_expr -> unit) ->
+  constructor_arguments -> unit
+val map_type_expr_cstr_args: local_ (type_expr -> type_expr) ->
+  constructor_arguments -> constructor_arguments

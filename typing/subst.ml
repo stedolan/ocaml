@@ -143,8 +143,39 @@ let norm = function
 
 let ctype_apply_env_empty = ref (fun _ -> assert false)
 
+module List : sig
+  include (module type of List)
+  val fold_left : local_ ('a -> local_ ('b -> 'a)) -> 'a -> 'b t -> 'a
+  val map : local_ ('a -> 'b) -> 'a t -> 'b t
+  val rev_map : local_ ('a -> 'b) -> 'a t -> 'b t
+end = struct
+  include List
+  let rec fold_left (local_ f) accu l =
+    match l with
+      [] -> accu
+    | a::l -> let r = fold_left f (f accu a) l in r
+  let rec map f = function
+    | [] -> []
+    | x :: xs -> f x :: map f xs
+let rev_map f l =
+  let rec rmap_f accu = function
+    | [] -> accu
+    | a::l -> let r = rmap_f (f a :: accu) l in r
+  in
+  let r = rmap_f [] l in r
+
+end
+let _ = List.fold_left
+module Option = struct
+  include Option
+  let map (local_ f) = function
+    | None -> None
+    | Some x -> Some (f x)
+end
+
+
 (* Similar to [Ctype.nondep_type_rec]. *)
-let rec typexp copy_scope s ty =
+let rec typexp (local_ copy_scope) s ty =
   let ty = repr ty in
   match ty.desc with
     Tvar _ | Tunivar _ as desc ->
@@ -321,7 +352,7 @@ let type_declaration s decl =
 let class_signature copy_scope s sign =
   { csig_self = typexp copy_scope s sign.csig_self;
     csig_vars =
-      Vars.map
+      Obj.magic Vars.map
         (function (m, v, t) -> (m, v, typexp copy_scope s t)) sign.csig_vars;
     csig_concr = sign.csig_concr;
     csig_inher =
@@ -488,7 +519,7 @@ and signature scoping s sg =
   let (sg', s') = rename_bound_idents scoping s sg in
   (* ... then apply it to each signature component in turn *)
   For_copy.with_scope (fun copy_scope ->
-    List.rev_map (signature_item' copy_scope scoping s') sg'
+    let r = List.rev_map (fun x -> signature_item' copy_scope scoping s' x) sg' in r
   )
 
 

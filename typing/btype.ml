@@ -261,7 +261,9 @@ let is_constr_row ~allow_ident t =
                   (*  Utilities for type traversal  *)
                   (**********************************)
 
-let rec fold_row f init row =
+open Misc.Local
+
+let rec fold_row (local_ f) init row =
   let result =
     List.fold_left
       (fun init (_, fi) ->
@@ -284,9 +286,9 @@ let rec fold_row f init row =
   | _ -> assert false
 
 let iter_row f row =
-  fold_row (fun () v -> f v) () row
+  let r = fold_row (fun () v -> f v) () row in r
 
-let fold_type_expr f init ty =
+let fold_type_expr (local_ f) init ty =
   match ty.desc with
     Tvar _              -> init
   | Tarrow (_, ty1, ty2, _) ->
@@ -314,8 +316,8 @@ let fold_type_expr f init ty =
     List.fold_left f result tyl
   | Tpackage (_, _, l)  -> List.fold_left f init l
 
-let iter_type_expr f ty =
-  fold_type_expr (fun () v -> f v) () ty
+let iter_type_expr (local_ f) ty =
+  let r = fold_type_expr (fun () v -> f v) () ty in r
 
 let rec iter_abbrev f = function
     Mnil                   -> ()
@@ -342,7 +344,7 @@ type type_iterators =
 
 let iter_type_expr_cstr_args f = function
   | Cstr_tuple tl -> List.iter f tl
-  | Cstr_record lbls -> List.iter (fun d -> f d.ld_type) lbls
+  | Cstr_record lbls -> let r = List.iter (fun d -> f d.ld_type) lbls in r
 
 let map_type_expr_cstr_args f = function
   | Cstr_tuple tl -> Cstr_tuple (List.map f tl)
@@ -365,8 +367,8 @@ let iter_type_expr_kind f = function
 
 
 let type_iterators =
-  let it_signature it =
-    List.iter (it.it_signature_item it)
+  let it_signature it s =
+    List.iter (it.it_signature_item it) s
   and it_signature_item it = function
       Sig_value (_, vd, _)          -> it.it_value_description it vd
     | Sig_type (_, td, _, _)        -> it.it_type_declaration it td
@@ -482,7 +484,7 @@ let rec norm_univar ty =
   | Ttuple (ty :: _)   -> norm_univar ty
   | _                  -> assert false
 
-let rec copy_type_desc ?(keep_names=false) f = function
+let rec copy_type_desc ?(keep_names=false) (local_ f) = function
     Tvar _ as ty        -> if keep_names then ty else Tvar None
   | Tarrow (p, ty1, ty2, c)-> Tarrow (p, f ty1, f ty2, copy_commu c)
   | Ttuple l            -> Ttuple (List.map f l)
@@ -507,11 +509,11 @@ let rec copy_type_desc ?(keep_names=false) f = function
 module For_copy : sig
   type copy_scope
 
-  val save_desc: copy_scope -> type_expr -> type_desc -> unit
+  val save_desc: local_ copy_scope -> type_expr -> type_desc -> unit
 
-  val dup_kind: copy_scope -> field_kind option ref -> unit
+  val dup_kind: local_ copy_scope -> field_kind option ref -> unit
 
-  val with_scope: (copy_scope -> 'a) -> 'a
+  val with_scope: local_ (local_ copy_scope -> 'a) -> 'a
 end = struct
   type copy_scope = {
     mutable saved_desc : (type_expr * type_desc) list;

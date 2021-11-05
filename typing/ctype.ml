@@ -1132,9 +1132,11 @@ let rec find_repr p1 =
 let abbreviations = ref (ref Mnil)
   (* Abbreviation memorized. *)
 
+open Misc.Local
+
 (* partial: we may not wish to copy the non generic types
    before we call type_pat *)
-let rec copy ?partial ?keep_names scope ty =
+let rec copy ?partial ?keep_names (local_ scope) ty =
   let copy = copy ?partial ?keep_names scope in
   let ty = repr ty in
   match ty.desc with
@@ -1271,7 +1273,7 @@ let generic_instance sch =
   ty
 
 let instance_list schl =
-  For_copy.with_scope (fun scope -> List.map (fun t -> copy scope t) schl)
+  For_copy.with_scope (fun scope -> let r = List.map (fun t -> let r = copy scope t in r) schl in r)
 
 let reified_var_counter = ref Vars.empty
 let reset_reified_var_counter () =
@@ -1352,7 +1354,7 @@ let instance_parameterized_type_2 sch_args sch_lst sch =
     (ty_args, ty_lst, ty)
   )
 
-let map_kind f = function
+let map_kind (local_ f) = function
   | Type_abstract -> Type_abstract
   | Type_open -> Type_open
   | Type_variant cl ->
@@ -1388,7 +1390,7 @@ let generic_instance_declaration decl =
   decl
 
 let instance_class params cty =
-  let rec copy_class_type scope = function
+  let rec copy_class_type (local_ scope) = function
     | Cty_constr (path, tyl, cty) ->
         let tyl' = List.map (copy scope) tyl in
         let cty' = copy_class_type scope cty in
@@ -1397,7 +1399,7 @@ let instance_class params cty =
         Cty_signature
           {csig_self = copy scope sign.csig_self;
            csig_vars =
-             Vars.map (function (m, v, ty) -> (m, v, copy scope ty))
+             Obj.magic Vars.map (function (m, v, ty) -> (m, v, copy scope ty))
                sign.csig_vars;
            csig_concr = sign.csig_concr;
            csig_inher =
@@ -1476,7 +1478,7 @@ let rec copy_sep cleanup_scope fixed free bound visited ty =
     t
   end
 
-let instance_poly' cleanup_scope ~keep_names fixed univars sch =
+let instance_poly' (local_ cleanup_scope) ~keep_names fixed univars sch =
   let univars = List.map repr univars in
   let copy_var ty =
     match ty.desc with
@@ -1486,7 +1488,7 @@ let instance_poly' cleanup_scope ~keep_names fixed univars sch =
   let vars = List.map copy_var univars in
   let pairs = List.map2 (fun u v -> u, (v, [])) univars vars in
   delayed_copy := [];
-  let ty = copy_sep cleanup_scope fixed (compute_univars sch) [] pairs sch in
+  let ty = Obj.magic copy_sep cleanup_scope fixed (compute_univars sch) [] pairs sch in
   List.iter Lazy.force !delayed_copy;
   delayed_copy := [];
   vars, ty
@@ -1829,7 +1831,7 @@ let rec occur_rec env allow_recursive visited ty0 = function
   | _ ->
       if allow_recursive ||  TypeSet.mem ty visited then () else begin
         let visited = TypeSet.add ty visited in
-        iter_type_expr (occur_rec env allow_recursive visited ty0) ty
+        let r = iter_type_expr (fun t -> occur_rec env allow_recursive visited ty0 t) ty in r
       end
 
 let type_changed = ref false (* trace possible changes to the studied type *)
@@ -1982,8 +1984,8 @@ let occur_univar env ty =
     ~always:(fun () -> unmark_type ty)
 
 (* Grouping univars by families according to their binders *)
-let add_univars =
-  List.fold_left (fun s (t,_) -> TypeSet.add (repr t) s)
+let add_univars s xs =
+  List.fold_left (fun s (t,_) -> TypeSet.add (repr t) s) s xs
 
 let get_univar_family univar_pairs univars =
   if univars = [] then TypeSet.empty else
