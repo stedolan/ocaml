@@ -180,13 +180,14 @@ let rec fib = function | 0 | 1 -> 1 | n -> (fib (n - 1)) + (fib (n - 2))
   (letrec
     (fib
        (function n[int] : int
-         (funct-body Test_locations.fib test_locations.ml(17):548-606
-           (if (isout 1 n)
-             (before Test_locations.fib test_locations.ml(19):581-606
-               (+
-                 (after Test_locations.fib test_locations.ml(19):581-592
-                   (apply fib (- n 1)))
-                 (after Test_locations.fib test_locations.ml(19):595-606
-                   (apply fib (- n 2)))))
-             (before Test_locations.fib test_locations.ml(18):570-571 1)))))
+         (region
+           (funct-body Test_locations.fib test_locations.ml(17):548-606
+             (if (isout 1 n)
+               (before Test_locations.fib test_locations.ml(19):581-606
+                 (+
+                   (after Test_locations.fib test_locations.ml(19):581-592
+                     (apply fib (- n 1)))
+                   (after Test_locations.fib test_locations.ml(19):595-606
+                     (apply fib (- n 2)))))
+               (before Test_locations.fib test_locations.ml(18):570-571 1))))))
     (pseudo <unknown location> (makeblock 0 fib))))

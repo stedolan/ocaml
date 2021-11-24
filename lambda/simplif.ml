@@ -219,12 +219,6 @@ let simplify_exits lam =
     let ll = List.map simplif ll in
     match p, ll with
         (* Simplify %revapply, for n-ary functions with n > 1 *)
-      | Prevapply pos,
-        [x; Lapply ({ ap_position = Apply_tail } as ap)]
-      | Prevapply pos,
-        [x; Levent (Lapply ({ ap_position = Apply_tail } as ap),_)] ->
-          Lapply {ap with ap_args = ap.ap_args @ [x];
-                          ap_loc = loc; ap_position = pos; }
       | Prevapply Apply_nontail, [x; Lapply ap]
       | Prevapply Apply_nontail, [x; Levent (Lapply ap,_)] ->
           Lapply {ap with ap_args = ap.ap_args @ [x]; ap_loc = loc;
@@ -240,12 +234,6 @@ let simplify_exits lam =
             ap_specialised=Default_specialise;
           }
         (* Simplify %apply, for n-ary functions with n > 1 *)
-      | Pdirapply pos,
-        [Lapply ({ ap_position = Apply_tail } as ap); x]
-      | Pdirapply pos,
-        [Levent (Lapply ({ ap_position = Apply_tail } as ap),_); x] ->
-          Lapply {ap with ap_args = ap.ap_args @ [x];
-                          ap_loc = loc; ap_position=pos}
       | Pdirapply Apply_nontail, [Lapply ap; x]
       | Pdirapply Apply_nontail, [Levent (Lapply ap,_); x] ->
           Lapply {ap with ap_args = ap.ap_args @ [x];
@@ -734,13 +722,14 @@ and list_emit_tail_infos is_tail =
 
 let split_default_wrapper ~id:fun_id ~kind ~params ~return ~body
       ~attr ~loc ~mode ~ret_mode =
-  let rec aux map = function
+  let rec aux map region = function
     | Llet(Strict, k, id, (Lifthenelse(Lvar optparam, _, _) as def), rest) when
         Ident.name optparam = "*opt*" && List.mem_assoc optparam params
           && not (List.mem_assoc optparam map)
       ->
-        let wrapper_body, inner = aux ((optparam, id) :: map) rest in
+        let wrapper_body, inner = aux ((optparam, id) :: map) region rest in
         Llet(Strict, k, id, def, wrapper_body), inner
+    | Lregion rest -> aux map true rest
     | _ when map = [] -> raise Exit
     | body ->
         (* Check that those *opt* identifiers don't appear in the remaining
@@ -756,7 +745,7 @@ let split_default_wrapper ~id:fun_id ~kind ~params ~return ~body
             ap_func = Lvar inner_id;
             ap_args = args;
             ap_loc = Loc_unknown;
-            ap_position = Apply_tail;
+            ap_position = Apply_nontail;
             ap_tailcall = Default_tailcall;
             ap_inlined = Default_inline;
             ap_specialised = Default_specialise;
@@ -770,6 +759,7 @@ let split_default_wrapper ~id:fun_id ~kind ~params ~return ~body
           ) Ident.Map.empty inner_params new_ids
         in
         let body = Lambda.rename subst body in
+        let body = if region then Lregion body else body in
         let inner_fun =
           Lfunction { kind = Curried {nlocal=0};
             params = List.map (fun id -> id, Pgenval) new_ids;
@@ -783,7 +773,7 @@ let split_default_wrapper ~id:fun_id ~kind ~params ~return ~body
     | Curried {nlocal} when nlocal > 0 -> raise Exit
     | _ -> ()
     end;
-    let body, inner = aux [] body in
+    let body, inner = aux [] false body in
     let attr = default_stub_attribute in
     [(fun_id, Lfunction{kind; params; return; body; attr; loc; mode; ret_mode});
      inner]
@@ -818,6 +808,7 @@ let simplify_local_functions lam =
      by the outermost lambda for which the the current lambda
      is in tail position. *)
   let current_scope = ref lam in
+  let current_tail_scope = ref lam in
   let check_static lf =
     if lf.attr.local = Always_local then
       Location.prerr_warning (to_location lf.loc)
@@ -843,7 +834,8 @@ let simplify_local_functions lam =
             let st = next_raise_count () in
             let sc =
               (* Do not move higher than current lambda *)
-              if scope == !current_scope then cont
+              if scope == !current_scope
+              || scope == !current_tail_scope then cont
               else scope
             in
             Hashtbl.add static_id id st;
@@ -856,18 +848,23 @@ let simplify_local_functions lam =
             (* note: if scope = None, the function is unused *)
             non_tail lf.body
         end
-    | Lapply {ap_func = Lvar id; ap_args; _} ->
+    | Lapply {ap_func = Lvar id; ap_args; ap_position; _} ->
+        let curr_scope =
+          match ap_position with
+          | Apply_nontail -> !current_scope
+          | Apply_tail -> !current_tail_scope
+        in
         begin match Hashtbl.find_opt slots id with
         | Some {func; _}
           when exact_application func ap_args = None ->
             (* Wrong arity *)
             Hashtbl.remove slots id
-        | Some {scope = Some scope; _} when scope != !current_scope ->
+        | Some {scope = Some scope; _} when scope != curr_scope ->
             (* Different "tail scope" *)
             Hashtbl.remove slots id
         | Some ({scope = None; _} as slot) ->
             (* First use of the function: remember the current tail scope *)
-            slot.scope <- Some !current_scope
+            slot.scope <- Some curr_scope
         | _ ->
             ()
         end;
@@ -877,15 +874,26 @@ let simplify_local_functions lam =
     | Lfunction lf as lam ->
         check_static lf;
         Lambda.shallow_iter ~tail ~non_tail lam
+    | Lregion lam -> region lam
     | lam ->
         Lambda.shallow_iter ~tail ~non_tail lam
   and non_tail lam =
     with_scope ~scope:lam lam
+  and region lam =
+    let old_tail_scope = !current_tail_scope in
+    current_tail_scope := !current_scope;
+    current_scope := lam;
+    tail lam;
+    current_scope := !current_tail_scope;
+    current_tail_scope := old_tail_scope
   and with_scope ~scope lam =
     let old_scope = !current_scope in
+    let old_tail_scope = !current_tail_scope in
     current_scope := scope;
+    current_tail_scope := scope;
     tail lam;
-    current_scope := old_scope
+    current_scope := old_scope;
+    current_tail_scope := old_tail_scope
   in
   tail lam;
   let rec rewrite lam0 =

@@ -552,20 +552,18 @@ let rec lam ppf = function
       fprintf ppf "@[<2>(function%s%a@ %a%a%a)@]"
         (alloc_kind mode) pr_params params
         function_attribute attr return_kind (ret_mode, return) lam body
-  | (Llet _ | Lregion(Llet _)) as expr ->
+  | Llet _ as expr ->
       let kind = function
-          Alias -> "a" | Strict -> "" | StrictOpt -> "o" | Variable -> "v"
+        Alias -> "a" | Strict -> "" | StrictOpt -> "o" | Variable -> "v"
       in
       let rec letbody ~sp = function
-        | Llet(str, k, id, arg, body)
-        | Lregion(Llet(str, k, id, arg, body)) as expr ->
+        | Llet(str, k, id, arg, body) ->
             if sp then fprintf ppf "@ ";
-            let reg = match expr with Lregion _ -> true | _ -> false in
-            fprintf ppf "@[<2>%s%a =%s%a@ %a@]"
-              (if reg then "region " else "")
+            fprintf ppf "@[<2>%a =%s%a@ %a@]"
               Ident.print id (kind str) value_kind k lam arg;
             letbody ~sp:true body
-        | expr -> expr in
+        | expr -> expr
+      in
       fprintf ppf "@[<2>(let@ @[<hv 1>(";
       let expr = letbody ~sp:false expr in
       fprintf ppf ")@]@ %a)@]" lam expr

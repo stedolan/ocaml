@@ -65,6 +65,24 @@ let rec build_closure_env env_param pos = function
 let getglobal dbg id =
   Uprim(P.Pread_symbol (Compilenv.symbol_for_global id), [], dbg)
 
+let region ulam =
+  let is_trivial =
+    match ulam with
+    | Uvar _ | Uconst _ -> true
+    | _ -> false
+  in
+  if is_trivial then ulam
+  else Uregion ulam
+
+let tail ulam =
+  let is_trivial =
+    match ulam with
+    | Uvar _ | Uconst _ -> true
+    | _ -> false
+  in
+  if is_trivial then ulam
+  else Utail ulam
+
 (* Check if a variable occurs in a [clambda] term. *)
 
 let occurs_var var u =
@@ -209,7 +227,7 @@ let lambda_smaller lam threshold =
         lambda_size met; lambda_size obj; lambda_list_size args
     | Uunreachable -> ()
     | Uregion e ->
-        size := !size + 4;
+        incr size;
         lambda_size e
     | Utail e ->
         lambda_size e
@@ -237,6 +255,8 @@ let rec is_pure = function
   | Uoffset(arg, _) -> is_pure arg
   | Ulet(Immutable, _, _var, def, body) ->
       is_pure def && is_pure body
+  | Uregion body -> is_pure body
+  | Utail body -> is_pure body
   | _ -> false
 
 (* Simplify primitive operations on known arguments *)
@@ -705,9 +725,9 @@ let rec substitute loc ((backend, fpc) as st) sb rn ulam =
   | Uunreachable ->
       Uunreachable
   | Uregion e ->
-      Uregion (substitute loc st sb rn e)
+      region (substitute loc st sb rn e)
   | Utail e ->
-      Utail (substitute loc st sb rn e)
+      tail (substitute loc st sb rn e)
 
 type env = {
   backend : (module Backend_intf.S);
@@ -838,7 +858,7 @@ let direct_apply env fundesc ufunct uargs pos ~loc ~attribute =
       let body =
         match pos with
         | Apply_nontail -> body
-        | Apply_tail -> Utail body
+        | Apply_tail -> tail body
       in
       bind_params env loc fundesc params uargs ufunct body
 
@@ -1041,7 +1061,7 @@ let rec close ({ backend; fenv; cenv ; mutable_vars } as env) lam =
           let body =
             match pos with
             | Apply_nontail -> body
-            | Apply_tail -> Utail body
+            | Apply_tail -> tail body
           in
           let result =
             List.fold_left (fun body (id, defining_expr) ->
@@ -1266,7 +1286,7 @@ let rec close ({ backend; fenv; cenv ; mutable_vars } as env) lam =
       assert false
   | Lregion lam ->
       let ulam, approx = close env lam in
-      Uregion ulam, approx
+      region ulam, approx
 
 and close_list env = function
     [] -> []

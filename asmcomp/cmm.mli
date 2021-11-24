@@ -193,7 +193,7 @@ and expression =
   | Cexit of int * expression list
   | Ctrywith of expression * Backend_var.With_provenance.t * expression
       * Debuginfo.t
-  | Cregion of expression
+  | Cregion of bool * expression
   | Ctail of expression
 
 type codegen_option =
@@ -247,6 +247,8 @@ val map_tail: (expression -> expression) -> expression -> expression
       to all inner sub-expressions that can produce the final result.
       Same disclaimer as for [iter_shallow_tail] about the notion
       of "tail" sub-expression. *)
+
+val map_tail_with_regions: (expression -> expression) -> expression -> expression
 
 val iter_shallow: (expression -> unit) -> expression -> unit
   (** Apply the transformation to each immediate sub-expression. *)

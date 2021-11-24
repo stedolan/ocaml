@@ -193,7 +193,7 @@ type expression =
   | Cexit of int * expression list
   | Ctrywith of expression * Backend_var.With_provenance.t * expression
       * Debuginfo.t
-  | Cregion of expression
+  | Cregion of bool * expression
   | Ctail of expression
 
 type codegen_option =
@@ -254,7 +254,7 @@ let iter_shallow_tail f = function
       f e1;
       f e2;
       true
-  | Cregion e ->
+  | Cregion(_, e) ->
       f e;
       true
   | Ctail e ->
@@ -272,34 +272,36 @@ let iter_shallow_tail f = function
   | Cop _ ->
       false
 
-let rec map_tail f = function
+let rec map_tail_gen rgns f = function
   | Clet(id, exp, body) ->
-      Clet(id, exp, map_tail f body)
+      Clet(id, exp, map_tail_gen rgns f body)
   | Clet_mut(id, kind, exp, body) ->
-      Clet_mut(id, kind, exp, map_tail f body)
+      Clet_mut(id, kind, exp, map_tail_gen rgns f body)
   | Cphantom_let(id, exp, body) ->
-      Cphantom_let (id, exp, map_tail f body)
+      Cphantom_let (id, exp, map_tail_gen rgns f body)
   | Cifthenelse(cond, ifso_dbg, ifso, ifnot_dbg, ifnot, dbg) ->
       Cifthenelse
         (
           cond,
-          ifso_dbg, map_tail f ifso,
-          ifnot_dbg, map_tail f ifnot,
+          ifso_dbg, map_tail_gen rgns f ifso,
+          ifnot_dbg, map_tail_gen rgns f ifnot,
           dbg
         )
   | Csequence(e1, e2) ->
-      Csequence(e1, map_tail f e2)
+      Csequence(e1, map_tail_gen rgns f e2)
   | Cswitch(e, tbl, el, dbg') ->
-      Cswitch(e, tbl, Array.map (fun (e, dbg) -> map_tail f e, dbg) el, dbg')
+      Cswitch(e, tbl, Array.map (fun (e, dbg) -> map_tail_gen rgns f e, dbg) el, dbg')
   | Ccatch(rec_flag, handlers, body) ->
-      let map_h (n, ids, handler, dbg) = (n, ids, map_tail f handler, dbg) in
-      Ccatch(rec_flag, List.map map_h handlers, map_tail f body)
+      let map_h (n, ids, handler, dbg) = (n, ids, map_tail_gen rgns f handler, dbg) in
+      Ccatch(rec_flag, List.map map_h handlers, map_tail_gen rgns f body)
   | Ctrywith(e1, id, e2, dbg) ->
-      Ctrywith(map_tail f e1, id, map_tail f e2, dbg)
-  | Cregion e ->
-      Cregion(map_tail f e)
+      Ctrywith(map_tail_gen rgns f e1, id, map_tail_gen rgns f e2, dbg)
+  | Cregion(tl, e) ->
+      if rgns then f e
+      else Cregion(tl, map_tail_gen rgns f e)
   | Ctail e ->
-      Ctail(map_tail f e)
+      if rgns then f e
+      else Ctail(map_tail_gen rgns f e)
   | Cexit _ | Cop (Craise _, _, _) as cmm ->
       cmm
   | Cconst_int _
@@ -311,6 +313,10 @@ let rec map_tail f = function
   | Ctuple _
   | Cop _ as c ->
       f c
+
+let map_tail f e = map_tail_gen false f e
+
+let map_tail_with_regions f e = map_tail_gen true f e
 
 let iter_shallow f = function
   | Clet (_id, e1, e2) ->
@@ -338,7 +344,7 @@ let iter_shallow f = function
       List.iter f el
   | Ctrywith (e1, _id, e2, _dbg) ->
       f e1; f e2
-  | Cregion e ->
+  | Cregion(_, e) ->
       f e
   | Ctail e ->
       f e
@@ -375,8 +381,8 @@ let map_shallow f = function
       Cexit (n, List.map f el)
   | Ctrywith (e1, id, e2, dbg) ->
       Ctrywith (f e1, id, f e2, dbg)
-  | Cregion e ->
-      Cregion (f e)
+  | Cregion(tl, e) ->
+      Cregion(tl, f e)
   | Ctail e ->
       Ctail (f e)
   | Cconst_int _

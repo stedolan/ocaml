@@ -391,15 +391,15 @@ and expression i ppf x =
       expression i ppf e1;
       expression i ppf e2;
       expression i ppf e3;
-  | Texp_send (e, Tmeth_name s, eo) ->
+  | Texp_send (e, Tmeth_name s, eo, _) ->
       line i ppf "Texp_send \"%s\"\n" s;
       expression i ppf e;
       option i expression ppf eo
-  | Texp_send (e, Tmeth_val s, eo) ->
+  | Texp_send (e, Tmeth_val s, eo, _) ->
       line i ppf "Texp_send \"%a\"\n" fmt_ident s;
       expression i ppf e;
       option i expression ppf eo
-  | Texp_new (li, _, _) -> line i ppf "Texp_new %a\n" fmt_path li;
+  | Texp_new (li, _, _, _) -> line i ppf "Texp_new %a\n" fmt_path li;
   | Texp_setinstvar (_, s, _, e) ->
       line i ppf "Texp_setinstvar \"%a\"\n" fmt_path s;
       expression i ppf e;

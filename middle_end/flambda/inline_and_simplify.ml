@@ -677,7 +677,9 @@ and simplify_apply env r ~(apply : Flambda.apply) : Flambda.t * R.t =
     inline = inline_requested; specialise = specialise_requested;
   } = apply in
   (* TODO: Most applications do not do local allocations in the current region,
-     but this is not yet tracked, so we conservatively assume they may. *)
+     but this is not yet tracked, so we conservatively assume they may.
+     Note that tail calls should always set the region used to true, because
+     removing the surrounding region would change their meaning. *)
   let r = R.set_region_use r true in
   let dbg = E.add_inlined_debuginfo env ~dbg in
   simplify_free_variable env lhs_of_application
@@ -868,21 +870,26 @@ and simplify_over_application env r ~args ~args_approxs ~function_decls
   let full_app_approxs, _ =
     Misc.Stdlib.List.split_at arity args_approxs
   in
-  (* FIXME insert Tail appropriately if position = Apply_tail *)
   let expr, r =
     simplify_full_application env r ~function_decls ~lhs_of_application
       ~closure_id_being_applied ~function_decl ~value_set_of_closures
-      ~args:full_app_args ~args_approxs:full_app_approxs ~dbg ~position
+      ~args:full_app_args ~args_approxs:full_app_approxs ~dbg
+      ~position:Lambda.Apply_nontail
       ~inline_requested ~specialise_requested
   in
   let func_var = Variable.create Internal_variable_names.full_apply in
   let expr : Flambda.t =
     Flambda.create_let func_var (Expr expr)
       (Apply { func = func_var; args = remaining_args; kind = Indirect; dbg;
-        position;
+        position = Apply_nontail;
         inline = inline_requested; specialise = specialise_requested; })
   in
   let expr = Lift_code.lift_lets_expr expr ~toplevel:true in
+  let expr =
+    match position with
+    | Lambda.Apply_tail -> Flambda.Tail expr
+    | Lambda.Apply_nontail -> expr
+  in
   simplify (E.set_never_inline env) r expr
 
 and simplify_named env r (tree : Flambda.named) : Flambda.named * R.t =
@@ -1404,6 +1411,7 @@ and simplify env r (tree : Flambda.t) : Flambda.t * R.t =
      if use_inner_region then Region body, r
      else body, r
   | Tail body ->
+     let r = R.set_region_use r true in
      let body, r = simplify env r body in
      Tail body, r
   | Proved_unreachable -> tree, ret r A.value_bottom

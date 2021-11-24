@@ -96,8 +96,7 @@ let inline_by_copying_function_body ~env ~r
       ~(function_decl : A.function_declaration)
       ~(function_body : A.function_body)
       ~fun_vars
-      ~args ~dbg ~position:_ ~simplify =
-  (* FIXME insert Tail appropriately if position = Apply_tail *)
+      ~args ~dbg ~position ~simplify =
   assert (E.mem env lhs_of_application);
   assert (List.for_all (E.mem env) args);
   let r =
@@ -126,6 +125,11 @@ let inline_by_copying_function_body ~env ~r
         inline_requested specialise_requested
     else
       body
+  in
+  let body =
+    match position with
+    | Lambda.Apply_tail -> Flambda.Tail body
+    | Lambda.Apply_nontail -> body
   in
   let bindings_for_params_to_args =
     (* Bind the function's parameters to the arguments from the call site. *)

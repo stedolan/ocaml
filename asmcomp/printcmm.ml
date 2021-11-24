@@ -267,7 +267,7 @@ let rec expr ppf = function
   | Ctrywith(e1, id, e2, _dbg) ->
       fprintf ppf "@[<2>(try@ %a@;<1 -2>with@ %a@ %a)@]"
              sequence e1 VP.print id sequence e2
-  | Cregion e ->
+  | Cregion(_, e) ->
       fprintf ppf "@[<2>(region@ %a)@]" sequence e
   | Ctail e ->
       fprintf ppf "@[<2>(tail@ %a)@]" sequence e

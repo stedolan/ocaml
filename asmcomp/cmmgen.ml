@@ -622,7 +622,7 @@ let rec transl env e =
       let ifso_dbg = Debuginfo.none in
       let ifnot_dbg = Debuginfo.none in
       let dbg = Debuginfo.none in
-      transl_if env Unknown dbg cond
+      transl_if env Unknown dbg cond 0
         ifso_dbg (transl env ifso) ifnot_dbg (transl env ifnot)
   | Usequence(exp1, exp2) ->
       Csequence(remove_unit(transl env exp1), transl env exp2)
@@ -632,7 +632,7 @@ let rec transl env e =
       return_unit dbg
         (ccatch
            (raise_num, [],
-            create_loop(transl_if env Unknown dbg cond
+            create_loop(transl_if env Unknown dbg cond 0
                     dbg (remove_unit(transl env body))
                     dbg (Cexit (raise_num,[])))
               dbg,
@@ -845,7 +845,7 @@ and transl_prim_1 env p arg dbg =
   (* Boolean operations *)
   | Pnot ->
       transl_if env Then_false_else_true
-        dbg arg
+        dbg arg 0
         dbg (Cconst_int (1, dbg))
         dbg (Cconst_int (3, dbg))
   (* Test integer/block *)
@@ -904,8 +904,8 @@ and transl_prim_2 env p arg1 arg2 dbg =
   | Psequand ->
       let dbg' = Debuginfo.none in
       transl_sequand env Then_true_else_false
-        dbg arg1
-        dbg' arg2
+        dbg arg1 0
+        dbg' arg2 0
         dbg (Cconst_int (3, dbg))
         dbg' (Cconst_int (1, dbg))
       (* let id = V.create_local "res1" in
@@ -914,8 +914,8 @@ and transl_prim_2 env p arg1 arg2 dbg =
   | Psequor ->
       let dbg' = Debuginfo.none in
       transl_sequor env Then_true_else_false
-        dbg arg1
-        dbg' arg2
+        dbg arg1 0
+        dbg' arg2 0
         dbg (Cconst_int (3, dbg))
         dbg' (Cconst_int (1, dbg))
   (* Integer operations *)
@@ -1212,10 +1212,16 @@ and make_shareable_cont dbg mk exp =
   end
 
 and transl_if env (approx : then_else)
-      (dbg : Debuginfo.t) cond
+      (dbg : Debuginfo.t) cond regions
       (then_dbg : Debuginfo.t) then_
       (else_dbg : Debuginfo.t) else_ =
   match cond with
+  | Uregion cond ->
+      transl_if env approx dbg cond (regions + 1)
+        then_dbg then_ else_dbg else_
+  | Utail cond when regions > 0 ->
+      transl_if env approx dbg cond (regions - 1)
+        then_dbg then_ else_dbg else_
   | Uconst (Uconst_int 0) -> else_
   | Uconst (Uconst_int 1) -> then_
   | Uifthenelse (arg1, arg2, Uconst (Uconst_int 0)) ->
@@ -1223,63 +1229,66 @@ and transl_if env (approx : then_else)
       let inner_dbg = Debuginfo.none in
       let ifso_dbg = Debuginfo.none in
       transl_sequand env approx
-        inner_dbg arg1
-        ifso_dbg arg2
+        inner_dbg arg1 regions
+        ifso_dbg arg2 regions
         then_dbg then_
         else_dbg else_
   | Uprim (Psequand, [arg1; arg2], inner_dbg) ->
       transl_sequand env approx
-        inner_dbg arg1
-        inner_dbg arg2
+        inner_dbg arg1 regions
+        inner_dbg arg2 regions
         then_dbg then_
         else_dbg else_
   | Uifthenelse (arg1, Uconst (Uconst_int 1), arg2) ->
       let inner_dbg = Debuginfo.none in
       let ifnot_dbg = Debuginfo.none in
       transl_sequor env approx
-        inner_dbg arg1
-        ifnot_dbg arg2
+        inner_dbg arg1 regions
+        ifnot_dbg arg2 regions
         then_dbg then_
         else_dbg else_
   | Uprim (Psequor, [arg1; arg2], inner_dbg) ->
       transl_sequor env approx
-        inner_dbg arg1
-        inner_dbg arg2
+        inner_dbg arg1 regions
+        inner_dbg arg2 regions
         then_dbg then_
         else_dbg else_
   | Uprim (Pnot, [arg], _dbg) ->
       transl_if env (invert_then_else approx)
-        dbg arg
+        dbg arg regions
         else_dbg else_
         then_dbg then_
   | Uifthenelse (Uconst (Uconst_int 1), ifso, _) ->
       let ifso_dbg = Debuginfo.none in
       transl_if env approx
-        ifso_dbg ifso
+        ifso_dbg ifso regions
         then_dbg then_
         else_dbg else_
   | Uifthenelse (Uconst (Uconst_int 0), _, ifnot) ->
       let ifnot_dbg = Debuginfo.none in
       transl_if env approx
-        ifnot_dbg ifnot
+        ifnot_dbg ifnot regions
         then_dbg then_
         else_dbg else_
   | Uifthenelse (cond, ifso, ifnot) ->
       let inner_dbg = Debuginfo.none in
       let ifso_dbg = Debuginfo.none in
       let ifnot_dbg = Debuginfo.none in
+      let cond =
+        test_bool inner_dbg (with_regions regions (transl env cond))
+      in
       make_shareable_cont then_dbg
         (fun shareable_then ->
            make_shareable_cont else_dbg
              (fun shareable_else ->
                 mk_if_then_else
-                  inner_dbg (test_bool inner_dbg (transl env cond))
+                  inner_dbg cond
                   ifso_dbg (transl_if env approx
-                    ifso_dbg ifso
+                    ifso_dbg ifso regions
                     then_dbg shareable_then
                     else_dbg shareable_else)
                   ifnot_dbg (transl_if env approx
-                    ifnot_dbg ifnot
+                    ifnot_dbg ifnot regions
                     then_dbg shareable_then
                     else_dbg shareable_else))
              else_)
@@ -1287,44 +1296,44 @@ and transl_if env (approx : then_else)
   | _ -> begin
       match approx with
       | Then_true_else_false ->
-          transl env cond
+          with_regions regions (transl env cond)
       | Then_false_else_true ->
-          mk_not dbg (transl env cond)
+          mk_not dbg (with_regions regions (transl env cond))
       | Unknown ->
           mk_if_then_else
-            dbg (test_bool dbg (transl env cond))
+            dbg (test_bool dbg (with_regions regions (transl env cond)))
             then_dbg then_
             else_dbg else_
     end
 
 and transl_sequand env (approx : then_else)
-      (arg1_dbg : Debuginfo.t) arg1
-      (arg2_dbg : Debuginfo.t) arg2
+      (arg1_dbg : Debuginfo.t) arg1 regions1
+      (arg2_dbg : Debuginfo.t) arg2 regions2
       (then_dbg : Debuginfo.t) then_
       (else_dbg : Debuginfo.t) else_ =
   make_shareable_cont else_dbg
     (fun shareable_else ->
        transl_if env Unknown
-         arg1_dbg arg1
+         arg1_dbg arg1 regions1
          arg2_dbg (transl_if env approx
-           arg2_dbg arg2
+           arg2_dbg arg2 regions2
            then_dbg then_
            else_dbg shareable_else)
          else_dbg shareable_else)
     else_
 
 and transl_sequor env (approx : then_else)
-      (arg1_dbg : Debuginfo.t) arg1
-      (arg2_dbg : Debuginfo.t) arg2
+      (arg1_dbg : Debuginfo.t) arg1 regions1
+      (arg2_dbg : Debuginfo.t) arg2 regions2
       (then_dbg : Debuginfo.t) then_
       (else_dbg : Debuginfo.t) else_ =
   make_shareable_cont then_dbg
     (fun shareable_then ->
        transl_if env Unknown
-         arg1_dbg arg1
+         arg1_dbg arg1 regions1
          then_dbg shareable_then
          arg2_dbg (transl_if env approx
-           arg2_dbg arg2
+           arg2_dbg arg2 regions2
            then_dbg shareable_then
            else_dbg else_))
     then_
