@@ -98,6 +98,27 @@ let transl_apply_position position =
   | Nontail -> Apply_nontail
   | Tail -> Apply_tail
 
+let maybe_region lam =
+  let rec is_trivial lam =
+    match lam with
+    | Lvar _ | Lconst _ | Lprim(Pgetglobal _, [], _) -> true
+    | Lprim(Pfield _, [lam], _)
+    | Levent(lam, _) -> is_trivial lam
+    | _ -> false
+  in
+  if is_trivial lam then lam
+  else begin
+    match lam with
+    | Lsend(k, lmet, lobj, largs, Apply_tail, loc)
+      when List.for_all is_trivial largs ->
+        Lsend(k, lmet, lobj, largs, Apply_nontail, loc)
+    | Lapply ({ ap_position = Apply_tail; ap_args } as ap)
+      when List.for_all is_trivial ap_args ->
+        Lapply { ap with ap_position = Apply_nontail }
+    | _ ->
+        Lregion lam
+  end
+
 (* Push the default values under the functional abstractions *)
 (* Also push bindings of module patterns, since this sound *)
 
@@ -108,12 +129,13 @@ type binding =
 let rec push_defaults loc bindings cases partial =
   match cases with
     [{c_lhs=pat; c_guard=None;
-      c_rhs={exp_desc = Texp_function { arg_label; param; cases; partial; } }
+      c_rhs={exp_desc =
+               Texp_function { arg_label; param; cases; partial; region }}
         as exp}] ->
       let cases = push_defaults exp.exp_loc bindings cases partial in
       [{c_lhs=pat; c_guard=None;
         c_rhs={exp with exp_desc = Texp_function { arg_label; param; cases;
-          partial; }}}]
+          partial; region; }}}]
   | [{c_lhs=pat; c_guard=None;
       c_rhs={exp_attributes=[{Parsetree.attr_name = {txt="#default"};_}];
              exp_desc = Texp_let
@@ -237,23 +259,6 @@ let transl_ident loc env ty path desc kind =
       transl_value_path loc env path
   |  _ -> fatal_error "Translcore.transl_exp: bad Texp_ident"
 
-let is_trivial_exp exp =
-  match exp.exp_desc with
-  | Texp_ident _ | Texp_constant _ -> true
-  | _ -> false
-
-let maybe_region parent_mode children e =
-  if parent_mode = Lambda.Alloc_heap
-     && List.exists
-          (fun exp ->
-             transl_value_mode exp.exp_mode = Alloc_local
-             && not (is_trivial_exp exp))
-          children then
-    Lregion e
-  else
-    e
-
-
 let can_apply_primitive p pmode pos args =
   let is_omitted = function
     | Arg _ -> false
@@ -298,15 +303,14 @@ and transl_exp0 ~in_new_scope ~scopes e =
   | Texp_constant cst ->
       Lconst(Const_base cst)
   | Texp_let(rec_flag, pat_expr_list, body) ->
-      transl_let ~scopes ~mode:(transl_value_mode e.exp_mode) rec_flag
-        pat_expr_list
+      transl_let ~scopes rec_flag pat_expr_list
         (event_before ~scopes body (transl_exp ~scopes body))
-  | Texp_function { arg_label = _; param; cases; partial; } ->
+  | Texp_function { arg_label = _; param; cases; partial; region } ->
       let scopes =
         if in_new_scope then scopes
         else enter_anonymous_function ~scopes
       in
-      transl_function ~scopes e param cases partial
+      transl_function ~scopes e param cases partial region
   | Texp_apply({ exp_desc = Texp_ident(path, _, {val_kind = Val_prim p},
                                        Id_prim pmode);
                 exp_type = prim_type } as funct, oargs, pos)
@@ -317,19 +321,18 @@ and transl_exp0 ~in_new_scope ~scopes e =
       in
       let args = transl_list ~scopes arg_exps in
       let prim_exp = if extra_args = [] then Some e else None in
-      let position = transl_apply_position pos in
+      let position =
+        if extra_args = [] then transl_apply_position pos
+        else Apply_nontail
+      in
       let prim_mode = transl_alloc_mode pmode in
       let lam =
         Translprim.transl_primitive_application
           (of_location ~scopes e.exp_loc) p e.exp_env prim_type prim_mode
           path prim_exp args arg_exps position
       in
-      let rmode = Ctype.prim_mode pmode p.prim_native_repr_res in
-      let return_mode = transl_alloc_mode rmode in
-      let lam = maybe_region return_mode arg_exps lam in
       if extra_args = [] then lam
       else begin
-        let mode = transl_value_mode e.exp_mode in
         let tailcall, funct =
           Translattribute.get_tailcall_attribute funct
         in
@@ -340,15 +343,10 @@ and transl_exp0 ~in_new_scope ~scopes e =
           Translattribute.get_and_remove_specialised_attribute funct
         in
         let e = { e with exp_desc = Texp_apply(funct, oargs, pos) } in
-        let funct =
-          { funct with
-            exp_desc = Texp_apply(funct, argl, Nontail);
-            exp_mode = Value_mode.of_alloc rmode }
-        in
+        let position = transl_apply_position pos in
         event_after ~scopes e
-          (transl_apply ~scopes ~tailcall ~inlined ~specialised
-             lam ~mode ~funct
-             extra_args (of_location ~scopes e.exp_loc))
+          (transl_apply ~scopes ~tailcall ~inlined ~specialised ~position
+             lam extra_args (of_location ~scopes e.exp_loc))
       end
   | Texp_apply(funct, oargs, position) ->
       let tailcall, funct =
@@ -361,11 +359,10 @@ and transl_exp0 ~in_new_scope ~scopes e =
         Translattribute.get_and_remove_specialised_attribute funct
       in
       let e = { e with exp_desc = Texp_apply(funct, oargs, position) } in
-      let mode = transl_value_mode e.exp_mode in
       let position = transl_apply_position position in
       event_after ~scopes e
         (transl_apply ~scopes ~tailcall ~inlined ~specialised
-           ~position (transl_exp ~scopes funct) ~mode ~funct
+           ~position (transl_exp ~scopes funct)
            oargs (of_location ~scopes e.exp_loc))
   | Texp_match(arg, pat_expr_list, partial) ->
       transl_match ~scopes e arg pat_expr_list partial
@@ -520,45 +517,46 @@ and transl_exp0 ~in_new_scope ~scopes e =
               of_location ~scopes e.exp_loc)
       end
   | Texp_ifthenelse(cond, ifso, Some ifnot) ->
-      Lifthenelse(transl_exp_maybe_region ~scopes cond,
+      Lifthenelse(transl_exp ~scopes cond,
                   event_before ~scopes ifso (transl_exp ~scopes ifso),
                   event_before ~scopes ifnot (transl_exp ~scopes ifnot))
   | Texp_ifthenelse(cond, ifso, None) ->
-      Lifthenelse(transl_exp_maybe_region ~scopes cond,
-                  event_before ~scopes ifso
-                    (transl_exp_maybe_region ~scopes ifso),
+      Lifthenelse(transl_exp ~scopes cond,
+                  event_before ~scopes ifso (transl_exp ~scopes ifso),
                   lambda_unit)
   | Texp_sequence(expr1, expr2) ->
-      Lsequence(transl_exp_maybe_region ~scopes expr1,
+      Lsequence(transl_exp ~scopes expr1,
                 event_before ~scopes expr2 (transl_exp ~scopes expr2))
   | Texp_while(cond, body) ->
-      Lwhile(transl_exp_maybe_region ~scopes cond,
-             event_before ~scopes body (transl_exp_maybe_region ~scopes body))
+      Lwhile(maybe_region (transl_exp ~scopes cond),
+             event_before ~scopes body (maybe_region (transl_exp ~scopes body)))
   | Texp_for(param, _, low, high, dir, body) ->
-      Lfor(param, transl_exp_maybe_region ~scopes low,
-           transl_exp_maybe_region ~scopes high, dir,
-           event_before ~scopes body (transl_exp_maybe_region ~scopes body))
-  | Texp_send(_, _, Some exp) -> transl_exp ~scopes exp
-  | Texp_send(expr, met, None) ->
+      Lfor(param, transl_exp ~scopes low,
+           transl_exp ~scopes high, dir,
+           event_before ~scopes body (maybe_region (transl_exp ~scopes body)))
+  | Texp_send(_, _, Some exp, _) -> transl_exp ~scopes exp
+  | Texp_send(expr, met, None, pos) ->
       let obj = transl_exp ~scopes expr in
       let loc = of_location ~scopes e.exp_loc in
+      let pos = transl_apply_position pos in
       let lam =
         match met with
-          Tmeth_val id -> Lsend (Self, Lvar id, obj, [], Apply_tail, loc)
+          Tmeth_val id -> Lsend (Self, Lvar id, obj, [], pos, loc)
         | Tmeth_name nm ->
             let (tag, cache) = Translobj.meth obj nm in
             let kind = if cache = [] then Public else Cached in
-            Lsend (kind, tag, obj, cache, Apply_tail, loc)
+            Lsend (kind, tag, obj, cache, pos, loc)
       in
       event_after ~scopes e lam
-  | Texp_new (cl, {Location.loc=loc}, _) ->
+  | Texp_new (cl, {Location.loc=loc}, _, pos) ->
       let loc = of_location ~scopes loc in
+      let pos = transl_apply_position pos in
       Lapply{
         ap_loc=loc;
         ap_func=
           Lprim(Pfield 0, [transl_class_path loc e.exp_env cl], loc);
         ap_args=[lambda_unit];
-        ap_position=Apply_tail;
+        ap_position=pos;
         ap_tailcall=Default_tailcall;
         ap_inlined=Default_inline;
         ap_specialised=Default_specialise;
@@ -601,7 +599,8 @@ and transl_exp0 ~in_new_scope ~scopes e =
   | Texp_letmodule(Some id, loc, Mp_present, modl, body) ->
       let defining_expr =
         let mod_scopes = enter_module_definition ~scopes id in
-        Levent (!transl_module ~scopes:mod_scopes Tcoerce_none None modl, {
+        let lam = !transl_module ~scopes:mod_scopes Tcoerce_none None modl in
+        Levent (lam, {
           lev_loc = of_location ~scopes loc.loc;
           lev_kind = Lev_module_definition id;
           lev_repr = None;
@@ -624,7 +623,7 @@ and transl_exp0 ~in_new_scope ~scopes e =
       then lambda_unit
       else begin
         Lifthenelse
-          (transl_exp_maybe_region ~scopes cond,
+          (transl_exp ~scopes cond,
            lambda_unit, assert_failed ~scopes e)
       end
   | Texp_lazy e ->
@@ -668,7 +667,7 @@ and transl_exp0 ~in_new_scope ~scopes e =
                              loc = of_location ~scopes e.exp_loc;
                              mode = Alloc_heap;
                              ret_mode = Alloc_heap;
-                             body = transl_exp ~scopes e} in
+                             body = maybe_region (transl_exp ~scopes e)} in
           Lprim(Pmakeblock(Config.lazy_tag, Mutable, None,
                            Alloc_heap), [fn],
                 of_location ~scopes e.exp_loc)
@@ -727,17 +726,13 @@ and transl_list_with_shape ~scopes expr_list =
   in
   List.split (List.map transl_with_shape expr_list)
 
-and transl_exp_maybe_region ~scopes e =
-  let lam = transl_exp ~scopes e in
-  maybe_region Alloc_heap [e] lam
-
 and transl_guard ~scopes guard rhs =
   let expr = event_before ~scopes rhs (transl_exp ~scopes rhs) in
   match guard with
   | None -> expr
   | Some cond ->
       event_before ~scopes cond
-        (Lifthenelse(transl_exp_maybe_region ~scopes cond, expr, staticfail))
+        (Lifthenelse(transl_exp ~scopes cond, expr, staticfail))
 
 and transl_case ~scopes {c_lhs; c_guard; c_rhs} =
   c_lhs, transl_guard ~scopes c_guard c_rhs
@@ -771,41 +766,34 @@ and transl_apply ~scopes
       ?(inlined = Default_inline)
       ?(specialised = Default_specialise)
       ?(position=Apply_nontail)
-      lam ?funct
-      ?(mode=Lambda.Alloc_heap) sargs loc
+      lam sargs loc
   =
-  let bound_exprs =
-    List.fold_left
-      (fun acc (_, sarg) ->
-         match sarg with
-         | Omitted _ -> acc
-         | Arg e -> e :: acc)
-      (Option.to_list funct) sargs
-  in
   let lapply funct args pos =
     match funct, pos with
-    | Lsend(k, lmet, lobj, largs, Apply_tail, _), _ ->
-        Lsend(k, lmet, lobj, largs @ args, pos, loc)
+    | Lsend((Self | Public) as k, lmet, lobj, [], _, _), _ ->
+        Lsend(k, lmet, lobj, args, pos, loc)
+    | Lsend(Cached, lmet, lobj, ([_; _] as largs), _, _), _ ->
+        Lsend(Cached, lmet, lobj, largs @ args, pos, loc)
     | Lsend(k, lmet, lobj, largs, Apply_nontail, _), Apply_nontail ->
         Lsend(k, lmet, lobj, largs @ args, pos, loc)
-    | Levent(Lsend(k, lmet, lobj, largs, Apply_tail, _), _), _ ->
+    | Levent(
+      Lsend((Self | Public) as k, lmet, lobj, [], _, _), _), _ ->
+        Lsend(k, lmet, lobj, args, pos, loc)
+    | Levent(
+      Lsend(Cached, lmet, lobj, ([_; _] as largs), _, _), _), _ ->
+        Lsend(Cached, lmet, lobj, largs @ args, pos, loc)
+    | Levent(
+      Lsend(k, lmet, lobj, largs, Apply_nontail, _), _), Apply_nontail ->
         Lsend(k, lmet, lobj, largs @ args, pos, loc)
-    | Levent(Lsend(k, lmet, lobj, largs, Apply_nontail, _), _), Apply_nontail ->
-        Lsend(k, lmet, lobj, largs @ args, pos, loc)
-    | Lapply ({ ap_position = Apply_tail } as ap), Apply_tail ->
-        Lapply
-          {ap with ap_args = ap.ap_args @ args;
-                   ap_loc = loc; ap_position = pos}
     | Lapply ({ ap_position = Apply_nontail } as ap), Apply_nontail ->
         Lapply
-          {ap with ap_args = ap.ap_args @ args;
-                   ap_loc = loc; ap_position = pos}
+          {ap with ap_args = ap.ap_args @ args; ap_loc = loc; ap_position = pos}
     | lexp, _ ->
         Lapply {
           ap_loc=loc;
           ap_func=lexp;
           ap_args=args;
-          ap_position=position;
+          ap_position=pos;
           ap_tailcall=tailcall;
           ap_inlined=inlined;
           ap_specialised=specialised;
@@ -852,7 +840,7 @@ and transl_apply ~scopes
         List.fold_right
           (fun (id, lam) body -> Llet(Strict, Pgenval, id, lam, body))
           !defs body
-    | Arg arg :: l -> build_apply lam (arg :: args) position l
+    | Arg arg :: l -> build_apply lam (arg :: args) pos l
     | [] -> lapply lam (List.rev args) pos
   in
   let args =
@@ -863,8 +851,7 @@ and transl_apply ~scopes
          | Arg exp -> Arg (transl_exp ~scopes exp))
       sargs
   in
-  let lam = build_apply lam [] position args in
-  maybe_region mode bound_exprs lam
+  build_apply lam [] position args
 
 and transl_curried_function
       ~scopes loc return
@@ -1005,7 +992,7 @@ and transl_function0
      Matching.for_function ~scopes loc repr (Lvar param)
        (transl_cases ~scopes cases) partial)
 
-and transl_function ~scopes e param cases partial =
+and transl_function ~scopes e param cases partial region =
   let mode = transl_value_mode e.exp_mode in
   let ((kind, params, return, ret_mode), body) =
     event_function ~scopes e
@@ -1017,6 +1004,7 @@ and transl_function ~scopes e param cases partial =
   in
   let attr = default_function_attribute in
   let loc = of_location ~scopes e.exp_loc in
+  let body = if region then maybe_region body else body in
   let lfunc = {kind; params; return; body; attr; loc; mode; ret_mode} in
   Lambda.check_lfunction lfunc;
   let lam = Lfunction lfunc in
@@ -1044,9 +1032,7 @@ and transl_bound_exp ~scopes ~in_structure pat expr =
   This complication allows choosing any compilation order for the
   bindings and body of let constructs.
 *)
-and transl_let ~scopes ?(in_structure=false) ?(mode=Alloc_heap) rec_flag
-  pat_expr_list =
-  let bound_exprs = List.map (fun vb -> vb.vb_expr) pat_expr_list in
+and transl_let ~scopes ?(in_structure=false) rec_flag pat_expr_list =
   match rec_flag with
     Nonrecursive ->
       let rec transl = function
@@ -1059,8 +1045,7 @@ and transl_let ~scopes ?(in_structure=false) ?(mode=Alloc_heap) rec_flag
           fun body ->
             Matching.for_let ~scopes pat.pat_loc lam pat (mk_body body)
       in
-      let f = transl pat_expr_list in
-      fun body -> maybe_region mode bound_exprs (f body)
+      transl pat_expr_list
   | Recursive ->
       let idlist =
         List.map
@@ -1081,7 +1066,7 @@ and transl_let ~scopes ?(in_structure=false) ?(mode=Alloc_heap) rec_flag
         end;
         (id, lam) in
       let lam_bds = List.map2 transl_case pat_expr_list idlist in
-      fun body -> maybe_region mode bound_exprs (Lletrec(lam_bds, body))
+      fun body -> Lletrec(lam_bds, body)
 
 and transl_setinstvar ~scopes loc self var expr =
   Lprim(Psetfield_computed (maybe_pointer expr, Assignment),
@@ -1279,12 +1264,9 @@ and transl_match ~scopes e arg pat_expr_list partial =
           (Matching.for_function ~scopes e.exp_loc
              None (Lvar val_id) val_cases partial)
   in
-  let lam =
-    List.fold_left (fun body (static_exception_id, val_ids, handler) ->
-      Lstaticcatch (body, (static_exception_id, val_ids), handler)
-    ) classic static_handlers
-  in
-  maybe_region (transl_value_mode e.exp_mode) [arg] lam
+  List.fold_left (fun body (static_exception_id, val_ids, handler) ->
+    Lstaticcatch (body, (static_exception_id, val_ids), handler)
+  ) classic static_handlers
 
 and transl_letop ~scopes loc env let_ ands param case partial =
   let rec loop prev_lam = function
@@ -1303,7 +1285,7 @@ and transl_letop ~scopes loc env let_ ands param case partial =
                ap_loc = of_location ~scopes and_.bop_loc;
                ap_func = op;
                ap_args=[Lvar left_id; Lvar right_id];
-               ap_position=Apply_tail;
+               ap_position=Apply_nontail;
                ap_tailcall = Default_tailcall;
                ap_inlined = Default_inline;
                ap_specialised = Default_specialise;
@@ -1326,6 +1308,7 @@ and transl_letop ~scopes loc env let_ ands param case partial =
     in
     let attr = default_function_attribute in
     let loc = of_location ~scopes case.c_rhs.exp_loc in
+    let body = maybe_region body in
     Lfunction{kind; params; return; body; attr; loc;
               mode=Alloc_heap; ret_mode}
   in
@@ -1333,7 +1316,7 @@ and transl_letop ~scopes loc env let_ ands param case partial =
     ap_loc = of_location ~scopes loc;
     ap_func = op;
     ap_args=[exp; func];
-    ap_position=Apply_tail;
+    ap_position=Apply_nontail;
     ap_tailcall = Default_tailcall;
     ap_inlined = Default_inline;
     ap_specialised = Default_specialise;

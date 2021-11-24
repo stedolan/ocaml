@@ -361,9 +361,23 @@ let rec to_clambda t env (flam : Flambda.t) : Clambda.ulambda =
     Usend (kind, subst_var env meth, subst_var env obj,
       subst_vars env args, position, dbg)
   | Region body ->
-    Uregion (to_clambda t env body)
+      let body = to_clambda t env body in
+      let is_trivial =
+        match body with
+        | Uvar _ | Uconst _ -> true
+        | _ -> false
+      in
+      if is_trivial then body
+      else Uregion body
   | Tail body ->
-    Utail (to_clambda t env body)
+      let body = to_clambda t env body in
+      let is_trivial =
+        match body with
+        | Uvar _ | Uconst _ -> true
+        | _ -> false
+      in
+      if is_trivial then body
+      else Utail body
   | Proved_unreachable -> Uunreachable
 
 and to_clambda_named t env var (named : Flambda.named) : Clambda.ulambda =

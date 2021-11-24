@@ -569,6 +569,9 @@ val send :
 (** Construct [Cregion e], eliding some useless regions *)
 val region : expression -> expression
 
+(** Construct nested [Cregion e]s, eliding some useless regions *)
+val with_regions : int -> expression -> expression
+
 (** Generic Cmm fragments *)
 
 (** Generate generic functions *)

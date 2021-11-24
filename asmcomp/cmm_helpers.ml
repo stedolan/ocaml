@@ -1807,23 +1807,66 @@ let cache_public_method meths tag cache dbg =
     Csequence(Cop (Cstore (Word_int, Assignment), [cache; Cvar tagged], dbg),
               Cvar tagged)))))
 
-let region e =
-  (* [Cregion e] is equivalent to [e] if [e] contains no local allocs *)
-  let rec check_local_allocs = function
-    | Cregion _ ->
-       (* Local allocations within a nested region do not affect this region.
-          Note this prevents O(n^2) behaviour with many nested regions. *)
-       ()
+let has_local_allocs e =
+  let rec loop = function
+    | Cregion(false, _) ->
+        (* Local allocations within a nested region do not affect this region. *)
+        ()
+    | Cregion(true, e) ->
+        loop_until_tail e
     | Cop (Calloc Alloc_local, _, _)
     | Cop ((Cextcall _ | Capply _), _, _) ->
-       raise Exit
+        raise Exit
     | e ->
-       iter_shallow check_local_allocs e
+        iter_shallow loop e
+  and loop_until_tail = function
+    | Ctail e -> loop e
+    | Cregion _ -> ()
+    | e -> ignore (iter_shallow_tail loop_until_tail e)
   in
-  match check_local_allocs e with
-  | () -> e
-  | exception Exit -> Cregion e
+  match loop e with
+  | () -> false
+  | exception Exit -> true
 
+let has_region_tail e =
+  let rec loop = function
+    | Ctail _
+    | Cop(Capply(_, Apply_tail), _, _) -> raise Exit
+    | Cregion _ -> ()
+    | e -> ignore (iter_shallow_tail loop e)
+  in
+  match loop e with
+  | () -> false
+  | exception Exit -> true
+
+let remove_region_tail e =
+  map_tail_with_regions
+    (function
+       | Ctail e -> e
+       | Cop(Capply(mach, Apply_tail), args, dbg) ->
+           Cop(Capply(mach, Apply_nontail), args, dbg)
+       | e -> e)
+    e
+
+let region e =
+  (* [Cregion e] is equivalent to [e] if [e] contains no local allocs *)
+  match has_local_allocs e, has_region_tail e with
+  | false, false -> e
+  | false, true -> remove_region_tail e
+  | true, tl -> Cregion(tl, e)
+
+let rec with_regions_naive n e =
+  if n = 0 then e
+  else with_regions_naive (n - 1) (region e)
+
+let with_regions n e =
+  if n = 0 then e
+  else begin
+    match has_local_allocs e, has_region_tail e with
+    | false, false -> e
+    | false, true -> remove_region_tail e
+    | true, tl -> with_regions_naive (n - 1) (Cregion(tl, e))
+  end
 
 (* CR mshinwell: These will be filled in by later pull requests. *)
 let placeholder_dbg () = Debuginfo.none

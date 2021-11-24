@@ -17,10 +17,11 @@ let last_is_anys = function
 (let
   (last_is_anys/10 =
      (function param/12 : int
-       (catch
-         (if (field 0 param/12) (if (field 1 param/12) (exit 1) 1)
-           (if (field 1 param/12) (exit 1) 2))
-        with (1) 3)))
+       (region
+         (catch
+           (if (field 0 param/12) (if (field 1 param/12) (exit 1) 1)
+             (if (field 1 param/12) (exit 1) 2))
+          with (1) 3))))
   (apply (field 1 (global Toploop!)) "last_is_anys" last_is_anys/10))
 val last_is_anys : bool * bool -> int = <fun>
 |}]
@@ -34,10 +35,11 @@ let last_is_vars = function
 (let
   (last_is_vars/17 =
      (function param/21 : int
-       (catch
-         (if (field 0 param/21) (if (field 1 param/21) (exit 3) 1)
-           (if (field 1 param/21) (exit 3) 2))
-        with (3) 3)))
+       (region
+         (catch
+           (if (field 0 param/21) (if (field 1 param/21) (exit 3) 1)
+             (if (field 1 param/21) (exit 3) 2))
+          with (3) 3))))
   (apply (field 1 (global Toploop!)) "last_is_vars" last_is_vars/17))
 val last_is_vars : bool * bool -> int = <fun>
 |}]
@@ -76,15 +78,16 @@ let f = function
    A/25 = (apply (field 0 (global Toploop!)) "A/25")
    f/28 =
      (function param/30 : int
-       (let (*match*/31 =a (field 0 param/30))
-         (catch
-           (if (== *match*/31 A/25) (if (field 1 param/30) 1 (exit 8))
-             (exit 8))
-          with (8)
-           (if (field 1 param/30)
-             (if (== (field 0 *match*/31) B/26) 2
-               (if (== (field 0 *match*/31) C/27) 3 4))
-             (if (field 2 param/30) 12 11))))))
+       (region
+         (let (*match*/31 =a (field 0 param/30))
+           (catch
+             (if (== *match*/31 A/25) (if (field 1 param/30) 1 (exit 8))
+               (exit 8))
+            with (8)
+             (if (field 1 param/30)
+               (if (== (field 0 *match*/31) B/26) 2
+                 (if (== (field 0 *match*/31) C/27) 3 4))
+               (if (field 2 param/30) 12 11)))))))
   (apply (field 1 (global Toploop!)) "f" f/28))
 val f : t * bool * bool -> int = <fun>
 |}]

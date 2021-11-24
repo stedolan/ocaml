@@ -30,13 +30,10 @@ val transl_apply: scopes:scopes
                   -> ?specialised:specialise_attribute
                   -> ?position:apply_position
                   -> lambda
-                  -> ?funct:expression
-                  -> ?mode:Lambda.alloc_mode
                   -> (arg_label * apply_arg) list
                   -> scoped_location -> lambda
-val transl_let: scopes:scopes -> ?in_structure:bool ->
-                ?mode:Lambda.alloc_mode -> rec_flag
-                -> value_binding list -> lambda -> lambda
+val transl_let: scopes:scopes -> ?in_structure:bool
+                  -> rec_flag -> value_binding list -> lambda -> lambda
 
 val transl_extension_constructor: scopes:scopes ->
   Env.t -> Path.t option ->

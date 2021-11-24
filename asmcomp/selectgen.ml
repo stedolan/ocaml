@@ -629,7 +629,15 @@ method emit_expr (env:environment) exp =
   let env' =
     if env.region_tail then {env with region_tail=false} else env in
   match exp with
-    Cconst_int (n, _dbg) ->
+  | Cconst_int _ | Cconst_natint _ | Cconst_float _ | Cconst_symbol _
+  | Cvar _ | Cassign _ | Ctuple _ when env.region_tail -> begin
+      match self#emit_expr env' exp with
+      | None -> None
+      | Some _ as res ->
+          self#insert env (Iop Iendregion) (List.hd env.regions) [||];
+          res
+    end
+  | Cconst_int (n, _dbg) ->
       let r = self#regs_for typ_int in
       Some(self#insert_op env (Iconst_int(Nativeint.of_int n)) [||] r)
   | Cconst_natint (n, _dbg) ->
@@ -701,14 +709,23 @@ method emit_expr (env:environment) exp =
           dbg, Cconst_int (0, dbg),
           dbg))
   | Cop(op, args, dbg) ->
+      let endregion = env.region_tail in
+      let tail =
+        match op with
+        | Capply(_, Apply_tail) -> true
+        | _ -> false
+      in
       begin match self#emit_parts_list env' args with
         None -> None
       | Some(simple_args, env) ->
           let ty = oper_result_type op in
           let (new_op, new_args) = self#select_operation op simple_args dbg in
+          let res =
           match new_op with
             Icall_ind ->
               let r1 = self#emit_tuple env new_args in
+              if endregion && tail then
+                self#insert env (Iop Iendregion) (List.hd env.regions) [||];
               let rarg = Array.sub r1 1 (Array.length r1 - 1) in
               let rd = self#regs_for ty in
               let (loc_arg, stack_ofs) = Proc.loc_arguments (Reg.typv rarg) in
@@ -717,17 +734,20 @@ method emit_expr (env:environment) exp =
               self#insert_debug env (Iop new_op) dbg
                           (Array.append [|r1.(0)|] loc_arg) loc_res;
               self#insert_move_results env loc_res rd stack_ofs;
-              Some rd
+              rd
           | Icall_imm _ ->
               let r1 = self#emit_tuple env new_args in
+              if endregion && tail then
+                self#insert env (Iop Iendregion) (List.hd env.regions) [||];
               let rd = self#regs_for ty in
               let (loc_arg, stack_ofs) = Proc.loc_arguments (Reg.typv r1) in
               let loc_res = Proc.loc_results (Reg.typv rd) in
               self#insert_move_args env r1 loc_arg stack_ofs;
               self#insert_debug env (Iop new_op) dbg loc_arg loc_res;
               self#insert_move_results env loc_res rd stack_ofs;
-              Some rd
+              rd
           | Iextcall { ty_args; _} ->
+              assert (not tail);
               let (loc_arg, stack_ofs) =
                 self#emit_extcall_args env ty_args new_args in
               let rd = self#regs_for ty in
@@ -735,8 +755,9 @@ method emit_expr (env:environment) exp =
                 self#insert_op_debug env new_op dbg
                   loc_arg (Proc.loc_external_results (Reg.typv rd)) in
               self#insert_move_results env loc_res rd stack_ofs;
-              Some rd
+              rd
           | Ialloc { bytes = _; mode } ->
+              assert (not tail);
               let rd = self#regs_for typ_val in
               let bytes = size_expr env (Ctuple new_args) in
               assert (bytes mod Arch.size_addr = 0);
@@ -748,11 +769,16 @@ method emit_expr (env:environment) exp =
               in
               self#insert_debug env (Iop op) dbg [||] rd;
               self#emit_stores env new_args rd;
-              Some rd
+              rd
           | op ->
+              assert (not tail);
               let r1 = self#emit_tuple env new_args in
               let rd = self#regs_for ty in
-              Some (self#insert_op_debug env op dbg r1 rd)
+              self#insert_op_debug env op dbg r1 rd
+          in
+          if endregion && not tail then
+            self#insert env (Iop Iendregion) (List.hd env.regions) [| |];
+          Some res
       end
   | Csequence(e1, e2) ->
       begin match self#emit_expr env' e1 with
@@ -863,20 +889,24 @@ method emit_expr (env:environment) exp =
                     (instr_cons (Iop Iendregion) reg [| |] s2#extract)))
         [||] [||];
       r
-  | Cregion e when env.region_tail ->
-     (* Region fusion *)
-     self#emit_expr env e
-  | Cregion e ->
-     let reg = self#regs_for typ_int in
-     self#insert env (Iop Ibeginregion) [| |] reg;
-     let env = { env with regions = reg::env.regions; region_tail = true } in
-     begin match self#emit_expr env e with
-       None -> None
-     | Some _ as res ->
-        self#insert env (Iop Iendregion) reg [| |];
-        res
-     end
-  | Ctail e -> self#emit_expr env e
+  | Cregion(tail, e) ->
+      let reg = self#regs_for typ_int in
+      self#insert env (Iop Ibeginregion) [| |] reg;
+      let env' = { env with regions = reg::env.regions; region_tail = tail } in
+      begin match self#emit_expr env' e with
+      | None -> None
+      | Some _ as res ->
+         if env.region_tail then begin
+           self#insert env (Iop Iendregion) (List.hd env.regions) [| |]
+         end else if not tail then begin
+           self#insert env (Iop Iendregion) reg [| |]
+         end;
+         res
+      end
+  | Ctail e ->
+      assert env.region_tail;
+      self#insert env (Iop Iendregion) (List.hd env.regions) [| |];
+      self#emit_expr { env with regions = List.tl env.regions; region_tail = false } e
 
 method private emit_sequence (env:environment) exp =
   let s = {< instr_seq = dummy_instr >} in
@@ -1056,8 +1086,6 @@ method private emit_return (env:environment) exp =
     None -> ()
   | Some r ->
       let loc = Proc.loc_results (Reg.typv r) in
-      if env.region_tail then
-        self#insert env (Iop Iendregion) (List.hd env.regions) [||];
       self#insert_moves env r loc;
       self#insert env Ireturn loc [||]
 
@@ -1217,6 +1245,20 @@ method emit_tail (env:environment) exp =
           self#insert_moves env r1 loc;
           self#insert env Ireturn loc [||]
       end
+  | Cregion(tail, e) ->
+      if env.region_tail || not tail then
+        self#emit_return env exp
+      else begin
+        let reg = self#regs_for typ_int in
+        self#insert env (Iop Ibeginregion) [| |] reg;
+        let env' = { env with regions = reg::env.regions; region_tail = true } in
+        self#emit_tail env' e
+      end
+  | Ctail e ->
+      assert env.region_tail;
+      self#insert env' (Iop Iendregion) (List.hd env.regions) [| |];
+      self#emit_tail { env with regions = List.tl env.regions;
+                                region_tail = false } e
   | Cop _
   | Cconst_int _ | Cconst_natint _ | Cconst_float _ | Cconst_symbol _
   | Cvar _
@@ -1224,23 +1266,6 @@ method emit_tail (env:environment) exp =
   | Ctuple _
   | Cexit _ ->
     self#emit_return env exp
-  | Cregion e when env.region_tail ->
-     (* Region fusion *)
-     self#emit_tail env e
-  | Cregion e ->
-      let reg = self#regs_for typ_int in
-      self#insert env (Iop Ibeginregion) [| |] reg;
-      assert (env.regions = []);
-      let env = { env with regions = [reg]; region_tail = true } in
-      self#emit_tail env e
-  | Ctail e ->
-      if env.region_tail then begin
-        self#insert env (Iop Iendregion) (List.hd env.regions) [||];
-        self#emit_tail { env with regions = []; region_tail = false } e
-      end else begin
-        self#emit_tail env e
-      end
-
 
 method private emit_tail_sequence env exp =
   let s = {< instr_seq = dummy_instr >} in
