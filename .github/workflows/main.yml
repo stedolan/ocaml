@@ -8,13 +8,6 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v2
-    - name: Packages
-      run: |
-        sudo apt-get update -y && sudo apt-get install -y texlive-latex-extra texlive-fonts-recommended
-  # Ensure that make distclean can be run from an empty tree
-    - name: distclean
-      run: |
-        MAKE_ARG=-j make distclean
     - name: configure tree
       run: |
         MAKE_ARG=-j XARCH=x64 CONFIG_ARG='--enable-flambda --enable-dependency-generation' OCAMLRUNPARAM=b,v=0 bash -xe tools/ci/actions/runner.sh configure
