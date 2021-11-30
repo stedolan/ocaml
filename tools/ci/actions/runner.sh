@@ -70,7 +70,7 @@ Build () {
 Test () {
   cd testsuite
   echo Running the testsuite with the debug runtime
-  $MAKE USE_RUNTIME='d' OCAMLTESTDIR="$(pwd)/_ocamltestd" TESTLOG=_logd all
+  $MAKE USE_RUNTIME='d' OCAMLTESTDIR="$(pwd)/_ocamltestd" TESTLOG=_logd one DIR=tests/misc
   cd ..
 }
 
