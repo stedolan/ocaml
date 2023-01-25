@@ -506,6 +506,32 @@ module IdTbl =
 
   end
 
+module TypeCache : sig
+  type cache
+  type table := (type_data, type_data) IdTbl.t;
+  type t = private { id: int; table: table }
+
+  val wrap : table -> t
+  val find : ~cache:cache -> Path.t -> t -> type_data
+end = struct
+  let max_id = ref 0
+  type t = { id : int; table : table }
+  let wrap table = incr max_id; { id = !max_id; table }
+
+  let clock = ref 0
+  type entry =
+    | Empty
+    | Full of { hash: int;
+                path: Path.t;
+                typ: type_data;
+                mutable last_use: int }
+  type cache = { left: entry array; right: entry array }
+
+  let find ~cache path {id; table} =
+    IdTbl.find_same path table
+end
+
+
 type type_descr_kind =
   (label_description, constructor_description) type_kind
 
@@ -1137,6 +1163,7 @@ let rec find_type_data path env =
       tda_shape = Shape.leaf decl.type_uid;
     }
   | exception Not_found -> begin
+      Format.printf "Lookup %a@." Path.print path;
       match path with
       | Pident id -> IdTbl.find_same id env.types
       | Pdot(p, s) ->

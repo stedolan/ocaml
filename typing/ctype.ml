@@ -796,6 +796,7 @@ let rec update_level env level expand ty =
     match get_desc ty with
       Tconstr(p, _tl, _abbrev) when level < Path.scope p ->
         (* Try first to replace an abbreviation by its expansion. *)
+        Format.printf "Expanding1 %a@." Path.print p;
         begin try
           let ty' = !forward_try_expand_safe env ty in
           link_type ty ty';
@@ -815,6 +816,7 @@ let rec update_level env level expand ty =
         in
         begin try
           if not needs_expand then raise Cannot_expand;
+          Format.printf "Expanding2 %a@." Path.print p;
           let ty' = !forward_try_expand_safe env ty in
           link_type ty ty';
           update_level env level expand ty'
