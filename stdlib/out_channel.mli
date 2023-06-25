@@ -113,6 +113,9 @@ val output_substring : t -> string -> int -> int -> unit
 (** Same as {!output} but take a string as argument instead of a byte
     sequence. *)
 
+type bigstring := (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
+val output_bigarray : t -> bigstring -> int -> int -> unit
+
 (** {1:flushing Flushing} *)
 
 val flush : t -> unit

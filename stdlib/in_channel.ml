@@ -78,6 +78,28 @@ let really_input_string ic len =
   | s -> Some s
   | exception End_of_file -> None
 
+type bigstring = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
+external unsafe_input_bigarray : in_channel -> bigstring -> int -> int -> int
+ = "caml_ml_input_bigarray"
+
+let input_bigarray ic arr ofs len =
+  if ofs < 0 || len < 0 || ofs > Bigarray.Array1.dim arr - len
+  then invalid_arg "input_bigarray"
+  else unsafe_input_bigarray ic arr ofs len
+
+let rec unsafe_really_input_bigarray ic s ofs len =
+  if len <= 0 then Some () else begin
+    let r = unsafe_input_bigarray ic s ofs len in
+    if r = 0
+    then None
+    else unsafe_really_input_bigarray ic s (ofs + r) (len - r)
+  end
+
+let really_input_bigarray ic s ofs len =
+  if ofs < 0 || len < 0 || ofs > Bigarray.Array1.dim s - len
+  then invalid_arg "really_input_bigarray"
+  else unsafe_really_input_bigarray ic s ofs len
+
 (* Read up to [len] bytes into [buf], starting at [ofs]. Return total bytes
    read. *)
 let read_upto ic buf ofs len =

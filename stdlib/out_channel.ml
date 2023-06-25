@@ -59,6 +59,18 @@ let output_string = Stdlib.output_string
 let output_bytes = Stdlib.output_bytes
 let output = Stdlib.output
 let output_substring = Stdlib.output_substring
+
+type bigstring =
+  (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
+
+external unsafe_output_bigarray : t -> bigstring -> int -> int -> unit =
+  "caml_ml_output_bigarray"
+
+let output_bigarray oc s pos len =
+  if pos < 0 || len < 0 || pos > Bigarray.Array1.dim s - len
+  then invalid_arg "output_bigarray"
+  else unsafe_output_bigarray oc s pos len
+
 let set_binary_mode = Stdlib.set_binary_mode_out
 
 external set_buffered : t -> bool -> unit = "caml_ml_set_buffered"

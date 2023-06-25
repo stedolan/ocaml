@@ -147,6 +147,12 @@ val really_input : t -> bytes -> int -> int -> unit option
     @raise Invalid_argument if [pos] and [len] do not designate a valid range of
     [buf]. *)
 
+type bigstring = (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t
+(** Bigstrings: 1-dimensional Bigarrays of characters *)
+
+val input_bigarray : t -> bigstring -> int -> int -> int
+val really_input_bigarray : t -> bigstring -> int -> int -> unit option
+
 val fold_lines : ('acc -> string -> 'acc) -> 'acc -> t -> 'acc
 (** [fold_lines f init ic] reads lines from [ic] using {!input_line}
     until the end of file is reached, and successively passes each line
