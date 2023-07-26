@@ -62,6 +62,11 @@ struct exec_trailer {
 
 #define EXEC_MAGIC "Caml1999X033"
 
+struct section_contents {
+  char* data; /* data, plus an extra null terminator */
+  uint32_t len; /* length in bytes (not counting extra null) */
+};
+
 #endif /* CAML_INTERNALS */
 
 #endif /* CAML_EXEC_H */
