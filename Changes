@@ -84,6 +84,9 @@ Working version
   arise at specific locations during domain creation and shutdown.
   (Guillaume Munch-Maccagnoni, review by Gabriel Scherer)
 
+- #12430: Simplify dynamic bytecode loading in Meta.reify_bytecode
+  (Stephen Dolan, review by ??)
+
 ### Code generation and optimizations:
 
 - #11239: on x86-64 and RISC-V, reduce alignment of OCaml stacks from 16 to 8.
