@@ -63,62 +63,11 @@ NATOBJS=native/dynlink_compilerlibs.cmx dynlink_types.cmx \
 
 # .mli files from compilerlibs that don't have a corresponding .ml file.
 COMPILERLIBS_INTFS=\
-  parsing/asttypes.mli \
-  parsing/parsetree.mli \
-  typing/outcometree.mli \
-  file_formats/cmo_format.mli \
-  file_formats/cmxs_format.mli
+  file_formats/cmo_format.mli
 
 # .ml files from compilerlibs that have corresponding .mli files.
 COMPILERLIBS_SOURCES=\
-  utils/binutils.ml \
   utils/config.ml \
-  utils/build_path_prefix_map.ml \
-  utils/misc.ml \
-  utils/identifiable.ml \
-  utils/numbers.ml \
-  utils/arg_helper.ml \
-  utils/local_store.ml \
-  utils/load_path.ml \
-  utils/clflags.ml \
-  utils/profile.ml \
-  utils/consistbl.ml \
-  utils/terminfo.ml \
-  utils/warnings.ml \
-  utils/int_replace_polymorphic_compare.ml \
-  utils/lazy_backtrack.ml \
-  parsing/location.ml \
-  parsing/unit_info.ml \
-  parsing/longident.ml \
-  parsing/docstrings.ml \
-  parsing/syntaxerr.ml \
-  parsing/ast_helper.ml \
-  parsing/ast_mapper.ml \
-  parsing/camlinternalMenhirLib.ml \
-  parsing/parser.ml \
-  parsing/lexer.ml \
-  parsing/attr_helper.ml \
-  parsing/builtin_attributes.ml \
-  typing/ident.ml \
-  typing/path.ml \
-  typing/primitive.ml \
-  typing/type_immediacy.ml \
-  typing/shape.ml \
-  typing/types.ml \
-  typing/btype.ml \
-  typing/subst.ml \
-  typing/predef.ml \
-  typing/datarepr.ml \
-  file_formats/cmi_format.ml \
-  typing/persistent_env.ml \
-  typing/env.ml \
-  typing/typedtree.ml \
-  lambda/debuginfo.ml \
-  lambda/lambda.ml \
-  lambda/runtimedef.ml \
-  bytecomp/instruct.ml \
-  bytecomp/opcodes.ml \
-  bytecomp/bytesections.ml \
   bytecomp/dll.ml \
   bytecomp/meta.ml \
   bytecomp/symtable.ml

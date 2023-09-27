@@ -7,7 +7,6 @@ dynlink.cmi :
 dynlink_common.cmo : \
     dynlink_types.cmi \
     dynlink_platform_intf.cmi \
-    byte/dynlink_compilerlibs.cmi \
     dynlink_common.cmi
 dynlink_common.cmi : \
     dynlink_platform_intf.cmi
@@ -22,7 +21,6 @@ dynlink_types.cmi :
 dynlink_common.cmx : \
     dynlink_types.cmx \
     dynlink_platform_intf.cmx \
-    native/dynlink_compilerlibs.cmx \
     dynlink_common.cmi
 dynlink_platform_intf.cmx : \
     dynlink_types.cmx \
