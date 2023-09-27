@@ -123,27 +123,6 @@ COMPILERLIBS_SOURCES=\
   bytecomp/meta.ml \
   bytecomp/symtable.ml
 
-# Rules to make a local copy of the .ml and .mli files required.  We also
-# provide .ml files for .mli-only modules---without this, such modules do
-# not seem to be located by the type checker inside bytecode packs.
-# Note: .ml-only modules are not supported by the (.mli.cmi) rule below.
-
-$(LOCAL_SRC)/Makefile: $(LOCAL_SRC)/Makefile.copy-sources Makefile
-	$(V_GEN)cp -f $< $@ && \
-	for ml in $(COMPILERLIBS_SOURCES); do \
-          echo "$(LOCAL_SRC)/$$(basename $$ml): $(ROOTDIR)/$$ml" \
-            >> $@; \
-          echo "$(LOCAL_SRC)/$$(basename $$ml)i: $(ROOTDIR)/$${ml}i" \
-            >> $@; \
-        done && \
-	for mli in $(COMPILERLIBS_INTFS); do \
-          echo "$(LOCAL_SRC)/$$(basename $$mli): $(ROOTDIR)/$$mli" \
-            >> $@; \
-          echo \
-            "$(LOCAL_SRC)/$$(basename $$mli .mli).ml: $(ROOTDIR)/$$mli"\
-            >> $@; \
-        done
-
 # Rules to automatically generate dependencies for the local copy of the
 # compilerlibs sources.
 
@@ -168,9 +147,12 @@ COMPILERLIBS_SOURCES_INTFS=\
 COMPILERLIBS_COPIED_SOURCES_INTFS=\
   $(addsuffix i, $(COMPILERLIBS_COPIED_SOURCES))
 
-# $(LOCAL_SRC)/Makefile uses the variables above in dependencies, so must be
-# include'd after they've been defined.
--include $(LOCAL_SRC)/Makefile
+$(LOCAL_SRC)/.depend: $(COMPILERLIBS_COPIED_SOURCES) \
+  $(COMPILERLIBS_COPIED_SOURCES_INTFS)
+	$(V_OCAMLDEP)$(OCAMLDEP_CMD) -I $(LOCAL_SRC) $(COMPILERLIBS_COPIED_SOURCES) \
+	$(COMPILERLIBS_COPIED_SOURCES_INTFS) \
+	> $(LOCAL_SRC)/.depend
+-include $(LOCAL_SRC)/.depend
 
 # Rules to build the local copy of the compilerlibs sources in such a way
 # that the resulting .cm{o,x} files can be packed.
@@ -273,8 +255,7 @@ partialclean:
 
 clean: partialclean
 	rm -f *.a *.lib *.o *.obj *.so *.dll dynlink_platform_intf.mli \
-	      $(LOCAL_SRC)/*.ml $(LOCAL_SRC)/*.mli $(LOCAL_SRC)/Makefile \
-	      $(LOCAL_SRC)/.depend byte/dynlink.mli native/dynlink.mli
+	      byte/dynlink.mli native/dynlink.mli
 
 .PHONY: distclean
 distclean: clean
