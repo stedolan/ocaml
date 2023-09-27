@@ -13,19 +13,12 @@ dynlink_compilerlibs/config.cmo : \
 dynlink_compilerlibs/config.cmx : \
     dynlink_compilerlibs/config.cmi
 dynlink_compilerlibs/config.cmi :
-dynlink_compilerlibs/dll.cmo : \
-    dynlink_compilerlibs/config.cmi \
-    dynlink_compilerlibs/dll.cmi
-dynlink_compilerlibs/dll.cmx : \
-    dynlink_compilerlibs/config.cmx \
-    dynlink_compilerlibs/dll.cmi
-dynlink_compilerlibs/dll.cmi :
 dynlink_compilerlibs/symtable.cmo : \
-    dynlink_compilerlibs/dll.cmi \
+    dynlink_compilerlibs/config.cmi \
     dynlink_compilerlibs/cmo_format.cmi \
     dynlink_compilerlibs/symtable.cmi
 dynlink_compilerlibs/symtable.cmx : \
-    dynlink_compilerlibs/dll.cmx \
+    dynlink_compilerlibs/config.cmx \
     dynlink_compilerlibs/cmo_format.cmx \
     dynlink_compilerlibs/symtable.cmi
 dynlink_compilerlibs/symtable.cmi : \

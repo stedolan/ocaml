@@ -43,8 +43,6 @@ module Global = struct
   module Map = Map.Make(struct type nonrec t = t let compare = compare end)
 end
 
-(* Functions for batch linking *)
-
 type error =
     Undefined_global of Global.t
   | Unavailable_primitive of string
@@ -53,21 +51,112 @@ type error =
 
 exception Error of error
 
-module Num_tbl (M : Map.S) = struct
+module Dll = struct
+  type dll_handle
+  type dll_address
+
+  external dll_open: string -> dll_handle = "caml_dynlink_open_lib"
+  external dll_sym: dll_handle -> string -> dll_address
+    = "caml_dynlink_lookup_symbol" (* returned dll_address may be Val_unit *)
+  external add_primitive: dll_address -> int = "caml_dynlink_add_primitive"
+  external get_current_dlls: unit -> dll_handle array
+    = "caml_dynlink_get_current_libs"
+
+  (* Current search path for DLLs *)
+  let search_path = ref ([] : string list)
+
+  (* DLLs currently opened *)
+  let opened_dlls = ref ([] : (string * dll_handle) list)
+
+  (* Each known primitive and its ID number *)
+  let primitives : (string, int) Hashtbl.t = Hashtbl.create 100
+
+  (* Extract the name of a DLLs from its external name (xxx.so or -lxxx) *)
+
+  let extract_dll_name file =
+    if Filename.check_suffix file Config.ext_dll then
+      Filename.chop_suffix file Config.ext_dll
+    else if String.length file >= 2 && String.sub file 0 2 = "-l" then
+      "dll" ^ String.sub file 2 (String.length file - 2)
+    else
+      file (* will cause error later *)
+
+  (* Open a list of DLLs, adding them to opened_dlls.
+     Raise [Failure msg] in case of error. *)
+
+  let open_dll name =
+    let name = (extract_dll_name name) ^ Config.ext_dll in
+    let fullname =
+      if Filename.is_implicit name then
+        !search_path
+        |> List.find_map (fun dir ->
+          let fullname = Filename.concat dir name in
+          let fullname =
+            if Filename.is_implicit fullname then
+              Filename.concat Filename.current_dir_name fullname
+            else fullname
+          in
+          if Sys.file_exists fullname then Some fullname else None)
+        |> Option.value ~default:name
+      else
+        name
+    in
+    match List.assoc_opt fullname !opened_dlls with
+    | Some _ -> ()
+    | None ->
+        begin match dll_open fullname with
+        | dll ->
+            opened_dlls := (fullname, dll) :: !opened_dlls
+        | exception Failure msg ->
+            failwith (fullname ^ ": " ^ msg)
+        end
+
+  let open_dlls names =
+    List.iter open_dll names
+
+  let find_primitive prim_name =
+    try Hashtbl.find primitives prim_name
+    with Not_found ->
+      let rec find seen = function
+        [] ->
+          raise (Error (Unavailable_primitive prim_name))
+      | (_, dll) as curr :: rem ->
+          let addr = dll_sym dll prim_name in
+          if addr == Obj.magic () then find (curr :: seen) rem else begin
+            if seen <> [] then opened_dlls := curr :: List.rev_append seen rem;
+            let n = add_primitive addr in
+            assert (n = Hashtbl.length primitives);
+            Hashtbl.add primitives prim_name n;
+            n
+          end
+      in
+      find [] !opened_dlls
+
+  let init ~dllpaths ~prims =
+    search_path := dllpaths;
+    opened_dlls :=
+      List.map (fun dll -> "", dll)
+        (Array.to_list (get_current_dlls ()));
+    List.iteri (fun n p -> Hashtbl.add primitives p n) prims
+end
+
+let open_dlls = Dll.open_dlls
+
+module GlobalMap = struct
 
   type t = {
     cnt: int; (* The next number *)
-    tbl: int M.t ; (* The table of already numbered objects *)
+    tbl: int Global.Map.t ; (* The table of already numbered objects *)
   }
 
-  let empty = { cnt = 0; tbl = M.empty }
+  let empty = { cnt = 0; tbl = Global.Map.empty }
 
   let find nt key =
-    M.find key nt.tbl
+    Global.Map.find key nt.tbl
 
   let enter nt key =
     let n = !nt.cnt in
-    nt := { cnt = n + 1; tbl = M.add key n !nt.tbl };
+    nt := { cnt = n + 1; tbl = Global.Map.add key n !nt.tbl };
     n
 
   let incr nt =
@@ -76,9 +165,6 @@ module Num_tbl (M : Map.S) = struct
     n
 
 end
-module GlobalMap = Num_tbl(Global.Map)
-module StringMap = Map.Make (String)
-module PrimMap = Num_tbl(StringMap)
 
 (* Global variables *)
 
@@ -98,26 +184,6 @@ let slot_for_literal cst =
   let n = GlobalMap.incr global_table in
   literal_table := (n, cst) :: !literal_table;
   n
-
-(* The C primitives *)
-
-let c_prim_table = ref PrimMap.empty
-
-let set_prim_table name =
-  ignore(PrimMap.enter c_prim_table name)
-
-let of_prim name =
-  try
-    PrimMap.find !c_prim_table name
-  with Not_found ->
-    begin
-      match Dll.find_primitive name with
-      | None -> raise(Error(Unavailable_primitive name))
-      | Some symb ->
-          let num = PrimMap.enter c_prim_table name in
-          Dll.synchronize_primitive num symb;
-          num
-    end
 
 (* Relocate a block of object bytecode *)
 
@@ -143,7 +209,7 @@ let patch_object buff patchlist =
           let global = Global.Glob_compunit cu in
           patch_int buff pos (slot_for_setglobal global)
       | (Reloc_primitive name, pos) ->
-          patch_int buff pos (of_prim name))
+          patch_int buff pos (Dll.find_primitive name))
     patchlist
 
 (* Functions for toplevel use *)
@@ -174,9 +240,7 @@ external get_bytecode_sections : unit -> bytecode_sections =
 let init_toplevel () =
   let sect = get_bytecode_sections () in
   global_table := sect.symb;
-  c_prim_table := PrimMap.empty;
-  List.iter set_prim_table sect.prim;
-  Dll.init_toplevel sect.dlpt;
+  Dll.init ~dllpaths:sect.dlpt ~prims:sect.prim;
   sect.crcs
 
 (* Find the value of a global identifier *)

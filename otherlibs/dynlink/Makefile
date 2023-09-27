@@ -69,7 +69,6 @@ COMPILERLIBS_INTFS=\
 # .ml files from compilerlibs that have corresponding .mli files.
 COMPILERLIBS_SOURCES=\
   utils/config.ml \
-  bytecomp/dll.ml \
   bytecomp/symtable.ml
 
 # Rules to automatically generate dependencies for the local copy of the

@@ -31,13 +31,11 @@ module Global : sig
   val description: Format.formatter -> t -> unit
 end
 
-(* Functions for batch linking *)
+val open_dlls : string list -> unit
 
 val patch_object:
   (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t ->
   (reloc_info * int) list -> unit
-
-(* Functions for the toplevel *)
 
 val init_toplevel: unit -> (string * Digest.t option) list
 val update_global_table: unit -> unit

@@ -18,7 +18,6 @@
 module Symtable = Dynlink_compilerlibs.Symtable
 module Cmo_format = Dynlink_compilerlibs.Cmo_format
 module Config = Dynlink_compilerlibs.Config
-module Dll = Dynlink_compilerlibs.Dll
 
 module DC = Dynlink_common
 module DT = Dynlink_types
@@ -188,8 +187,7 @@ module Bytecode = struct
         let toc_pos = input_binary_int ic in  (* Go to table of contents *)
         seek_in ic toc_pos;
         let lib = (input_value ic : Cmo_format.library) in
-        Dll.open_dlls
-          (List.map Dll.extract_dll_name lib.lib_dllibs);
+        Symtable.open_dlls lib.lib_dllibs;
         handle, lib.lib_units
       end else begin
         raise (DT.Error (Not_a_bytecode_file file_name))
