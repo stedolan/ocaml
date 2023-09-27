@@ -149,11 +149,12 @@ let patch_object buff patchlist =
 (* Functions for toplevel use *)
 
 (* Update the in-core table of globals *)
-
+external global_data : unit -> Obj.t array = "caml_get_global_data"
+external realloc_global_data : int -> unit = "caml_realloc_global"
 let update_global_table () =
   let ng = !global_table.cnt in
-  if ng > Array.length(Meta.global_data()) then Meta.realloc_global_data ng;
-  let glob = Meta.global_data() in
+  if ng > Array.length(global_data()) then realloc_global_data ng;
+  let glob = global_data() in
   List.iter
     (fun (slot, cst) -> glob.(slot) <- cst)
     !literal_table;
@@ -181,7 +182,7 @@ let init_toplevel () =
 (* Find the value of a global identifier *)
 
 let get_global_value global =
-  (Meta.global_data()).(slot_for_getglobal global)
+  (global_data()).(slot_for_getglobal global)
 
 (* Check that all compilation units referenced in the given patch list
    have already been initialized *)

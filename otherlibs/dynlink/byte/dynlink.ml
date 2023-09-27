@@ -17,7 +17,6 @@
 
 module Symtable = Dynlink_compilerlibs.Symtable
 module Cmo_format = Dynlink_compilerlibs.Cmo_format
-module Meta = Dynlink_compilerlibs.Meta
 module Config = Dynlink_compilerlibs.Config
 module Dll = Dynlink_compilerlibs.Dll
 
@@ -106,6 +105,13 @@ module Bytecode = struct
       | None -> raise End_of_file
       | Some () -> ()
 
+  type instruct_debug_event
+  external reify_bytecode :
+    (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Array1.t ->
+    instruct_debug_event list array -> string option ->
+    Obj.t * (unit -> Obj.t)
+    = "caml_reify_bytecode"
+
   let run lock (ic, file_name, file_digest) ~unit_header ~priv =
     let clos = with_lock lock (fun () ->
         let old_state = Symtable.current_state () in
@@ -146,7 +152,7 @@ module Bytecode = struct
             [| input_value ic |]
           end in
         if priv then Symtable.hide_additions old_state;
-        let _, clos = Meta.reify_bytecode code events (Some digest) in
+        let _, clos = reify_bytecode code events (Some digest) in
         clos
       )
     in

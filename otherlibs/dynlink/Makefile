@@ -69,7 +69,6 @@ COMPILERLIBS_INTFS=\
 COMPILERLIBS_SOURCES=\
   utils/config.ml \
   bytecomp/dll.ml \
-  bytecomp/meta.ml \
   bytecomp/symtable.ml
 
 # Rules to automatically generate dependencies for the local copy of the
