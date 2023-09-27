@@ -17,7 +17,8 @@
 
 (* Dynamic loading of .cmx files *)
 
-open! Dynlink_compilerlibs
+module Cmxs_format = Dynlink_compilerlibs.Cmxs_format
+module Config = Dynlink_compilerlibs.Config
 
 module DC = Dynlink_common
 module DT = Dynlink_types

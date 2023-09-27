@@ -63,7 +63,8 @@ NATOBJS=native/dynlink_compilerlibs.cmx dynlink_types.cmx \
 
 # .mli files from compilerlibs that don't have a corresponding .ml file.
 COMPILERLIBS_INTFS=\
-  file_formats/cmo_format.mli
+  file_formats/cmo_format.mli \
+  file_formats/cmxs_format.mli
 
 # .ml files from compilerlibs that have corresponding .mli files.
 COMPILERLIBS_SOURCES=\
