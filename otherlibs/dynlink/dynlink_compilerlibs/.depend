@@ -693,34 +693,24 @@ dynlink_compilerlibs/subst.cmi : \
     dynlink_compilerlibs/location.cmi \
     dynlink_compilerlibs/ident.cmi
 dynlink_compilerlibs/symtable.cmo : \
-    dynlink_compilerlibs/runtimedef.cmi \
-    dynlink_compilerlibs/predef.cmi \
     dynlink_compilerlibs/misc.cmi \
     dynlink_compilerlibs/meta.cmi \
     dynlink_compilerlibs/location.cmi \
-    dynlink_compilerlibs/lambda.cmi \
-    dynlink_compilerlibs/ident.cmi \
     dynlink_compilerlibs/dll.cmi \
     dynlink_compilerlibs/config.cmi \
     dynlink_compilerlibs/cmo_format.cmi \
     dynlink_compilerlibs/clflags.cmi \
     dynlink_compilerlibs/symtable.cmi
 dynlink_compilerlibs/symtable.cmx : \
-    dynlink_compilerlibs/runtimedef.cmx \
-    dynlink_compilerlibs/predef.cmx \
     dynlink_compilerlibs/misc.cmx \
     dynlink_compilerlibs/meta.cmx \
     dynlink_compilerlibs/location.cmx \
-    dynlink_compilerlibs/lambda.cmx \
-    dynlink_compilerlibs/ident.cmx \
     dynlink_compilerlibs/dll.cmx \
     dynlink_compilerlibs/config.cmx \
     dynlink_compilerlibs/cmo_format.cmx \
     dynlink_compilerlibs/clflags.cmx \
     dynlink_compilerlibs/symtable.cmi
 dynlink_compilerlibs/symtable.cmi : \
-    dynlink_compilerlibs/lambda.cmi \
-    dynlink_compilerlibs/ident.cmi \
     dynlink_compilerlibs/cmo_format.cmi
 dynlink_compilerlibs/syntaxerr.cmo : \
     dynlink_compilerlibs/location.cmi \
