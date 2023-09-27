@@ -236,12 +236,10 @@ dynlink_compilerlibs/debuginfo.cmi : \
 dynlink_compilerlibs/dll.cmo : \
     dynlink_compilerlibs/misc.cmi \
     dynlink_compilerlibs/config.cmi \
-    dynlink_compilerlibs/binutils.cmi \
     dynlink_compilerlibs/dll.cmi
 dynlink_compilerlibs/dll.cmx : \
     dynlink_compilerlibs/misc.cmx \
     dynlink_compilerlibs/config.cmx \
-    dynlink_compilerlibs/binutils.cmx \
     dynlink_compilerlibs/dll.cmi
 dynlink_compilerlibs/dll.cmi :
 dynlink_compilerlibs/docstrings.cmo : \
@@ -697,18 +695,14 @@ dynlink_compilerlibs/symtable.cmo : \
     dynlink_compilerlibs/meta.cmi \
     dynlink_compilerlibs/location.cmi \
     dynlink_compilerlibs/dll.cmi \
-    dynlink_compilerlibs/config.cmi \
     dynlink_compilerlibs/cmo_format.cmi \
-    dynlink_compilerlibs/clflags.cmi \
     dynlink_compilerlibs/symtable.cmi
 dynlink_compilerlibs/symtable.cmx : \
     dynlink_compilerlibs/misc.cmx \
     dynlink_compilerlibs/meta.cmx \
     dynlink_compilerlibs/location.cmx \
     dynlink_compilerlibs/dll.cmx \
-    dynlink_compilerlibs/config.cmx \
     dynlink_compilerlibs/cmo_format.cmx \
-    dynlink_compilerlibs/clflags.cmx \
     dynlink_compilerlibs/symtable.cmi
 dynlink_compilerlibs/symtable.cmi : \
     dynlink_compilerlibs/cmo_format.cmi

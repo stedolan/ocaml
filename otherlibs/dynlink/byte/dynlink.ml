@@ -178,7 +178,7 @@ module Bytecode = struct
         let toc_pos = input_binary_int ic in  (* Go to table of contents *)
         seek_in ic toc_pos;
         let lib = (input_value ic : Cmo_format.library) in
-        Dll.open_dlls Dll.For_execution
+        Dll.open_dlls
           (List.map Dll.extract_dll_name lib.lib_dllibs);
         handle, lib.lib_units
       end else begin

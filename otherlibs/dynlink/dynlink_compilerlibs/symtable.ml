@@ -114,16 +114,10 @@ let of_prim name =
   try
     PrimMap.find !c_prim_table name
   with Not_found ->
-    if !Clflags.custom_runtime || Config.host <> Config.target
-       || !Clflags.no_check_prims
-    then
-      PrimMap.enter c_prim_table name
-    else begin
+    begin
       match Dll.find_primitive name with
       | None -> raise(Error(Unavailable_primitive name))
-      | Some Prim_exists ->
-          PrimMap.enter c_prim_table name
-      | Some (Prim_loaded symb) ->
+      | Some symb ->
           let num = PrimMap.enter c_prim_table name in
           Dll.synchronize_primitive num symb;
           num
