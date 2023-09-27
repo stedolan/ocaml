@@ -45,11 +45,23 @@ let extract_dll_name file =
 (* Open a list of DLLs, adding them to opened_dlls.
    Raise [Failure msg] in case of error. *)
 
+let find_in_path path name =
+  if not (Filename.is_implicit name) then
+    if Sys.file_exists name then name else raise Not_found
+  else begin
+    let rec try_dir = function
+      [] -> raise Not_found
+    | dir::rem ->
+        let fullname = Filename.concat dir name in
+        if Sys.file_exists fullname then fullname else try_dir rem
+    in try_dir path
+  end
+
 let open_dll name =
   let name = name ^ Config.ext_dll in
   let fullname =
     try
-      let fullname = Misc.find_in_path !search_path name in
+      let fullname = find_in_path !search_path name in
       if Filename.is_implicit fullname then
         Filename.concat Filename.current_dir_name fullname
       else fullname

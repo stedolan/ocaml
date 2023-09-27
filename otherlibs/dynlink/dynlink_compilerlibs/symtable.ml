@@ -15,11 +15,7 @@
 
 (* To assign numbers to globals and primitives *)
 
-open Misc
 open Cmo_format
-
-module String = Misc.Stdlib.String
-module Style = Misc.Style
 
 module Compunit = struct
   type t = compunit
@@ -40,10 +36,9 @@ module Global = struct
 
   let description ppf = function
     | Glob_compunit (Compunit cu) ->
-        Format.fprintf ppf "compilation unit %a" Style.inline_code (quote cu)
+        Format.fprintf ppf "compilation unit %s" (quote cu)
     | Glob_predef (Predef_exn exn) ->
-        Format.fprintf ppf "predefined exception %a"
-          Style.inline_code (quote exn)
+        Format.fprintf ppf "predefined exception %s" (quote exn)
 
   module Map = Map.Make(struct type nonrec t = t let compare = compare end)
 end
@@ -82,7 +77,8 @@ module Num_tbl (M : Map.S) = struct
 
 end
 module GlobalMap = Num_tbl(Global.Map)
-module PrimMap = Num_tbl(Misc.Stdlib.String.Map)
+module StringMap = Map.Make (String)
+module PrimMap = Num_tbl(StringMap)
 
 (* Global variables *)
 
@@ -230,7 +226,7 @@ let current_state () = !global_table
 
 let hide_additions (st : global_map) =
   if st.cnt > !global_table.cnt then
-    fatal_error "Symtable.hide_additions";
+    failwith "Symtable.hide_additions";
   global_table :=
     {GlobalMap.
       cnt = !global_table.cnt;
@@ -240,27 +236,3 @@ let is_defined_in_global_map (gmap : global_map) global =
   Global.Map.mem global gmap.tbl
 
 let empty_global_map = GlobalMap.empty
-
-(* Error report *)
-
-open Format
-
-let report_error ppf = function
-  | Undefined_global global ->
-      fprintf ppf "Reference to undefined %a" Global.description global
-  | Unavailable_primitive s ->
-      fprintf ppf "The external function %a is not available"
-        Style.inline_code s
-  | Wrong_vm s ->
-      fprintf ppf "Cannot find or execute the runtime system %a"
-      Style.inline_code s
-  | Uninitialized_global global ->
-      fprintf ppf "The value of the %a is not yet computed"
-        Global.description global
-
-let () =
-  Location.register_error_of_exn
-    (function
-      | Error err -> Some (Location.error_of_printer_file report_error err)
-      | _ -> None
-    )

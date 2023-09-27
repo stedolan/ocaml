@@ -15,8 +15,6 @@
 
 (* Symbol table information for .cmo and .cma files *)
 
-open Misc
-
 (* Names of compilation units as represented in CMO files *)
 type compunit = Compunit of string [@@unboxed]
 
@@ -41,7 +39,7 @@ type compilation_unit =
     mutable cu_pos: int;                (* Absolute position in file *)
     cu_codesize: int;                   (* Size of code block *)
     cu_reloc: (reloc_info * int) list;  (* Relocation information *)
-    cu_imports: crcs;                     (* Names and CRC of intfs imported *)
+    cu_imports: (string * Digest.t option) list; (* Names and CRC of intfs imported *)
     cu_required_compunits: compunit list; (* Compilation units whose
                                              initialization side effects
                                              must occur before this one. *)
