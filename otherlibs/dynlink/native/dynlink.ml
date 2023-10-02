@@ -17,8 +17,7 @@
 
 (* Dynamic loading of .cmx files *)
 
-module Cmxs_format = Dynlink_compilerlibs.Cmxs_format
-module Config = Dynlink_compilerlibs.Config
+module Config = Dynlink_config
 
 module DC = Dynlink_common
 module DT = Dynlink_types
@@ -33,7 +32,7 @@ type global_map = {
 module Native = struct
   type handle
 
-  external ndl_open : string -> bool -> handle * Cmxs_format.dynheader
+  external ndl_open : string -> bool -> handle * Dynlink_cmxs_format.dynheader
     = "caml_natdynlink_open"
   external ndl_register : handle -> string array -> unit
     = "caml_natdynlink_register"
@@ -43,7 +42,7 @@ module Native = struct
   external ndl_loadsym : string -> Obj.t = "caml_natdynlink_loadsym"
 
   module Unit_header = struct
-    type t = Cmxs_format.dynunit
+    type t = Dynlink_cmxs_format.dynunit
 
     let name (t : t) = t.dynu_name
     let crc (t : t) = Some t.dynu_crc

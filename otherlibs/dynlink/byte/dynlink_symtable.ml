@@ -15,7 +15,8 @@
 
 (* To assign numbers to globals and primitives *)
 
-open Cmo_format
+open Dynlink_cmo_format
+module Config = Dynlink_config
 
 module Compunit = struct
   type t = compunit
