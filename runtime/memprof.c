@@ -1287,7 +1287,8 @@ static void update_suspended(memprof_domain_t domain, bool s)
    * we have callbacks to run. */
   if (!s) set_action_pending_as_needed(domain);
 
-  caml_memprof_renew_minor_sample(domain->caml_state);
+  caml_memprof_set_trigger(domain->caml_state);
+  caml_reset_young_limit(domain->caml_state);
 }
 
 /* Set the suspended flag on the current domain to `s`.
@@ -1880,16 +1881,16 @@ static void maybe_track_block(memprof_domain_t domain,
   set_action_pending_as_needed(domain);
 }
 
-/* Renew the next sample in a domain's minor heap. Could race with
- * sampling and profile-stopping code, so do not call from another
- * domain unless the world is stopped. Must be called after each minor
- * sample and after each minor collection. In practice, this is called
- * at each minor sample, at each minor collection, and when sampling
- * is suspended and unsuspended. Extra calls do not change the
- * statistical properties of the sampling because of the
- * memorylessness of the geometric distribution. */
+/* Sets the trigger for the next sample in a domain's minor
+ * heap. Could race with sampling and profile-stopping code, so do not
+ * call from another domain unless the world is stopped. Must be
+ * called after each minor sample and after each minor collection. In
+ * practice, this is called at each minor sample, at each minor
+ * collection, and when sampling is suspended and unsuspended. Extra
+ * calls do not change the statistical properties of the sampling
+ * because of the memorylessness of the geometric distribution. */
 
-void caml_memprof_renew_minor_sample(caml_domain_state *state)
+void caml_memprof_set_trigger(caml_domain_state *state)
 {
   memprof_domain_t domain = state->memprof;
   value *trigger = state->young_start;
@@ -1903,7 +1904,6 @@ void caml_memprof_renew_minor_sample(caml_domain_state *state)
   CAMLassert((trigger >= state->young_start) &&
              (trigger <= state->young_ptr));
   state->memprof_young_trigger = trigger;
-  caml_reset_young_limit(state);
 }
 
 /* Respond to the allocation of a block on the shared heap. Does not
@@ -1960,9 +1960,10 @@ void caml_memprof_track_young(uintnat wosize, int from_caml,
       rand_binom(domain,
                  Caml_state->memprof_young_trigger - 1 - Caml_state->young_ptr);
     CAMLassert(encoded_lens == NULL);
-    caml_memprof_renew_minor_sample(Caml_state);
     maybe_track_block(domain, Val_hp(Caml_state->young_ptr),
                       samples, wosize, SRC_NORMAL);
+    caml_memprof_set_trigger(Caml_state);
+    caml_reset_young_limit(Caml_state);
     CAMLreturn0;
   }
 
@@ -2195,7 +2196,8 @@ CAMLprim value caml_memprof_start(value lv, value szv, value tracker)
   /* reset PRNG, generate first batch of random numbers. */
   rand_init(domain);
 
-  caml_memprof_renew_minor_sample(Caml_state);
+  caml_memprof_set_trigger(Caml_state);
+  caml_reset_young_limit(Caml_state);
 
   CAMLreturn(config);
 }
@@ -2210,7 +2212,8 @@ CAMLprim value caml_memprof_stop(value unit)
   }
   Set_status(config, CONFIG_STATUS_STOPPED);
 
-  caml_memprof_renew_minor_sample(Caml_state);
+  caml_memprof_set_trigger(Caml_state);
+  caml_reset_young_limit(Caml_state);
 
   return Val_unit;
 }

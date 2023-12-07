@@ -635,6 +635,7 @@ void caml_empty_minor_heap_promote(caml_domain_state* domain,
    * major slice is scheduled. */
   domain->young_trigger = domain->young_start
     + (domain->young_end - domain->young_start) / 2;
+  caml_memprof_set_trigger(domain);
   caml_reset_young_limit(domain);
 
   domain->stat_minor_words += Wsize_bsize (minor_allocated_bytes);
@@ -894,7 +895,10 @@ void caml_alloc_small_dispatch (caml_domain_state * dom_st,
          before the allocation, because it has been used to predict
          addresses of sampled block(s).
       */
-    } else caml_memprof_renew_minor_sample(dom_st);
+    } else { /* CAML_DONT_TRACK. Not used? */
+      caml_memprof_set_trigger(dom_st);
+      caml_reset_young_limit(dom_st);
+    }
   }
 }
 
