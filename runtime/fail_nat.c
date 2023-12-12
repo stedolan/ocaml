@@ -130,6 +130,14 @@ void caml_raise_with_string(value tag, char const *msg)
   CAMLnoreturn;
 }
 
+void caml_raise_with_fmt (value tag, char const *fmt, ...)
+{
+  va_list args;
+  va_start(args, fmt);
+  caml_raise_with_value(tag, caml_alloc_vsprintf(fmt, args));
+  va_end(args);
+}
+
 void caml_failwith (char const *msg)
 {
   caml_raise_with_string((value) caml_exn_Failure, msg);
@@ -140,6 +148,14 @@ void caml_failwith_value (value msg)
   caml_raise_with_arg((value) caml_exn_Failure, msg);
 }
 
+void caml_failwithf (char const *fmt, ...)
+{
+  va_list args;
+  va_start(args, fmt);
+  caml_failwith_value(caml_alloc_vsprintf(fmt, args));
+  va_end(args);
+}
+
 void caml_invalid_argument (char const *msg)
 {
   caml_raise_with_string((value) caml_exn_Invalid_argument, msg);
@@ -148,6 +164,14 @@ void caml_invalid_argument (char const *msg)
 void caml_invalid_argument_value (value msg)
 {
   caml_raise_with_arg((value) caml_exn_Invalid_argument, msg);
+}
+
+void caml_invalid_argumentf (char const *fmt, ...)
+{
+  va_list args;
+  va_start(args, fmt);
+  caml_invalid_argument_value(caml_alloc_vsprintf(fmt, args));
+  va_end(args);
 }
 
 void caml_raise_out_of_memory(void)

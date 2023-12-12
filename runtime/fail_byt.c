@@ -94,6 +94,14 @@ CAMLexport void caml_raise_with_string(value tag, char const *msg)
   CAMLnoreturn;
 }
 
+void caml_raise_with_fmt (value tag, char const *fmt, ...)
+{
+  va_list args;
+  va_start(args, fmt);
+  caml_raise_with_value(tag, caml_alloc_vsprintf(fmt, args));
+  va_end(args);
+}
+
 /* PR#5115: Built-in exceptions can be triggered by input_value
    while reading the initial value of [caml_global_data].
 
@@ -140,6 +148,14 @@ CAMLexport void caml_failwith_value (value msg)
   CAMLnoreturn;
 }
 
+CAMLexport void caml_failwithf (char const *fmt, ...)
+{
+  va_list args;
+  va_start(args, fmt);
+  caml_failwith_value(caml_alloc_vsprintf(fmt, args));
+  va_end(args);
+}
+
 Caml_inline value caml_get_invalid_argument_tag (char const *msg)
 {
   check_global_data_param("Invalid_argument", msg);
@@ -157,6 +173,14 @@ CAMLexport void caml_invalid_argument_value (value msg)
   value tag = caml_get_invalid_argument_tag(String_val(msg));
   caml_raise_with_arg(tag, msg);
   CAMLnoreturn;
+}
+
+CAMLexport void caml_invalid_argumentf (char const *fmt, ...)
+{
+  va_list args;
+  va_start(args, fmt);
+  caml_invalid_argument_value(caml_alloc_vsprintf(fmt, args));
+  va_end(args);
 }
 
 CAMLexport void caml_array_bound_error(void)

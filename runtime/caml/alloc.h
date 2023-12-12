@@ -56,11 +56,9 @@ CAMLextern value caml_copy_int64 (int64_t);       /* defined in [ints.c] */
 CAMLextern value caml_copy_nativeint (intnat);  /* defined in [ints.c] */
 CAMLextern value caml_alloc_array (value (*funct) (char const *),
                                    char const * const * array);
+CAMLextern value caml_alloc_vsprintf(const char * format, va_list args);
 CAMLextern value caml_alloc_sprintf(const char * format, ...)
-#ifdef __GNUC__
-  __attribute__ ((format (printf, 1, 2)))
-#endif
-;
+  CAMLargs_printf(1,2);
 CAMLextern value caml_alloc_some(value);
 
 typedef void (*final_fun)(value);

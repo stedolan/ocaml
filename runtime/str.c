@@ -388,22 +388,22 @@ CAMLprim value caml_fill_string(value s, value offset, value len, value init)
   return caml_fill_bytes (s, offset, len, init);
 }
 
-CAMLexport value caml_alloc_sprintf(const char * format, ...)
+CAMLexport value caml_alloc_vsprintf(const char * format, va_list args)
 {
-  va_list args;
+  va_list args_copy;
   char buf[128];
   int n;
   value res;
 
 #if !defined(_WIN32) || defined(_UCRT)
   /* C99-compliant implementation */
-  va_start(args, format);
+  va_copy(args_copy, args);
   /* "vsnprintf(dest, sz, format, args)" writes at most "sz" characters
      into "dest", including the terminating '\0'.
      It returns the number of characters of the formatted string,
      excluding the terminating '\0'. */
-  n = vsnprintf(buf, sizeof(buf), format, args);
-  va_end(args);
+  n = vsnprintf(buf, sizeof(buf), format, args_copy);
+  va_end(args_copy);
   if (n < 0) {
     caml_raise_out_of_memory();
   } else if (n < sizeof(buf)) {
@@ -421,23 +421,21 @@ CAMLexport value caml_alloc_sprintf(const char * format, ...)
     /* Re-do the formatting, outputting directly in the Caml string.
        Note that caml_alloc_string left room for a '\0' at position n,
        so the size passed to vsnprintf is n+1. */
-    va_start(args, format);
     vsnprintf((char *)String_val(res), n + 1, saved_format, args);
-    va_end(args);
     caml_stat_free(saved_format);
   }
   return res;
 #else
   /* Implementation specific to the Microsoft CRT library */
-  va_start(args, format);
+  va_copy(args_copy, args);
   /* "_vsnprintf(dest, sz, format, args)" writes at most "sz" characters
      into "dest".  Let "len" be the number of characters of the formatted
      string.
      If "len" < "sz", a null terminator was appended, and "len" is returned.
      If "len" == "sz", no null termination, and "len" is returned.
      If "len" > "sz", a negative value is returned. */
-  n = _vsnprintf(buf, sizeof(buf), format, args);
-  va_end(args);
+  n = _vsnprintf(buf, sizeof(buf), format, args_copy);
+  va_end(args_copy);
   if (n >= 0 && n <= sizeof(buf)) {
     /* All output characters were written to buf.
        "n" is the actual length of the output.
@@ -450,20 +448,28 @@ CAMLexport value caml_alloc_sprintf(const char * format, ...)
        this, take a copy of the format outside the Caml heap. */
     char * saved_format = caml_stat_strdup(format);
     /* Determine actual length of output, excluding final '\0' */
-    va_start(args, format);
+    va_copy(args_copy, args);
     n = _vscprintf(format, args);
-    va_end(args);
+    va_end(args_copy);
     res = caml_alloc_string(n);
     /* Re-do the formatting, outputting directly in the Caml string.
        Note that caml_alloc_string left room for a '\0' at position n,
        so the size passed to _vsnprintf is n+1. */
-    va_start(args, format);
     _vsnprintf((char *)String_val(res), n + 1, saved_format, args);
-    va_end(args);
     caml_stat_free(saved_format);
   }
   return res;
 #endif
+}
+
+CAMLexport value caml_alloc_sprintf(const char * format, ...)
+{
+  va_list args;
+  value res;
+  va_start(args, format);
+  res = caml_alloc_vsprintf(format, args);
+  va_end(args);
+  return res;
 }
 
 CAMLprim value caml_string_of_bytes(value bv)

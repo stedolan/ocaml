@@ -114,6 +114,13 @@ CAMLdeprecated_typedef(addr, char *);
   #define Caml_noinline
 #endif
 
+/* Enabling GCC warnings about printf-style formats */
+#ifdef __GNUC__
+  #define CAMLargs_printf(i,j) __attribute__((format(printf,i,j)))
+#else
+  #define CAMLargs_printf(i,j)
+#endif
+
 /* Export control (to mark primitives and to handle Windows DLL) */
 
 #ifndef CAMLDLLIMPORT
@@ -295,10 +302,7 @@ extern _Atomic fatal_error_hook caml_fatal_error_hook;
 #endif
 
 CAMLnoret CAMLextern void caml_fatal_error (char *, ...)
-#ifdef __GNUC__
-  __attribute__ ((format (printf, 1, 2)))
-#endif
-;
+  CAMLargs_printf(1,2);
 
 /* Detection of available C built-in functions, the Clang way. */
 
@@ -479,17 +483,9 @@ CAMLextern int caml_read_directory(char_os * dirname,
 
 extern atomic_uintnat caml_verb_gc;
 
-void caml_gc_log (char *, ...)
-#ifdef __GNUC__
-  __attribute__ ((format (printf, 1, 2)))
-#endif
-;
+void caml_gc_log (char *, ...) CAMLargs_printf(1,2);
 
-void caml_gc_message (int, char *, ...)
-#ifdef __GNUC__
-  __attribute__ ((format (printf, 2, 3)))
-#endif
-;
+void caml_gc_message (int, char *, ...) CAMLargs_printf(2,3);
 
 /* Runtime warnings */
 extern uintnat caml_runtime_warnings;

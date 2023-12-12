@@ -90,13 +90,21 @@ CAMLnoret CAMLextern void caml_raise_with_arg (value tag, value arg);
 CAMLnoret CAMLextern
 void caml_raise_with_args (value tag, int nargs, value arg[]);
 
+CAMLnoret CAMLextern void caml_raise_with_fmt(value tag, char const *fmt, ...)
+  CAMLargs_printf(2,3);
+
 CAMLnoret CAMLextern void caml_raise_with_string (value tag, char const * msg);
 
 CAMLnoret CAMLextern void caml_failwith (char const *msg);
 
+CAMLnoret CAMLextern void caml_failwithf (char const *fmt, ...)
+  CAMLargs_printf(1,2);
+
 CAMLnoret CAMLextern void caml_failwith_value (value msg);
 
 CAMLnoret CAMLextern void caml_invalid_argument (char const *msg);
+
+CAMLnoret CAMLextern void caml_invalid_argumentf (char const *fmt, ...);
 
 CAMLnoret CAMLextern void caml_invalid_argument_value (value msg);
 
