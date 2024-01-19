@@ -25,6 +25,9 @@ _______________
   (Kate Deplaix and Oscar Butler-Aldridge review by Nicolás Ojeda Bär,
    Craig Ferguson and Gabriel Scherer)
 
+- #11911, #12923: Multicore statistical memory profiling (Nick Barnes,
+  review by Stephen Dolan, Gabriel Scherer).
+
 ### Other libraries:
 
 ### Tools:
