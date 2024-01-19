@@ -22,6 +22,7 @@
 #include "caml/memprof.h"
 #include "caml/mlvalues.h"
 #include "caml/platform.h"
+#include "caml/shared_heap.h"
 
 /* Design
  *
@@ -147,6 +148,41 @@
  * and other entry table processing is performed by a thread of the
  * domain which owns the entry table. (and actions of those threads
  * are serialized by `systhreads`).
+ *
+ * 3. Interface with GC
+ *
+ * 3.1. Root scanning
+ *
+ * Memprof may have a large number of strong GC roots: one per tracked
+ * block, pointing to the tracking information ('minor or 'major, in
+ * the Gc.Memprof.tracker sense), plus the pointer to a config block
+ * in every entries table. Rather than manually registering and
+ * deregistering all of these, the GC calls caml_memprof_scan_roots()
+ * to scan them, in either minor or major collections. This function
+ * is called by all domains in parallel. A single domain adopts any
+ * global orphaned entries tables, and then each domain scans its own
+ * roots.
+ *
+ * 3.2. Updating block status.
+ *
+ * After a major or minor GC, memprof has to check tracked blocks to
+ * discover whether they have survived the GC, or (for a minor GC)
+ * whether they have been promoted to the major heap. This is done by
+ * caml_memprof_after_minor_gc() and caml_memprof_after_major_gc(),
+ * which share the system for iterating over entries tables as used by
+ * caml_memprof_scan_roots(). Again, these functions are called by all
+ * domains in parallel; a single domain starts by adopting any global
+ * orphaned entries tables, and then each domain updates its own
+ * entries.
+ *
+ * 3.3. Compaction
+ *
+ * GC compaction may move all objects in the major heap, so all
+ * memprof roots must be scanned and potentially updated, including
+ * the weak roots (i.e. pointers to the tracked blocks). This is done
+ * by the same caml_memprof_scan_roots() function as root scanning in
+ * regular GCs, using a boolean argument to indicate that weak roots
+ * should also be scanned.
  *
  * 4. Random Number Generation
  *
@@ -622,18 +658,26 @@ static void entries_transfer(entries_t from, entries_t to)
   from->young = from->evict = from->next = from->live = 0;
 }
 
+/* If es->config points to a DISCARDED configuration, update
+ * es->config to CONFIG_NONE. Return es->config. */
+
+static value validated_config(entries_t es)
+{
+  value config = es->config;
+  if ((config != CONFIG_NONE) &&
+      (Status(config) == CONFIG_STATUS_DISCARDED)) {
+    es->config = config = CONFIG_NONE;
+  }
+  return config;
+}
+
 /* Return configuration for a thread. If it's been discarded, then
  * reset it to CONFIG_NONE and return that.
 */
 
 static value thread_config(memprof_thread_t thread)
 {
-  value config = thread->entries.config;
-  if ((config != CONFIG_NONE) &&
-      (Status(config) == CONFIG_STATUS_DISCARDED)) {
-    thread->entries.config = config = CONFIG_NONE;
-  }
-  return config;
+  return validated_config(&thread->entries);
 }
 
 /*** Create and destroy orphan tables ***/
@@ -705,7 +749,6 @@ static void orphans_abandon(memprof_domain_t domain)
 
 /* Adopt all global orphans to the given domain. */
 
-CAMLunused_start
 static void orphans_adopt(memprof_domain_t domain)
 {
   /* Find the end of the domain's orphans list */
@@ -719,7 +762,6 @@ static void orphans_adopt(memprof_domain_t domain)
   orphans = NULL;
   caml_plat_unlock(&orphans_lock);
 }
-CAMLunused_end
 
 /* Destroy an orphan table. */
 
@@ -1012,7 +1054,135 @@ static memprof_domain_t domain_create(caml_domain_state *caml_state)
   return domain;
 }
 
+/**** Interface with domain action-pending flag ****/
+
+/* If profiling is active in the current domain, and we may have some
+ * callbacks pending, set the action pending flag. */
+
+static void set_action_pending_as_needed(memprof_domain_t domain)
+{
+  if (!domain->current ||
+      domain->current->suspended) return;
+  if (domain->entries.next < domain->entries.live ||
+      domain->current->entries.live > 0)
+    caml_set_action_pending(domain->caml_state);
+}
+
+/* Set the suspended flag on `domain` to `s`. */
+
+static void update_suspended(memprof_domain_t domain, bool s)
+{
+  if (domain->current) {
+    domain->current->suspended = s;
+  }
+  caml_memprof_renew_minor_sample(domain->caml_state);
+  if (!s) set_action_pending_as_needed(domain);
+}
+
+/* Set the suspended flag on the current domain to `s`. */
+
+void caml_memprof_update_suspended(bool s) {
+  update_suspended(Caml_state->memprof, s);
+}
+
+/**** Iterating over entries ****/
+
+/* Type of a function to apply to a single entry. Returns true if,
+ * following the call, the entry may have a newly-applicable
+ * callback. */
+
+typedef bool (*entry_action)(entry_t, void *);
+
+/* Type of a function to apply to an entries array after iterating
+ * over the entries. The second argument is 'young', indicating
+ * whether the iteration was just over possibly-young entries. */
+
+typedef void (*entries_action)(entries_t, bool, void *);
+
+/* Iterate an entry_action over entries in a single entries table,
+ * followed by an (optional) entries_action on the whole table.  If
+ * `young` is true, only apply to possibly-young entries (usually a
+ * small number of entries, often zero).
+ *
+ * If the entries table configuration is NONE or DISCARDED, this
+ * function does nothing.
+ *
+ * Assumes that calling `f` does not change entry table indexes. */
+
+static void entries_apply_actions(entries_t entries, bool young,
+                                  entry_action f, void *data,
+                                  entries_action after)
+{
+  value config = validated_config(entries);
+  if (config == CONFIG_NONE) {
+    return;
+  }
+
+  for (size_t i = young ? entries->young : 0; i < entries->live; ++i) {
+    if (f(&entries->t[i], data) && entries->next > i) {
+      entries->next = i;
+    }
+  }
+  if (after) {
+    after(entries, young, data);
+  }
+}
+
+/* Iterate entry_action/entries_action over all entries managed by a
+ * single domain (including those managed by its threads).
+ *
+ * Assumes that calling `f` does not modify entry table indexes. */
+
+static void domain_apply_actions(memprof_domain_t domain, bool young,
+                                 entry_action f, void *data,
+                                 entries_action after)
+{
+  entries_apply_actions(&domain->entries, young, f, data, after);
+  memprof_thread_t thread = domain->threads;
+  while (thread) {
+    entries_apply_actions(&thread->entries, young, f, data, after);
+    thread = thread->next;
+  }
+  memprof_orphan_table_t ot = domain->orphans;
+  while (ot) {
+    entries_apply_actions(&ot->entries, young, f, data, after);
+    ot = ot->next;
+  }
+}
+
 /**** GC interface ****/
+
+/* Root scanning */
+
+struct scan_closure {
+  scanning_action f;
+  scanning_action_flags fflags;
+  void *fdata;
+  bool weak;
+};
+
+/* An entry_action to scan roots */
+
+static bool entry_scan(entry_t e, void *data)
+{
+  struct scan_closure *closure = data;
+  closure->f(closure->fdata, e->user_data, &e->user_data);
+  if (closure->weak && !e->offset && (e->block != Val_unit)) {
+    closure->f(closure->fdata, e->block, &e->block);
+  }
+  return false;
+}
+
+/* An entries_action to scan the config root */
+
+static void entries_finish_scan(entries_t es, bool young, void *data)
+{
+  struct scan_closure *closure = data;
+  (void)young;
+  closure->f(closure->fdata, es->config, &es->config);
+}
+
+/* Function called by either major or minor GC to scan all the memprof roots */
 
 void caml_memprof_scan_roots(scanning_action f,
                              scanning_action_flags fflags,
@@ -1022,21 +1192,114 @@ void caml_memprof_scan_roots(scanning_action f,
                              bool global)
 {
   memprof_domain_t domain = state->memprof;
-
-  f(fdata, domain->entries.config, &domain->entries.config);
-  memprof_thread_t thread = domain->threads;
-  while (thread) {
-    f(fdata, thread->entries.config, &thread->entries.config);
-    thread = thread->next;
+  if (global) {
+    /* Adopt all global orphans into this domain. */
+    orphans_adopt(domain);
   }
+
+  bool young =
+    (fflags & SCANNING_ONLY_YOUNG_VALUES) == SCANNING_ONLY_YOUNG_VALUES;
+
+  struct scan_closure closure = {f, fflags, fdata, weak};
+
+  domain_apply_actions(domain, young,
+                       entry_scan, &closure, entries_finish_scan);
 }
+
+/* Post-GC actions: we have to notice when tracked blocks die or get promoted */
+
+/* An entry_action to update a single entry after a minor GC. Notices
+ * when a young tracked block has died or been promoted. */
+
+static bool entry_update_after_minor_gc(entry_t e, void *data)
+{
+  (void)data;
+  CAMLassert(Is_block(e->block) || e->deleted || e->deallocated ||
+             e->offset);
+  if (!e->offset
+      && Is_block(e->block) && Is_young(e->block)) {
+    if (Hd_val(e->block) == 0) {
+      /* Block has been promoted */
+      e->block = Field(e->block, 0);
+      e->promoted = 1;
+    } else {
+      /* Block is dead */
+      e->block = Val_unit;
+      e->deallocated = 1;
+    }
+    return true; /* either promotion or deallocation callback */
+  }
+  return false; /* no callback triggered */
+}
+
+/* An entries_action for use after a minor GC. */
+
+static void entries_update_after_minor_gc(entries_t entries,
+                                          bool young,
+                                          void *data)
+{
+  (void)data;
+  (void)young;
+  /* There are no 'young' entries left */
+  entries->young = entries->live;
+}
+
+/* Update all memprof structures for a given domain, at the end of a
+ * minor GC. If `global` is set, also ensure shared structures are
+ * updated (we do this by adopting orphans into this domain). */
 
 void caml_memprof_after_minor_gc(caml_domain_state *state, bool global)
 {
+  memprof_domain_t domain = state->memprof;
+  if (global) {
+    /* Adopt all global orphans into this domain. */
+    orphans_adopt(domain);
+  }
+
+  domain_apply_actions(domain, true, entry_update_after_minor_gc,
+                       NULL, entries_update_after_minor_gc);
+  set_action_pending_as_needed(domain);
 }
+
+/* An entry_action to update a single entry after a major GC. Notices
+ * when a tracked block has died. */
+
+static bool entry_update_after_major_gc(entry_t e, void *data)
+{
+  (void)data;
+  CAMLassert(Is_block(e->block) || e->deleted || e->deallocated ||
+             e->offset);
+  if (!e->offset &&
+      Is_block(e->block) && !Is_young(e->block)) {
+    /* Either born in the major heap or promoted */
+    CAMLassert(!e->alloc_young || e->promoted);
+    if (is_unmarked(e->block)) { /* died */
+      e->block = Val_unit;
+      e->deallocated = 1;
+      return true; /* trigger deallocation callback */
+    }
+  }
+  return false; /* no callback triggered */
+}
+
+/* Note: there's nothing to be done at the table level after a major
+ * GC (unlike a minor GC, when we reset the 'young' index), so there
+ * is no "entries_update_after_major_gc" function. */
+
+/* Update all memprof structures for a given domain, at the end of a
+ * major GC. If `global` is set, also update shared structures (we do
+ * this by adopting orphans into this domain). */
 
 void caml_memprof_after_major_gc(caml_domain_state *state, bool global)
 {
+  memprof_domain_t domain = state->memprof;
+  if (global) {
+    /* Adopt all global orphans into this domain. */
+    orphans_adopt(domain);
+  }
+  domain_apply_actions(domain, false, entry_update_after_major_gc,
+                       NULL, NULL);
+  set_action_pending_as_needed(domain);
 }
 
 /**** Running callbacks ****/
@@ -1074,37 +1337,6 @@ void caml_memprof_delete_domain(caml_domain_state *state)
   }
   domain_destroy(state->memprof);
   state->memprof = NULL;
-}
-
-/**** Interface with domain action-pending flag ****/
-
-/* If profiling is active in the current domain, and we may have some
- * callbacks pending, set the action pending flag. */
-
-static void set_action_pending_as_needed(memprof_domain_t domain)
-{
-  if (!domain->current ||
-      domain->current->suspended) return;
-  if (domain->entries.next < domain->entries.live ||
-      domain->current->entries.live > 0)
-    caml_set_action_pending(domain->caml_state);
-}
-
-/* Set the suspended flag on `domain` to `s`. */
-
-static void update_suspended(memprof_domain_t domain, bool s)
-{
-  if (domain->current) {
-    domain->current->suspended = s;
-  }
-  caml_memprof_renew_minor_sample(domain->caml_state);
-  if (!s) set_action_pending_as_needed(domain);
-}
-
-/* Set the suspended flag on the current domain to `s`. */
-
-void caml_memprof_update_suspended(bool s) {
-  update_suspended(Caml_state->memprof, s);
 }
 
 /**** Sampling procedures ****/
