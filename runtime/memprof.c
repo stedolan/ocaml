@@ -503,6 +503,10 @@ struct entries_s {
    * point to the major heap ([young <= live]). */
   size_t young;
 
+  /* There are no entries with offset=1 before this position
+   * ([offset <= live]) */
+  size_t offset;
+
   /* There are no blocks to be evicted before this position
    * ([evict <= live]). */
   size_t evict;
@@ -625,6 +629,7 @@ static void entries_init(entries_t es, size_t min_size, value config)
   es->size = 0;
   es->live = 0;
   es->young = 0;
+  es->offset = 0;
   es->evict = 0;
   es->next = 0;
   es->config = config;
@@ -633,7 +638,7 @@ static void entries_init(entries_t es, size_t min_size, value config)
 static void entries_clear(entries_t es)
 {
   /* maintain invariants */
-  es->size = es->live = es->young = es->evict = es->next = 0;
+  es->size = es->live = es->young = es->offset = es->evict = es->next = 0;
   if (es->t) {
     caml_stat_free(es->t);
     es->t = NULL;
@@ -690,6 +695,7 @@ Caml_inline size_t new_entry(entries_t es,
   if (!ensure_entries(es, 1))
     return Invalid_index;
   size_t i = es->live ++;
+  if (es->offset == i && !offset) es->offset++;
   entry_t e = es->t + i;
   e->block = block;
   e->user_data = user_data;
@@ -724,44 +730,47 @@ static void mark_deleted(entries_t es, size_t i)
   if (i < es->evict) es->evict = i;
 }
 
+static void update_offset_entries(entries_t es, value* base)
+{
+  int young_base = (base != NULL) && Is_young(Val_hp(base));
+  for (size_t i = es->offset; i < es->live; i++) {
+    entry_t e = &es->t[i];
+    if (e->offset) {
+      if (base == NULL) {
+        /* If we ran the allocation callback, keep the entry but
+         * fake de-allocation. Otherwise mark the entry deleted */
+        if ((e->callbacks & CB_MASK(CB_ALLOC)) &&
+            ((e->callbacks & CB_MASK(CB_DEALLOC)) == 0)) {
+          e->offset = false;
+          e->block = Val_unit;
+          e->deallocated = 1;
+          if (i < es->next) es->next = i;
+        } else {
+          mark_deleted(es, i);
+        }
+      } else {
+        e->block = Val_hp(base + e->block);
+        e->offset = false;
+        if (young_base && i < es->young) es->young = i;
+      }
+    }
+  }
+  es->offset = es->live;
+}
+
 /* Remove any unwanted entries from [es], updating [es->young] and
  * [es->next] if necessary. Unwanted entries are those marked as
- * `deleted`, and also (if `offsets`) any offset entries. */
-
-static void entries_evict(entries_t es, bool offsets)
+ * `deleted`. */
+static void entries_evict(entries_t es)
 {
   size_t i, j;
 
   /* The obvious linear compaction algorithm */
-
-  if (offsets) { /* offsets may be anywhere */
-    j = i = 0;
-  } else {
-    j = i = es->evict;
-  }
+  j = i = es->evict;
 
   while (i < es->live) {
-    bool dead = es->t[i].deleted;
-    if (offsets && es->t[i].offset) {
-      /* An offset entry, which we ought to evict. We'll never be able
-       * to connect this entry to its allocated block, so ideally no
-       * callbacks are run for it. However, some callbacks may already
-       * have been run. If the allocation callback has been run, but
-       * not the deallocation callback, the best we can do is probably
-       * to fake deallocating the block, so that alloc/dealloc
-       * callback counts correspond. */
-      if ((es->t[i].callbacks & CB_MASK(CB_ALLOC)) &&
-          ((es->t[i].callbacks & CB_MASK(CB_DEALLOC)) == 0)) {
-        es->t[i].offset = false;
-        es->t[i].block = Val_unit;
-        es->t[i].deallocated = 1;
-        if (i < es->next) es->next = i;
-      } else {
-        dead = true;
-      }
-    }
-
-    if (dead) {
+    if (es->t[i].deleted) {
+      CAMLassert(!es->t[i].offset);
       /* entry is evicted, but what if a thread is running it?  This
        * can happen specifically if an allocation callback stops a
        * profile and starts a new one: all 'offset' entries are evicted.
@@ -788,11 +797,13 @@ static void entries_evict(entries_t es, bool offsets)
     }
     ++ i;
     if (es->young == i) es->young = j;
+    if (es->offset == i) es->offset = j;
     if (es->next == i) es->next = j;
   }
   es->evict = es->live = j;
   CAMLassert(es->next <= es->live);
   CAMLassert(es->young <= es->live);
+  CAMLassert(es->offset <= es->live);
 
   ensure_entries(es, 0);
 }
@@ -826,6 +837,9 @@ static void entries_transfer(entries_t from, entries_t to)
   if (to->young == offset) {
     to->young = offset + from->young;
   }
+  if (to->offset == offset) {
+    to->offset = offset + from->offset;
+  }
   if (to->evict == offset) {
     to->evict = offset + from->evict;
   }
@@ -834,7 +848,7 @@ static void entries_transfer(entries_t from, entries_t to)
   }
   /* Reset `from` to empty, and allow it to shrink */
   ensure_entries(from, -from->live);
-  from->young = from->evict = from->next = from->live = 0;
+  from->young = from->offset = from->evict = from->next = from->live = 0;
 }
 
 /* If es->config points to a DISCARDED configuration, update
@@ -876,7 +890,9 @@ static void orphans_create(memprof_domain_t domain)
   }
 
   entries_t es = &domain->entries;
-  entries_evict(es, true); /* remove deleted and offset entries */
+
+  update_offset_entries(es, NULL);
+  entries_evict(es);
   if (!es->live) { /* no live entries */
     entries_clear(es);
   } else { /* Orphan surviving entries */
@@ -901,7 +917,7 @@ static void orphans_create(memprof_domain_t domain)
        * that the entries "belong to" the orphans list. Doesn't call
        * entries_clear() because that would free the table. */
       es->t = NULL;
-      es->size = es->live = es->young = es->evict = es->next = 0;
+      es->size = es->live = es->young = es->offset = es->evict = es->next = 0;
     }
   }
 }
@@ -1804,7 +1820,7 @@ static value entries_run_callbacks_exn(memprof_thread_t thread,
     }
   }
   if (!moved) {
-    entries_evict(es, false);
+    entries_evict(es);
   }
   return res;
 }
@@ -2069,35 +2085,11 @@ void caml_memprof_track_young(uintnat wosize, int from_caml,
    * ran). Otherwise, they must be updated to point to the blocks
    * which will now be allocated. */
   if (!restarted) {
-    size_t i = 0;
-    if (entries->live >= new_entries) /* cope with deleted entries */
-      i = entries->live - new_entries;
-    while (i < entries->live) {
-      entry_t e = &entries->t[i];
-      if (e->offset) { /* an entry we just created */
-        if (cancelled) {
-          /* If we ran the allocation callback, keep the entry but
-           * fake de-allocation. */
-          if ((e->callbacks & CB_MASK(CB_ALLOC)) &&
-              ((e->callbacks & CB_MASK(CB_DEALLOC)) == 0)) {
-            e->offset = false;
-            e->block = Val_unit;
-            e->deallocated = 1;
-            if (i < entries->next) entries->next = i;
-          } else {
-            mark_deleted(entries, i);
-          }
-        } else {
-          e->block = Val_hp(Caml_state->young_ptr + e->block);
-          e->offset = false;
-        }
-      }
-      ++i;
-    }
-
     if (cancelled) {
-      /* evict anything we just deleted */
-      entries_evict(entries, false);
+      update_offset_entries(entries, NULL);
+      entries_evict(entries);
+    } else {
+      update_offset_entries(entries, Caml_state->young_ptr);
     }
 
     /* There are now no outstanding allocation callbacks in the
