@@ -190,8 +190,14 @@ val new_local_type:
         type_origin -> type_declaration
 
 module Pattern_env : sig
+  type envop
   type t = private
     { mutable env : Env.t;
+      mutable op_list : envop list;
+      (* When comparing module-dependent functions we add a module to the
+         environment locally. [op_list] records all the changes to the
+         environment in order to replay them once again after removing the local
+         module from the environment. *)
       equations_scope : int;
       (* scope for local type declarations *)
       in_counterexample : bool;
@@ -199,6 +205,7 @@ module Pattern_env : sig
     }
   val make: Env.t -> equations_scope:int -> in_counterexample:bool -> t
   val copy: ?equations_scope:int -> t -> t
+  val enter_type: scope:int -> label -> type_declaration -> t -> Ident.t
   val set_env: t -> Env.t -> unit
 end
 
@@ -231,6 +238,8 @@ val instance_poly_fixed:
         (* Take an instance of a type scheme containing free univars for
            checking that an expression matches this scheme. *)
 
+val instance_funct:
+        id_in:Ident.t -> p_out:Path.t -> fixed:bool -> type_expr -> type_expr
 val polyfy: Env.t -> type_expr -> type_expr list -> type_expr * type_expr list
 
 val instance_label:
@@ -314,6 +323,11 @@ val filter_arrow: Env.t -> type_expr -> arg_label -> param_hole:bool ->
            true then ['a] might be initialized with a [Tvar _] hole to be filled
            later by a [Tpoly _].
            Raises [Filter_arrow_failed] instead of [Unify]. *)
+val filter_functor:
+        Env.t -> type_expr -> arg_label ->
+        (Ident.Unscoped.t * package * type_expr) option
+        (* A special case of unification with [{M:P} -> 'a]  Raises
+           [Filter_arrow_failed] instead of [Unify]. *)
 val is_really_poly : Env.t -> type_expr -> bool
 val filter_method: Env.t -> string -> type_expr -> type_expr
         (* A special case of unification (with {m : 'a; 'b}).  Raises
@@ -384,6 +398,7 @@ val equal: Env.t -> bool -> type_expr list -> type_expr list -> unit
         (* [equal env [x1...xn] tau [y1...yn] sigma]
            checks whether the parameterized types
            [/\x1.../\xn.tau] and [/\y1.../\yn.sigma] are equivalent. *)
+val eq_package_path : Env.t -> Path.t -> Path.t -> bool
 val is_equal : Env.t -> bool -> type_expr list -> type_expr list -> bool
 val equal_private :
         Env.t -> type_expr list -> type_expr ->
@@ -512,6 +527,8 @@ val immediacy : Env.t -> type_expr -> Type_immediacy.t
 val package_subtype :
     (Env.t -> package -> package ->
      (unit,Errortrace.first_class_module) Result.t) ref
+
+val modtype_of_package : (Env.t -> Location.t -> package -> module_type) ref
 
 (* Raises [Incompatible] *)
 val mcomp : Env.t -> type_expr -> type_expr -> unit

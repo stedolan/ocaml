@@ -155,6 +155,7 @@ let rec immediate_subtypes : type_expr -> type_expr list = fun ty ->
   | Tvar _ | Tunivar _ -> []
   | Tpoly (pty, _) -> [pty]
   | Tconstr (_path, tys, _) -> tys
+  | Tfunctor (_, _, pack, ty) -> ty :: List.map snd pack.pack_constraints
 
 and immediate_subtypes_object_row acc ty = match get_desc ty with
   | Tnil -> acc
@@ -410,6 +411,7 @@ let check_type
     | (Tvariant(_)        , Sep    )
     | (Tobject(_,_)       , Sep    )
     | ((Tnil | Tfield _)  , Sep    )
+    | (Tfunctor _         , Sep    )
     | (Tpackage _         , Sep    ) -> empty
     (* "Deeply separable" case for these same constructors. *)
     | (Tarrow _           , Deepsep)
@@ -417,6 +419,7 @@ let check_type
     | (Tvariant(_)        , Deepsep)
     | (Tobject(_,_)       , Deepsep)
     | ((Tnil | Tfield _)  , Deepsep)
+    | (Tfunctor _         , Deepsep)
     | (Tpackage _         , Deepsep) ->
         let tys = immediate_subtypes ty in
         let on_subtype context ty =

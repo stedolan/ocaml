@@ -45,6 +45,7 @@ and type_desc =
   | Tunivar of string option
   | Tpoly of type_expr * type_expr list
   | Tpackage of package
+  | Tfunctor of arg_label * Ident.Unscoped.t * package * type_expr
 
 and package =
     { pack_path : Path.t;

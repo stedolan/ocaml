@@ -216,6 +216,17 @@ let apply_type_function params args body =
           in
           Transient_expr.set_stub_desc t desc';
           t
+      | Tfunctor (l, id, {pack_path; pack_constraints}, t2) ->
+          let t = newgenstub ~scope:(get_scope ty) in
+          For_copy.redirect_desc copy_scope ty (Tsubst (t, None));
+          let pack' = {
+            pack_path;
+            pack_constraints =
+              List.map (fun (l, t) -> (l, copy t)) pack_constraints
+          } in
+          let desc' = Tfunctor (l, id, pack', copy t2) in
+          Transient_expr.set_stub_desc t desc';
+          t
       | (Tvar _ | Tarrow _ | Ttuple _ | Tfield _ | Tnil | Tlink _ | Tunivar _
             | Tpoly _ | Tconstr _ | Tobject _ | Tpackage _) as desc ->
           let t = newgenstub ~scope:(get_scope ty) in
@@ -278,6 +289,8 @@ let rec typexp copy_scope s ty =
          end
       | Tpackage pack ->
           Tpackage (package copy_scope s pack)
+      | Tfunctor(lbl, us, pack, ty) ->
+          Tfunctor(lbl, us, package copy_scope s pack, typexp copy_scope s ty)
       | Tobject (t1, name) ->
           let t1' = typexp copy_scope s t1 in
           let name' =

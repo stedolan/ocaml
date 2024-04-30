@@ -821,18 +821,21 @@ typing/envaux.cmi : \
 typing/errortrace.cmo : \
     typing/types.cmi \
     typing/path.cmi \
+    typing/ident.cmi \
     utils/format_doc.cmi \
     parsing/asttypes.cmi \
     typing/errortrace.cmi
 typing/errortrace.cmx : \
     typing/types.cmx \
     typing/path.cmx \
+    typing/ident.cmx \
     utils/format_doc.cmx \
     parsing/asttypes.cmx \
     typing/errortrace.cmi
 typing/errortrace.cmi : \
     typing/types.cmi \
     typing/path.cmi \
+    typing/ident.cmi \
     utils/format_doc.cmi \
     parsing/asttypes.cmi
 typing/errortrace_report.cmo : \
@@ -1463,6 +1466,7 @@ typing/rawprinttyp.cmo : \
     parsing/pprintast.cmi \
     typing/path.cmi \
     parsing/longident.cmi \
+    typing/ident.cmi \
     utils/format_doc.cmi \
     parsing/asttypes.cmi \
     typing/rawprinttyp.cmi
@@ -1471,6 +1475,7 @@ typing/rawprinttyp.cmx : \
     parsing/pprintast.cmx \
     typing/path.cmx \
     parsing/longident.cmx \
+    typing/ident.cmx \
     utils/format_doc.cmx \
     parsing/asttypes.cmx \
     typing/rawprinttyp.cmi
@@ -2221,6 +2226,7 @@ typing/typetexp.cmo : \
     utils/misc.cmi \
     parsing/longident.cmi \
     parsing/location.cmi \
+    typing/ident.cmi \
     utils/format_doc.cmi \
     typing/errortrace_report.cmi \
     typing/errortrace.cmi \
@@ -2246,6 +2252,7 @@ typing/typetexp.cmx : \
     utils/misc.cmx \
     parsing/longident.cmx \
     parsing/location.cmx \
+    typing/ident.cmx \
     utils/format_doc.cmx \
     typing/errortrace_report.cmx \
     typing/errortrace.cmx \
@@ -9912,6 +9919,7 @@ ocamldoc/odoc_value.cmo : \
     ocamldoc/odoc_parameter.cmi \
     ocamldoc/odoc_name.cmi \
     ocamldoc/odoc_misc.cmi \
+    typing/ctype.cmi \
     parsing/asttypes.cmi \
     ocamldoc/odoc_value.cmi
 ocamldoc/odoc_value.cmx : \
@@ -9920,6 +9928,7 @@ ocamldoc/odoc_value.cmx : \
     ocamldoc/odoc_parameter.cmx \
     ocamldoc/odoc_name.cmx \
     ocamldoc/odoc_misc.cmx \
+    typing/ctype.cmx \
     parsing/asttypes.cmx \
     ocamldoc/odoc_value.cmi
 ocamldoc/odoc_value.cmi : \

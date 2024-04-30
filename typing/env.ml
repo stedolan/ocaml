@@ -2293,6 +2293,10 @@ let enter_type ~scope name info env =
   let env = store_type ~check:true id info (Shape.leaf info.type_uid) env in
   (id, env)
 
+let reenter_type id info env =
+  let env = store_type ~check:true id info (Shape.leaf info.type_uid) env in
+  env
+
 let enter_extension ~scope ~rebind name ext env =
   let id = Ident.create_scoped ~scope name in
   let addr = extension_declaration_address env id ext in

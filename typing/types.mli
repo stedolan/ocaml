@@ -138,6 +138,9 @@ type type_desc =
   | Tpackage of package
   (** Type of a first-class module (a.k.a package). *)
 
+  | Tfunctor of arg_label * Ident.Unscoped.t * package * type_expr
+  (** Type of a dependent arrow *)
+
 (** [package] corresponds to the type of a first-class module *)
 and package =
   { pack_path : Path.t;
