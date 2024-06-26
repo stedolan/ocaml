@@ -234,18 +234,33 @@ CAMLexport CAMLweakdef void caml_modify (volatile value *fp, value val)
    free it.  In both cases, you pass as argument the size (in bytes)
    of the block being allocated or freed.
 */
-CAMLexport void caml_alloc_dependent_memory (mlsize_t nbytes)
+CAMLexport void caml_alloc_dependent_memory (value v, mlsize_t nbytes)
 {
-  Caml_state->dependent_size += nbytes / sizeof (value);
-  Caml_state->dependent_allocated += nbytes / sizeof (value);
+  if (nbytes == 0) return;
+  CAMLassert (Is_block (v));
+  if (Is_young (v)){
+    add_to_dependent_table (&Caml_state->minor_tables->dependent, v, nbytes);
+    Caml_state->dependent_bytes_minor += nbytes;
+    if (Caml_state->dependent_bytes_minor >
+          Bsize_wsize (Caml_state->minor_heap_wsz)
+          / 100 * caml_custom_minor_ratio){
+      caml_request_minor_gc ();
+    }
+  }else{
+    Caml_state->dependent_bytes += nbytes;
+    Caml_state->dependent_bytes_allocated += nbytes;
+  }
+  size_t nwords = (nbytes + sizeof(value) - 1) / sizeof(value);
+  caml_memprof_sample_block(v, nwords, nwords, CAML_MEMPROF_SRC_DEPENDENT);
 }
 
-CAMLexport void caml_free_dependent_memory (mlsize_t nbytes)
+CAMLexport void caml_free_dependent_memory (value v, mlsize_t nbytes)
 {
-  if (Caml_state->dependent_size < nbytes / sizeof (value)){
-    Caml_state->dependent_size = 0;
+  CAMLassert (Is_block (v));
+  if (Is_young (v)){
+    Caml_state->dependent_bytes_minor -= nbytes;
   }else{
-    Caml_state->dependent_size -= nbytes / sizeof (value);
+    Caml_state->dependent_bytes -= nbytes;
   }
 }
 

@@ -657,8 +657,9 @@ static void domain_create(uintnat initial_minor_heap_wsize,
   domain_state->extra_heap_resources = 0.0;
   domain_state->extra_heap_resources_minor = 0.0;
 
-  domain_state->dependent_size = 0;
-  domain_state->dependent_allocated = 0;
+  domain_state->dependent_bytes = 0;
+  domain_state->dependent_bytes_allocated = 0;
+  domain_state->dependent_bytes_minor = 0;
 
   domain_state->major_work_done_between_slices = 0;
 

@@ -87,6 +87,9 @@ Live blocks of a Domain's major heap pools.
 (**
 Live blocks of a Domain's major heap large allocations.
 @since 5.1 *)
+| EV_C_REQUEST_MINOR_REALLOC_DEPENDENT_TABLE
+(** Reallocation of the table of dependent memory from minor heap
+    @since 5.3 *)
 
 (** The type for span events emitted by the runtime. *)
 type runtime_phase =
@@ -138,6 +141,7 @@ type runtime_phase =
 | EV_COMPACT_EVACUATE
 | EV_COMPACT_FORWARD
 | EV_COMPACT_RELEASE
+| EV_MINOR_DEPENDENT
 
 (** Lifecycle events for the ring itself. *)
 type lifecycle =

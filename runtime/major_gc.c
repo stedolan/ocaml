@@ -634,12 +634,12 @@ static void update_major_slice_work(intnat howmuch,
 
   my_alloc_count = dom_st->allocated_words;
   my_alloc_direct_count = dom_st->allocated_words_direct;
-  my_dependent_count = dom_st->dependent_allocated;
+  my_dependent_count = Wsize_bsize (dom_st->dependent_bytes_allocated);
   my_extra_count = dom_st->extra_heap_resources;
   dom_st->stat_major_words += dom_st->allocated_words;
   dom_st->allocated_words = 0;
   dom_st->allocated_words_direct = 0;
-  dom_st->dependent_allocated = 0;
+  dom_st->dependent_bytes_allocated = 0;
   dom_st->extra_heap_resources = 0.0;
   /*
      Free memory at the start of the GC cycle (garbage + free list) (assumed):
@@ -694,11 +694,11 @@ static void update_major_slice_work(intnat howmuch,
 
   /* TODO: what we really need for this computation is the sum of
      dependent_size over all the domains. */
-  if (dom_st->dependent_size > 0) {
+  if (dom_st->dependent_bytes > 0) {
     double dependent_ratio =
       total_cycle_work
       * (100 + caml_percent_free)
-      / dom_st-> dependent_size / caml_percent_free;
+      / Wsize_bsize(dom_st->dependent_bytes) / caml_percent_free;
     dependent_work = (intnat) (my_dependent_count * dependent_ratio);
   }else{
     dependent_work = 0;

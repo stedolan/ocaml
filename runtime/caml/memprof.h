@@ -28,7 +28,7 @@
 
 enum { CAML_MEMPROF_SRC_NORMAL = 0,
        CAML_MEMPROF_SRC_MARSHAL = 1, /* interning */
-       CAML_MEMPROF_SRC_CUSTOM = 2 /* custom memory */ };
+       CAML_MEMPROF_SRC_DEPENDENT = 2 /* dependent memory */ };
 
 /* Respond to the allocation of any block. Does not call callbacks.
  * `block` is the allocated block, to be tracked by memprof if

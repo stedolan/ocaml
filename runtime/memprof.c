@@ -473,7 +473,7 @@ struct entry_s {
   memprof_thread_t runner;
 
   /* The source of the allocation: normal allocations, interning,
-   * or custom_mem (CAML_MEMPROF_SRC_*). */
+   * or dependent memory (CAML_MEMPROF_SRC_*). */
   unsigned int source : 2;
 
   /* Is `block` actually an offset? */

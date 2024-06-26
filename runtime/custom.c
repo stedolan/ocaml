@@ -92,6 +92,36 @@ static value alloc_custom_gen (const struct custom_operations * ops,
   CAMLreturn(result);
 }
 
+/* For each block allocated with [caml_alloc_custom_dep],
+   the finalizer must call [caml_free_dependent_memory].
+   [bsz] is the size in bytes of the payload inside the heap-allocated
+   block, and [mem] is the size in bytes of the external memory
+   held by this block.
+*/
+CAMLexport value caml_alloc_custom_dep (const struct custom_operations * ops,
+                                        uintnat bsz,
+                                        mlsize_t mem)
+{
+  mlsize_t wosize;
+  CAMLparam0();
+  CAMLlocal1(result);
+
+  wosize = 1 + (bsz + sizeof(value) - 1) / sizeof(value);
+  if (wosize <= Max_young_wosize && mem <= caml_custom_minor_max_bsz) {
+    result = caml_alloc_small(wosize, Custom_tag);
+    Custom_ops_val(result) = ops;
+    if (ops->finalize != NULL) {
+      /* Record the finalizer in case the block is not promoted. */
+      add_to_custom_table (&Caml_state->minor_tables->custom, result, 0, 1);
+    }
+  } else {
+    result = caml_alloc_shr(wosize, Custom_tag);
+    Custom_ops_val(result) = ops;
+  }
+  caml_alloc_dependent_memory (result, mem);
+  CAMLreturn(result);
+}
+
 Caml_inline mlsize_t get_max_minor (void)
 {
   return
@@ -114,7 +144,8 @@ CAMLexport value caml_alloc_custom_mem(const struct custom_operations * ops,
 {
   value v = alloc_custom_gen (ops, bsz, mem, 0, get_max_minor());
   size_t mem_words = (mem + sizeof(value) - 1) / sizeof(value);
-  caml_memprof_sample_block(v, mem_words, mem_words, CAML_MEMPROF_SRC_CUSTOM);
+  caml_memprof_sample_block(v, mem_words, mem_words,
+                            CAML_MEMPROF_SRC_DEPENDENT);
   return v;
 }
 

@@ -252,13 +252,7 @@ caml_ba_alloc(int flags, int num_dims, void * data, intnat * dim)
   uses_resources =
     ((flags & CAML_BA_MANAGED_MASK) == CAML_BA_MANAGED)
     && !(flags & CAML_BA_SUBARRAY);
-  res = caml_alloc_custom(&caml_ba_ops, asize, 0, 0);
-  if (uses_resources) caml_alloc_dependent_memory(size);
-  /* These two lines below should be in caml_alloc_dependent_memory, but
-     we'll have to change the API because res is not passed to
-     caml_alloc_dependent_memory at this time. */
-  size_t nwords = (size + sizeof(value) - 1) / sizeof(value);
-  caml_memprof_sample_block(res, nwords, nwords, CAML_MEMPROF_SRC_CUSTOM);
+  res = caml_alloc_custom_dep(&caml_ba_ops, asize, uses_resources ? size : 0);
   b = Caml_ba_array_val(res);
   b->data = data;
   b->num_dims = num_dims;
@@ -298,11 +292,11 @@ CAMLexport void caml_ba_finalize(value v)
   case CAML_BA_MANAGED:
     if (b->proxy == NULL) {
       free(b->data);
-      caml_free_dependent_memory(caml_ba_byte_size(b));
+      caml_free_dependent_memory(v, caml_ba_byte_size(b));
     } else {
       if (caml_atomic_refcount_decr(&b->proxy->refcount) == 1) {
         free(b->proxy->data);
-        caml_free_dependent_memory(b->proxy->size);
+        caml_free_dependent_memory(v, b->proxy->size);
         free(b->proxy);
       }
     }
@@ -631,7 +625,7 @@ CAMLexport uintnat caml_ba_deserialize(void * dst)
     caml_deserialize_error("input_value: size overflow for bigarray");
   /* Allocate room for data */
   b->data = malloc(size);
-  caml_alloc_dependent_memory(size);
+  caml_alloc_dependent_memory(Custom_val_data (dst), size);
   if (b->data == NULL)
     caml_deserialize_error("input_value: out of memory for bigarray");
   /* Read data */

@@ -204,7 +204,8 @@ type control =
         this much memory is held by custom values located in the minor
         heap. Expressed as a percentage of minor heap size.
         Note: this only applies to values allocated with
-        [caml_alloc_custom_mem] (e.g. bigarrays).
+        [caml_alloc_custom_mem] or [caml_alloc_custom_dep]
+        (e.g. bigarrays).
         Default: 100.
         @since 4.08 *)
 
