@@ -692,6 +692,8 @@ static void update_major_slice_work(intnat howmuch,
     alloc_work = 0;
   }
 
+  /* TODO: what we really need for this computation is the sum of
+     dependent_size over all the domains. */
   if (dom_st->dependent_size > 0) {
     double dependent_ratio =
       total_cycle_work
@@ -1341,7 +1343,6 @@ static intnat ephe_sweep (caml_domain_state* domain_state, intnat budget)
 
     if (is_unmarked(v)) {
       /* The whole array is dead, drop this ephemeron */
-      budget -= 1;
     } else {
       caml_ephe_clean(v);
       Ephe_link(v) = domain_state->ephe_info->live;
