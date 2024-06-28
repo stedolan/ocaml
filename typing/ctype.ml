@@ -4209,23 +4209,24 @@ let close_class_signature env sign =
    second pass.
  *)
 
-let rec copy_spine copy_scope ty =
+let rec copy_spine ~closed ~id_map copy_scope ty =
   match get_desc ty with
   | Tsubst (ty, _) -> ty
   | Tvar _
-  | Tfield _
   | Tnil
-  | Tvariant _
-  | Tobject _
   | Tlink _
   | Tunivar _ -> ty
-  | ( Tarrow _ | Tpoly _ | Ttuple _ | Tpackage _ | Tconstr _
-    | Tfunctor _) as desc ->
+  | Tfield _
+  | Tvariant _
+  | Tobject _ when closed ty -> ty
+  | (Tarrow _ | Tpoly _ | Ttuple _ | Tpackage _ | Tconstr _
+    | Tfunctor _ | Tfield _ | Tvariant _ | Tobject _) as desc ->
       let level = get_level ty in
-      if level < !current_level || level = generic_level then ty else
+      if closed ty && (level < !current_level || level = generic_level)
+      then ty else
       let t = newgenstub ~scope:(get_scope ty) in
       For_copy.redirect_desc copy_scope ty (Tsubst (t, None));
-      let copy_rec = copy_spine copy_scope in
+      let copy_rec = copy_spine ~closed ~id_map copy_scope in
       let desc' = match desc with
       | Tarrow (lbl, ty1, ty2, _) ->
           Tarrow (lbl, copy_rec ty1, copy_rec ty2, commu_ok)
@@ -4234,23 +4235,45 @@ let rec copy_spine copy_scope ty =
       | Ttuple tyl ->
           Ttuple (List.map (fun (lbl, ty) -> (lbl, copy_rec ty)) tyl)
       | Tpackage {pack_path; pack_constraints} ->
-          let fl = List.map (fun (n, ty) -> n, copy_rec ty) pack_constraints in
-          Tpackage {pack_path; pack_constraints = fl}
+          Tpackage {
+            pack_path = Path.subst id_map pack_path;
+            pack_constraints =
+              List.map (fun (n, ty) -> n, copy_rec ty) pack_constraints;
+          }
       | Tconstr (path, tyl, _) ->
-          Tconstr (path, List.map copy_rec tyl, ref Mnil)
-      | Tfunctor (lbl, id, pack, ty2) ->
-          (* TODO : to refresh id *)
-          let pack_constraints =
-            List.map (fun (n, ty) -> n, copy_rec ty) pack.pack_constraints
+          Tconstr (Path.subst id_map path, List.map copy_rec tyl, ref Mnil)
+      | Tfunctor (lbl, us, {pack_path; pack_constraints}, ty) ->
+          let pack' = {
+            pack_path = Path.subst id_map pack_path;
+            pack_constraints =
+              List.map (Pair.map_snd copy_rec) pack_constraints;
+          } in
+          let us' = Ident.Unscoped.refresh us in
+          let ty' =
+            let id_map, closed = compute_new_closed us us' id_map ty in
+            copy_spine ~closed ~id_map copy_scope ty
           in
-          Tfunctor (lbl, id, {pack with pack_constraints}, copy_rec ty2)
+          Tfunctor (lbl, us', pack', ty')
+      | Tvariant row ->
+          begin match row_name row with
+          | Some (p, fl) ->
+              let fl = List.map copy_rec fl in
+              Tvariant (set_row_name row (Some (Path.subst id_map p, fl)))
+          | None -> Tvariant row
+          end
+      | Tobject (ty, {contents = Some (p, tl)}) ->
+          let p = Path.subst id_map p in
+          Tobject (copy_rec ty, ref (Some (p, List.map copy_rec tl)))
+      | Tobject _ | Tfield _ ->
+          copy_type_desc copy_rec desc
       | _ -> assert false
       in
       Transient_expr.set_stub_desc t desc';
       t
 
 let copy_spine ty =
-  For_copy.with_scope (fun copy_scope -> copy_spine copy_scope ty)
+  For_copy.with_scope (fun copy_scope ->
+        copy_spine ~closed:always_true ~id_map:[] copy_scope ty)
 
 let generalize_class_signature_spine sign =
   (* Generalize the spine of methods *)
