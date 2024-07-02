@@ -442,6 +442,11 @@ OCaml 5.4.0 (9 October 2025)
   (Antal Spector-Zabusky and Olivier Nicole, review by Gabriel Scherer,
   Jeremy Yallop and Vincent Laviron)
 
+* #13681, #13682, #13683, #13684, #13275 :
+  Introduce a new type `(module M : S) -> t[M]` that corresponds to
+  module-dependent functions (aka modular explicits).
+  (Samuel Vivien review by Leo White, Gabriel Scherer, Florian Angeletti, ...)
+
 - #13340: Array literal syntax [| e1; ...; en |] can now be used to
   denote values of type `'a array` and `'a iarray` and `floatarray`,
   both in expressions and patterns. The compiler disambiguates each
@@ -1210,7 +1215,6 @@ OCaml 5.3.0 (8 January 2025)
   compatible identifiers.
   (Xavier Leroy and Florian Angeletti, review by Daniel Bünzli and
    Jules Aguillon)
-
 
 - #12828, #13283: Add short syntax for dependent functor types `(X:A) -> ...`
   (Jeremy Yallop, review by Nicolás Ojeda Bär and Gabriel Scherer)
