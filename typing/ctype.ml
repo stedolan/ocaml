@@ -3375,31 +3375,32 @@ type filtered_arrow =
     ty_ret : type_expr;
   }
 
-let filter_arrow env t l ~param_hole =
-  let function_type level =
-    let t1 =
-      if param_hole then begin
-        assert (not (is_optional l));
-        newvar2 level
-      end else begin
-        let t1 =
-          if is_optional l then
-            newty2 ~level
-              (Tconstr(Predef.path_option,[newvar2 level], ref Mnil))
-          else
-            newvar2 level
-        in
-        newty2 ~level (Tpoly(t1, []))
-      end
-    in
-    let t2 = newvar2 level in
-    let t' = newty2 ~level (Tarrow (l, t1, t2, commu_ok)) in
-    t', t1, t2
+let function_type l ~param_hole level =
+  let t1 =
+    if param_hole then begin
+      assert (not (is_optional l));
+      newvar2 level
+    end else begin
+      let t1 =
+        if is_optional l then
+          newty2 ~level
+            (Tconstr(Predef.path_option,[newvar2 level], ref Mnil))
+        else
+          newvar2 level
+      in
+      newty2 ~level (Tpoly(t1, []))
+    end
   in
+  let t2 = newvar2 level in
+  let t' = newty2 ~level (Tarrow (l, t1, t2, commu_ok)) in
+  t', t1, t2
+
+
+let filter_arrow env t l ~param_hole =
   let t =
     try expand_head_trace env t
     with Unify_trace trace ->
-      let t', _, _ = function_type (get_level t) in
+      let t', _, _ = function_type l ~param_hole (get_level t) in
       raise (Filter_arrow_failed
                (Unification_error
                   (expand_to_unification_error
@@ -3408,7 +3409,7 @@ let filter_arrow env t l ~param_hole =
   in
   match get_desc t with
   | Tvar _ ->
-      let t', ty_param, ty_ret = function_type (get_level t) in
+      let t', ty_param, ty_ret = function_type l ~param_hole (get_level t) in
       link_type t t';
       { ty_param; ty_ret }
   | Tarrow(l', ty_param, ty_ret, _) ->
