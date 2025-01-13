@@ -2885,6 +2885,11 @@ type untyped_apply_arg =
        following positional argument was passed).
 
        [level] is the level of the function arrow. *)
+  | Typed_arg of
+       {
+        targ : Typedtree.expression;
+       }
+    (* Already typed argument. For example with modular explicits. *)
 
 type untyped_omitted_param =
   {
@@ -2896,7 +2901,7 @@ let remaining_function_type_for_error ty_ret rev_args =
   List.fold_left
     (fun ty_ret (lbl, arg) ->
         match arg with
-        | Arg (Unknown_arg _ | Known_arg _) -> ty_ret
+        | Arg (Unknown_arg _ | Typed_arg _ | Known_arg _) -> ty_ret
         | Arg (Eliminated_optional_arg { ty_arg; level })
         | Omitted { ty_arg; level } ->
             let ty_ret =
@@ -2913,6 +2918,7 @@ let previous_arg_loc rev_args ~funct =
     rev_args
     |> List.find_map (function
         | _, Arg (Known_arg { sarg = {pexp_loc = loc; _ }}
+                  | Typed_arg { targ = {exp_loc = loc; _ }}
                   | Unknown_arg { sarg = {pexp_loc = loc; _}}) ->
             Some loc
         | _ -> None)
@@ -3156,12 +3162,9 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
           let (arg, ty_ret, ty_ret0) =
             match me_opt with
             | Some (Some (me, optyp), sarg) ->
-              let modl, _texp =
+              let modl, texp =
                 type_tfunctor_module_arg ~env ~sarg ~me ~optyp ~pack ~pack0 in
-              let arg = Arg (Known_arg { sarg;
-                  ty_arg = newgenmono (newgenty (Tpackage pack));
-                  ty_arg0 = newgenmono (newgenty (Tpackage pack0));
-                  wrapped_in_some = false }) in
+              let arg = Arg (Typed_arg { targ = texp }) in
               begin
                 match path_of_module modl with
                 | Some path ->
@@ -6243,6 +6246,8 @@ and type_apply_arg env ~app_loc (lbl, arg) =
         end
       in
       (lbl, Arg arg)
+  | Arg (Typed_arg { targ }) ->
+      (lbl, Arg targ)
   | Arg (Eliminated_optional_arg { ty_arg; _ }) ->
       let arg =
         option_none env (instance ty_arg) Location.none
