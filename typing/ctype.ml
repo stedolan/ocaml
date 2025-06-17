@@ -2126,7 +2126,7 @@ let rec local_non_recursive_abbrev ~allow_rec strict visited env p ty =
   if not (List.memq (get_id ty) visited) then begin
     match get_desc ty with
       Tconstr(p', args, _abbrev) ->
-        if Path.same p p' then raise Occur;
+        if Env.Unscoped.path_equiv env p p' then raise Occur;
         if allow_rec && not strict && is_contractive env p' then () else
         let visited = get_id ty :: visited in
         begin try
