@@ -548,3 +548,6 @@ val set_modtype_of_package :
 
 (* Raises [Incompatible] *)
 val mcomp : Env.t -> type_expr -> type_expr -> unit
+
+val open_tfunctor : Env.t -> loc:Location.t -> Ident.Unscoped.t -> package ->
+        type_expr -> Env.t * type_expr

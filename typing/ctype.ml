@@ -1699,6 +1699,14 @@ let instance_funct_opt ~id_in ~p_out ~fixed sch =
 let instance_funct ~id_in ~p_out ~fixed sch =
   instance_funct_opt ~id_in ~p_out ~fixed sch |> Option.value ~default:sch
 
+let open_tfunctor env ~loc us pack ty =
+  let mty = modtype_of_package env loc pack in
+  let id = Ident.(create_scoped ~scope:lowest_scope (Unscoped.name us)) in
+  let env = Env.add_module id Mp_present mty env in
+  let ty = instance_funct ~id_in:(Ident.of_unscoped us)
+                          ~p_out:(Pident id) ~fixed:false ty in
+  (env, ty)
+
 let instance_label ~fixed lbl =
   For_copy.with_scope (fun copy_scope ->
     let vars, ty_arg =
