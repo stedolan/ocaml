@@ -24,6 +24,17 @@ open Errortrace
 
 open Local_store
 
+module Path = struct
+  include Path
+
+  let same_unsafe = same
+
+  (* Inside type expressions [Path.same] is typically incorrect, as we
+     may be inside a [Tfunctor] and [Path.equiv] should be used instead.
+     We shadow [Path.same] locally to prevent this mistake. *)
+  let[@warning "-32"] same = `Forbidden
+end
+
 (*
    General notes
    =============
@@ -1214,7 +1225,7 @@ let rec find_repr p1 =
   function
     Mnil ->
       None
-  | Mcons (Public, p2, ty, _, _) when Path.same p1 p2 ->
+  | Mcons (Public, p2, ty, _, _) when Path.same_unsafe p1 p2 ->
       Some ty
   | Mcons (_, _, _, _, rem) ->
       find_repr p1 rem
@@ -2572,7 +2583,8 @@ let reify_univars env ty =
 let rec has_cached_expansion p abbrev =
   match abbrev with
     Mnil                    -> false
-  | Mcons(_, p', _, _, rem) -> Path.same p p' || has_cached_expansion p rem
+  | Mcons(_, p', _, _, rem) ->
+      Path.same_unsafe p p' || has_cached_expansion p rem
   | Mlink rem               -> has_cached_expansion p !rem
 
 (**** Transform error trace ****)
@@ -5413,7 +5425,8 @@ let find_cltype_for_path env p =
   match cl_abbr.type_manifest with
     Some ty ->
       begin match get_desc ty with
-        Tobject(_,{contents=Some(p',_)}) when Path.same p p' -> cl_abbr, ty
+        Tobject(_,{contents=Some(p',_)}) when Path.same_unsafe p p' ->
+          cl_abbr, ty
       | _ -> raise Not_found
       end
   | None -> assert false
@@ -5484,7 +5497,7 @@ let rec build_subtype env (visited : transient_expr list)
             with Cannot_subst -> assert false in
           let ty1, tl1 =
             match get_desc ty with
-              Tobject(ty1,{contents=Some(p',tl1)}) when Path.same p p' ->
+              Tobject(ty1,{contents=Some(p',tl1)}) when Path.same_unsafe p p' ->
                 ty1, tl1
             | _ -> raise Not_found
           in
