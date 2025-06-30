@@ -1405,6 +1405,16 @@ and expand_modtype_path env path =
   | Some (MtyL_ident path) -> normalize_modtype_path env path
   | _ | exception Not_found -> path
 
+let try_normalize normalizer env path =
+  let path' = normalizer env path in
+  if Path.same path path' then None
+  else Some path'
+
+let try_normalize_type_path oloc env path =
+  try_normalize (normalize_type_path oloc) env path
+
+let try_normalize_modtype_path = try_normalize normalize_modtype_path
+
 let find_module path env =
   find_module ~alias:false path env
 

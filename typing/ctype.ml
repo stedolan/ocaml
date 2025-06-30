@@ -852,18 +852,22 @@ let rec check_scope_escape mark env level ty =
             raise_escape_exn (Constructor p)
         end
     | Tpackage ({pack_path = p} as pack) when level < Path.scope p ->
-        let p' = Env.normalize_modtype_path env p in
-        if Path.same p p' then raise_escape_exn (Module_type p);
-        check_scope_escape mark env level
-          (newty2 ~level:orig_level
-            (Tpackage {pack with pack_path = p'}))
+        begin match Env.try_normalize_modtype_path env p with
+        | None -> raise_escape_exn (Module_type p)
+        | Some p' ->
+          check_scope_escape mark env level
+            (newty2 ~level:orig_level
+              (Tpackage {pack with pack_path = p'}))
+        end
     | Tfunctor (lbl, id, ({pack_path = p} as pack), t)
       when level < Path.scope p ->
-        let p' = Env.normalize_modtype_path env p in
-        if Path.same p p' then raise_escape_exn (Module_type p);
-        check_scope_escape mark env level
-          (newty2 ~level:orig_level
-            (Tfunctor (lbl, id, {pack with pack_path = p'}, t)))
+        begin match Env.try_normalize_modtype_path env p with
+        | None -> raise_escape_exn (Module_type p)
+        | Some p' ->
+          check_scope_escape mark env level
+            (newty2 ~level:orig_level
+              (Tfunctor (lbl, id, {pack with pack_path = p'}, t)))
+        end
     | Tfunctor (_, id, pack, t) ->
         List.iter (fun (_, t) -> check_scope_escape mark env level t)
           pack.pack_constraints;
@@ -939,11 +943,13 @@ let rec update_level env level expand ty =
           set_level ();
           iter_type_expr (update_level env level expand) ty
         end
-    | Tpackage ({pack_path = p} as pack) when level < Path.scope p ->
-        let p' = Env.normalize_modtype_path env p in
-        if Path.same p p' then raise_escape_exn (Module_type p);
-        set_type_desc ty (Tpackage {pack with pack_path = p'});
-        update_level env level expand ty
+    | Tpackage pack when level < Path.scope pack.pack_path ->
+        begin match Env.try_normalize_modtype_path env pack.pack_path with
+        | None -> raise_escape_exn (Module_type pack.pack_path)
+        | Some pack_path ->
+          set_type_desc ty (Tpackage {pack with pack_path});
+          update_level env level expand ty
+        end
     | Tobject (_, ({contents=Some(p, _tl)} as nm))
       when level < Path.scope p ->
         set_name nm None;
@@ -956,12 +962,13 @@ let rec update_level env level expand ty =
         end;
         set_level ();
         iter_type_expr (update_level env level expand) ty
-    | Tfunctor (lbl, id, ({pack_path = p} as pack), t)
-      when level < Path.scope p ->
-        let p' = Env.normalize_modtype_path env p in
-        if Path.same p p' then raise_escape_exn (Module_type p);
-        set_type_desc ty (Tfunctor (lbl, id, {pack with pack_path = p'}, t));
-        update_level env level expand ty
+    | Tfunctor (lbl, id, pack, t) when level < Path.scope pack.pack_path ->
+        begin match Env.try_normalize_modtype_path env pack.pack_path with
+        | None -> raise_escape_exn (Module_type pack.pack_path)
+        | Some pack_path ->
+          set_type_desc ty (Tfunctor (lbl, id, {pack with pack_path}, t));
+          update_level env level expand ty
+        end
     | Tfunctor (_, id, pack, t) ->
         List.iter (fun (_, t) -> update_level env level expand t)
           pack.pack_constraints;
@@ -1841,9 +1848,10 @@ let expand_abbrev_gen kind find_type_expansion env ty =
       match find_type_expansion path env with
       | exception Not_found ->
           (* another way to expand is to normalize the path itself *)
-          let path' = Env.normalize_type_path None env path in
-          if Path.same path path' then raise Cannot_expand
-          else newty3 ~level ~scope (Tconstr (path', args, abbrev))
+          begin match Env.try_normalize_type_path None env path with
+          | None -> raise Cannot_expand
+          | Some path' -> newty3 ~level ~scope (Tconstr (path', args, abbrev))
+          end
       | (params, body, expansion_scope) ->
           (* prerr_endline
              ("add a "^string_of_kind kind^" expansion for "^Path.name path);*)
@@ -2296,12 +2304,13 @@ let occur_univar_or_unscoped ?(inj_only=false) env ty =
           occur_desc env bound_uv bound_id ty
       | Tpackage {pack_path = p; pack_constraints} ->
           begin match Path.check_for_unbound_unscoped_idents bound_id p with
-            Some i ->
-              let p' = Env.normalize_modtype_path env p in
-              if Path.same p p' then
-                raise_escape_exn (Module (Ident.of_unscoped i));
-              set_type_desc ty (Tpackage {pack_path = p'; pack_constraints});
-              occur_desc env bound_uv bound_id ty
+          | Some i ->
+              begin match Env.try_normalize_modtype_path env p with
+              | None -> raise_escape_exn (Module (Ident.of_unscoped i))
+              | Some p' ->
+                set_type_desc ty (Tpackage {pack_path = p'; pack_constraints});
+                occur_desc env bound_uv bound_id ty
+              end
           | None ->
               List.iter (fun (_, t) -> occur_rec env bound_uv bound_id t)
                 pack_constraints
@@ -2312,12 +2321,12 @@ let occur_univar_or_unscoped ?(inj_only=false) env ty =
           in
           match id_escape with
           | Some i ->
-              let p' = Env.normalize_modtype_path env pack.pack_path in
-              if Path.same pack.pack_path p' then
-                raise_escape_exn (Module (Ident.of_unscoped i));
-              let pack' = {pack with pack_path = p'} in
-              set_type_desc ty (Tfunctor (l, id, pack', ty));
-              occur_desc env bound_uv bound_id ty
+              begin match Env.try_normalize_modtype_path env pack.pack_path with
+              | None -> raise_escape_exn (Module (Ident.of_unscoped i))
+              | Some pack_path ->
+                set_type_desc ty (Tfunctor (l, id, {pack with pack_path}, ty));
+                occur_desc env bound_uv bound_id ty
+              end
           | None ->
               List.iter (fun (_, t) -> occur_rec env bound_uv bound_id t)
                 pack.pack_constraints;
@@ -2443,10 +2452,12 @@ let identifier_escape env idl ty =
           begin match Path.find_free_opt (List.map Ident.of_unscoped idl) p with
           | None -> iter_type_expr (occur idl) ty
           | Some i ->
-            let p' = Env.normalize_modtype_path env p in
-            if Path.same p p' then raise_escape_exn (Module i);
-            set_type_desc ty (Tpackage {pack with pack_path = p'});
-            occur ~ignore_mark:true idl ty
+            begin match Env.try_normalize_modtype_path env p with
+            | None -> raise_escape_exn (Module i)
+            | Some p' ->
+              set_type_desc ty (Tpackage {pack with pack_path = p'});
+              occur ~ignore_mark:true idl ty
+            end
           end
       | Tobject (_, ({contents = Some (p, _)} as nm))
         when Path.exists_free (List.map Ident.of_unscoped idl) p ->
@@ -2466,11 +2477,13 @@ let identifier_escape env idl ty =
       | Tfunctor (l, id, {pack_path = p; pack_constraints}, t) ->
           begin match Path.find_free_opt (List.map Ident.of_unscoped idl) p with
           | Some i ->
-              let p' = Env.normalize_modtype_path env p in
-              if Path.same p p' then raise_escape_exn (Module i);
-              let pack' = {pack_path = p'; pack_constraints} in
-              set_type_desc ty (Tfunctor (l, id, pack', ty));
-              occur ~ignore_mark:true idl ty
+              begin match Env.try_normalize_modtype_path env p with
+              | None -> raise_escape_exn (Module i)
+              | Some p' ->
+                let pack' = {pack_path = p'; pack_constraints} in
+                set_type_desc ty (Tfunctor (l, id, pack', ty));
+                occur ~ignore_mark:true idl ty
+              end
           | None ->
               List.iter (fun (_, t) -> occur idl t) pack_constraints;
               let idl' =

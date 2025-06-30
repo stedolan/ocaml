@@ -132,11 +132,18 @@ val normalize_module_path: Location.t option -> t -> Path.t -> Path.t
 val normalize_type_path: Location.t option -> t -> Path.t -> Path.t
 (* Normalize the prefix part of the type path *)
 
+val try_normalize_type_path: Location.t option -> t -> Path.t -> Path.t option
+(* Normalize the prefix part of the type path,
+   returns None if the path did not change *)
+
 val normalize_value_path: Location.t option -> t -> Path.t -> Path.t
 (* Normalize the prefix part of the value path *)
 
 val normalize_modtype_path: t -> Path.t -> Path.t
 (* Normalize a module type path *)
+
+val try_normalize_modtype_path: t -> Path.t -> Path.t option
+(* Normalize a module type path, returns None if the path did not change *)
 
 val reset_required_globals: unit -> unit
 val get_required_globals: unit -> Ident.t list
