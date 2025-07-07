@@ -212,7 +212,7 @@ type error =
   | Repeated_tuple_exp_label of string
   | Repeated_tuple_pat_label of string
   | Optional_poly_param of string
-  | Cannot_infer_functor_path
+  | Cannot_unify_tfunctor_to_tarrow of Errortrace.unification_error
   | Cannot_commute_label of type_expr
 
 
@@ -2933,13 +2933,30 @@ let beginning_function_loc rev_args ~funct =
                   && funct.exp_loc.loc_ghost
   }
 
-let dependent_app_error_known_arg env ~sarg =
-  raise (Error(sarg.pexp_loc, env, Cannot_infer_functor_path))
+let type_argument' : (?explanation:type_forcing_context -> ?recarg:recarg ->
+    Env.t -> Parsetree.expression -> Types.type_expr -> Types.type_expr ->
+    Typedtree.expression) ref
+  =
+    ref (fun ?explanation:_ ?recarg:_ _ -> assert false)
 
-let dependent_app_error_unknown_arg env ~rev_args ~funct me_opt ty_fun =
+let dependent_app_error_known_arg env trace ~rev_args ~funct ~sarg pack pack0 =
+  (* check that the type of the argument is indeed a package *)
+  let _ =
+    !type_argument' env sarg
+        (newgenty (Tpackage pack)) (newgenty (Tpackage pack0))
+  in
+  (* if it is a package of the expected type then we say that
+      could not extract a path from it *)
+  let loc = beginning_function_loc rev_args ~funct in
+  raise (Error(loc, env, Cannot_unify_tfunctor_to_tarrow trace))
+
+let dependent_app_error_unknown_arg env trace ~rev_args ~funct me_opt ty_fun
+  pack pack0
+=
   match me_opt with
   | Some (_, sarg) ->
-    dependent_app_error_known_arg env ~sarg
+    dependent_app_error_known_arg env trace ~rev_args ~funct ~sarg
+      pack pack0
   | None ->
     let ty_res = remaining_function_type_for_error ty_fun rev_args in
     let loc = beginning_function_loc rev_args ~funct in
@@ -3020,8 +3037,8 @@ let collect_unknown_apply_args env funct ty_fun0 rev_args sargs =
     match sargs with
     | [] -> ty_fun, List.rev rev_args
     | (lbl, sarg) :: rest ->
+        let ty_fun = expand_head env ty_fun in
         let (arg_kind, ty_res) =
-          let ty_fun = expand_head env ty_fun in
           match get_desc ty_fun with
           | Tvar _ ->
               let ty_arg = newvar () in
@@ -3063,7 +3080,37 @@ let collect_unknown_apply_args env funct ty_fun0 rev_args sargs =
         in
         let arg, ty_res = match arg_kind with
           | `Arrow ty_arg -> Unknown_arg { sarg; ty_arg }, ty_res
-          | `Functor _ -> failwith "NYI : Modular Explicits"
+          | `Functor (l, id, pack) ->
+              match extract_packing sarg with
+              | Some (me, optyp) ->
+                let modl, texp =
+                  type_tfunctor_module_arg ~env ~sarg ~me ~optyp ~pack
+                                           ~pack0:pack in
+                let arg = Typed_arg { targ = texp } in
+                let ty_res =
+                  match path_of_module modl with
+                  | Some path ->
+                    let ty_res =
+                        instance_funct ~id_in:(Ident.of_unscoped id)
+                                            ~p_out:path ~fixed:false ty_res in
+                    ty_res
+                  | None ->
+                    let me = remove_module_constraint modl in
+                    try
+                      identifier_escape l pack env id me.mod_type ty_res;
+                      ty_res
+                    with Unify trace ->
+                      let loc = beginning_function_loc rev_args ~funct in
+                      raise (Error (loc, env,
+                                    Cannot_unify_tfunctor_to_tarrow trace))
+                in
+                (arg, ty_res)
+              | None ->
+                match unify_to_arrow env ty_fun with
+                | (ty_arg, ty_res) -> Unknown_arg { sarg; ty_arg }, ty_res
+                | exception Unify trace ->
+                  dependent_app_error_known_arg env trace ~rev_args ~funct
+                    ~sarg pack pack
         in
         loop ty_res ((lbl, Arg arg) :: rev_args) rest
   in
@@ -3179,14 +3226,26 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
                 | None ->
                   let me = remove_module_constraint modl in
                   try
-                    identifier_escape env id me.mod_type t;
-                    identifier_escape env id0 me.mod_type t0;
+                    identifier_escape l pack env id me.mod_type t;
+                    identifier_escape l pack0 env id0 me.mod_type t0;
                     (arg, t, t0)
-                  with Unify _trace ->
-                    raise (Error(sarg.pexp_loc, env, Cannot_infer_functor_path))
+                  with Unify trace ->
+                    let loc = beginning_function_loc rev_args ~funct in
+                    raise (Error (loc, env,
+                                  Cannot_unify_tfunctor_to_tarrow trace))
               end
             | Some _ | None ->
-              dependent_app_error_unknown_arg env ~rev_args ~funct me_opt ty_fun
+              match
+                (unify_to_arrow env ty_fun',
+                unify_to_arrow env ty_fun0)
+              with
+              | (ty_arg, ty_ret), (ty_arg0, ty_ret0) ->
+                let arg = collect_arrow_arg ~may_warn ~funct ~optional ~sargs
+                                            ~ty_arg ~ty_arg0 ~lv arg_opt in
+                (arg, ty_ret, ty_ret0)
+              | exception Unify trace ->
+                dependent_app_error_unknown_arg env trace ~rev_args ~funct
+                    me_opt ty_fun pack pack0
           in
           loop visited ty_ret ty_ret0 ((l, arg) :: rev_args) remaining_sargs
       end
@@ -7231,6 +7290,8 @@ and type_send env loc explanation e met =
   in
   (obj,meth,typ)
 
+let () = type_argument' := type_argument
+
 (* Typing of toplevel bindings *)
 
 let type_binding env rec_flag spat_sexp_list =
@@ -7994,9 +8055,19 @@ let report_error ~loc env = function
         "@[The optional parameter %a \
          cannot have a polymorphic type.@]"
         Style.inline_code l
-  | Cannot_infer_functor_path ->
-      Location.errorf ~loc
-        "Cannot infer path of module for functor."
+  | Cannot_unify_tfunctor_to_tarrow err ->
+      let sub =
+          [Location.msg
+            "@[This function is module-dependent. The dependency is preserved@ \
+               when the function is passed a static module argument %a@ \
+               or %a. Its argument here is not static, so the type-checker@ \
+               tried instead to change the function type to be non-dependent.@]"
+                Style.inline_code "(module M : S)"
+                Style.inline_code "(module M)"] in
+      report_unification_error ~loc ~sub env err
+        ~type_expected_explanation:Format_doc.Doc.empty
+        (msg "This expression has type")
+        (msg "but an expression was expected of type")
   | Cannot_commute_label func_ty ->
       Location.errorf ~loc
             "@[<v>@[<2>This expression has type@ %a@]@ \

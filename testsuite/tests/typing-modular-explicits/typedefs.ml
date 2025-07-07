@@ -56,8 +56,10 @@ type t8 =
     A of ((module T : T) -> (module A : Add with type t = T.t) -> A.t -> A.t)
   | B of t1
 type t9 = C of ((module T : T) -> T.t -> T.t)
-File "_none_", line 1:
-Error: The type of this packed module refers to "Add", which is missing
+type t10 =
+  t8 =
+    A of ((module T : T) -> (module Add with type t = T.t) -> T.t -> T.t)
+  | B of ((module T : T) -> (module Add with type t = T.t) -> T.t -> T.t)
 |}]
 
 (** Test constraint check, one success and the next one is a fail  *)

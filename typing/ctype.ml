@@ -699,7 +699,6 @@ let free_vars ~init ~add_one ?env mark ty =
           let acc = fold_row (fv ~kind:Type_variable) acc row in
           if static_row row then acc
           else fv ~kind:Row_variable acc (row_more row)
-      (* | Tfunctor _ -> assert false *)
       | _    ->
           fold_type_expr (fv ~kind) acc ty
   in fv ~kind:Type_variable init ty
@@ -2021,6 +2020,14 @@ let generic_private_abbrev env path =
     | _ -> false
   with Not_found -> false
 
+let rec extract_package_modulo_subtype env ty =
+  match get_desc (expand_head env ty) with
+  | Tpackage pack -> pack
+  | Tconstr (p, _, _)
+    when generic_private_abbrev env p && safe_abbrev_opt env ty ->
+      extract_package_modulo_subtype env (expand_abbrev_opt env ty)
+  | _ -> raise Not_found
+
 let is_contractive env p =
   try
     let decl = Env.find_type p env in
@@ -2762,6 +2769,14 @@ let rec mcomp type_pairs env t1 t2 =
         | (Tfunctor (l1, _, _, t1), Tfunctor (l2, _, _, t2))
           when compatible_labels ~in_pattern_mode:true l1 l2 ->
             mcomp type_pairs env t1 t2
+        | (Tfunctor (l1, _, pack1, u1), Tarrow (l2, t2, u2, _))
+          when compatible_labels ~in_pattern_mode:true l1 l2 ->
+            mcomp type_pairs env (newmono (newty (Tpackage pack1))) t2;
+            mcomp type_pairs env u1 u2
+        | (Tarrow (l1, t1, u1, _), Tfunctor (l2, _, pack2, u2))
+          when compatible_labels ~in_pattern_mode:true l1 l2 ->
+            mcomp type_pairs env t1 (newmono (newty (Tpackage pack2)));
+            mcomp type_pairs env u1 u2
         (*
         | (Tpackage (p1, n1, tl1), Tpackage (p2, n2, tl2)) when n1 = n2 ->
             mcomp_list type_pairs env tl1 tl2
@@ -3251,6 +3266,26 @@ and unify3 uenv t1 t1' t2 t2' =
               (fun id_pairs -> with_mty uenv id_pairs id1 mty1
                             (fun uenv -> Ident.Unscoped.link id1 id2;
                                          unify uenv ty1 ty2))
+      | (Tfunctor (l1, id1, pack1, u1), Tarrow (l2, t2, u2, c2)) ->
+            eq_labels Unify ~in_pattern_mode:(in_pattern_mode uenv) l1 l2;
+            unify uenv (newmono (newty (Tpackage pack1))) t2;
+            let env = get_env uenv in
+            let mty1 = modtype_of_package env Location.none pack1 in
+            identifier_escape_for Unify
+                (Env.add_module (Ident.of_unscoped id1) Mp_present mty1 env)
+                [id1] u1;
+            unify uenv u1 u2;
+            if not (is_commu_ok c2) then set_commu_ok c2
+      | (Tarrow (l1, t1, u1, c1), Tfunctor (l2, id2, pack2, u2)) ->
+            eq_labels Unify ~in_pattern_mode:(in_pattern_mode uenv) l1 l2;
+            unify uenv t1 (newmono (newty (Tpackage pack2)));
+            let env = get_env uenv in
+            let mty2 = modtype_of_package env Location.none pack2 in
+            identifier_escape_for Unify
+                (Env.add_module (Ident.of_unscoped id2) Mp_present mty2 env)
+                [id2] u2;
+            unify uenv u1 u2;
+            if not (is_commu_ok c1) then set_commu_ok c1
       | (Ttuple labeled_tl1, Ttuple labeled_tl2) ->
           unify_labeled_list uenv labeled_tl1 labeled_tl2
       | (Tconstr (p1, tl1, _), Tconstr (p2, tl2, _))
@@ -4391,6 +4426,24 @@ let rec moregen type_pairs env t1 t2 =
                   (fun id_pairs ->
                     let new_env = Env.Unscoped.with_pairs id_pairs new_env in
                     moregen type_pairs new_env t1 t2)
+          | Tarrow (l1, t1, u1, _), Tfunctor (l2, id2, pack2, u2) ->
+                eq_labels Moregen ~in_pattern_mode:false l1 l2;
+                let t2 = newmono (newty (Tpackage pack2)) in
+                let mty = modtype_of_package env Location.none pack2 in
+                let env' = Env.add_module (Ident.of_unscoped id2)
+                                          Mp_present mty env in
+                identifier_escape_for Moregen env' [id2] u2;
+                moregen type_pairs env t1 t2;
+                moregen type_pairs env u1 u2
+          | Tfunctor (l1, id1, pack1, u1), Tarrow (l2, t2, u2, _) ->
+                eq_labels Moregen ~in_pattern_mode:false l1 l2;
+                let t1 = newmono (newty (Tpackage pack1)) in
+                let mty = modtype_of_package env Location.none pack1 in
+                let env' = Env.add_module (Ident.of_unscoped id1)
+                                          Mp_present mty env in
+                identifier_escape_for Moregen env' [id1] u1;
+                moregen type_pairs env t1 t2;
+                moregen type_pairs env u1 u2
           | (Ttuple tl1, Ttuple tl2) ->
               moregen_labeled_list type_pairs env tl1 tl2
           | (Tconstr (p1, tl1, _), Tconstr (p2, tl2, _))
@@ -4781,6 +4834,24 @@ let rec eqtype rename type_pairs subst env t1 t2 =
                   (fun id_pairs ->
                     let new_env = Env.Unscoped.with_pairs id_pairs new_env in
                     eqtype rename type_pairs subst new_env t1 t2)
+          | (Tfunctor (l1, id1, pack1, u1), Tarrow (l2, t2, u2, _)) ->
+              eq_labels Equality ~in_pattern_mode:false l1 l2;
+              let t1 = newmono (newty (Tpackage pack1)) in
+              eqtype rename type_pairs subst env t1 t2;
+              let mty = modtype_of_package env Location.none pack1 in
+              let env' = Env.add_module (Ident.of_unscoped id1)
+                                        Mp_present mty env in
+              identifier_escape_for Equality env' [id1] u1;
+              eqtype rename type_pairs subst env u1 u2
+          | (Tarrow (l1, t1, u1, _), Tfunctor (l2, id2, pack2, u2)) ->
+              eq_labels Equality ~in_pattern_mode:false l1 l2;
+              let t2 = newmono (newty (Tpackage pack2)) in
+              eqtype rename type_pairs subst env t1 t2;
+              let mty = modtype_of_package env Location.none pack2 in
+              let env' = Env.add_module (Ident.of_unscoped id2)
+                                        Mp_present mty env in
+              identifier_escape_for Equality env' [id2] u2;
+              eqtype rename type_pairs subst env u1 u2
           | (Ttuple tl1, Ttuple tl2) ->
               eqtype_labeled_list rename type_pairs subst env tl1 tl2
           | (Tconstr (p1, tl1, _), Tconstr (p2, tl2, _))
@@ -5563,13 +5634,43 @@ let rec subtype_rec env trace t1 t2 constraints =
             (Subtype.Diff {got = fcm2; expected = fcm1} :: trace)
             (get_level t2) pack2 (get_level t1) pack1 constraints
         in
-        begin try
-          enter_functor env id1 t1 id2 t2
+        begin
+          try enter_functor env id1 t1 id2 t2
             (fun id_pairs ->
               let new_env = Env.Unscoped.with_pairs id_pairs env in
               subtype_functor new_env trace ~id1 id2 pack2 u1 u2 constraints)
-        with Escape _ -> (env, trace, t1, t2, !univar_pairs)::constraints
+          with Escape _ -> (env, trace, t1, t2, !univar_pairs)::constraints
         end
+    | (Tfunctor (l1, id1, pack1, u1), Tarrow (l2, fcm2, u2, _))
+      when compatible_labels ~in_pattern_mode:false l1 l2 ->
+        let fcm1 = newmono (newty (Tpackage pack1)) in
+        let constraints =
+          subtype_rec
+            env
+            (Subtype.Diff {got = fcm2; expected = fcm1} :: trace)
+            fcm2 fcm1
+            constraints
+        in
+        begin match get_desc fcm2 with
+          | Tpoly (fcm2, []) -> begin
+            match extract_package_modulo_subtype env fcm2 with
+            | pack2 -> subtype_functor env trace id1 pack2 u1 u2 constraints
+            | exception Not_found ->
+              (env, trace, t1, t2, !univar_pairs)::constraints
+            end
+          | _ -> Misc.fatal_error "[subtype_rec] Unexpected poly"
+        end
+    | (Tarrow (l1, fcm1, u1, _),  Tfunctor (l2, id2, pack2, u2))
+      when compatible_labels ~in_pattern_mode:false l1 l2 ->
+        let fcm2 = newmono (newty (Tpackage pack2)) in
+        let constraints =
+          subtype_rec
+            env
+            (Subtype.Diff {got = fcm2; expected = fcm1} :: trace)
+            fcm2 fcm1
+            constraints
+        in
+        subtype_functor env trace id2 pack2 u1 u2 constraints
     | (Ttuple tl1, Ttuple tl2) ->
         subtype_labeled_list env trace tl1 tl2 constraints
     | (Tconstr(p1, [], _), Tconstr(p2, [], _))
@@ -6053,13 +6154,18 @@ let normalize_type ty =
                               (*************************)
 
 
-let identifier_escape env id mty t =
+let identifier_escape l pty env id mty t =
   let snap = Btype.snapshot () in
   let env' = Env.add_module (Ident.of_unscoped id) Mp_present mty env in
   try
       identifier_escape_for Unify env' [id] t
   with Unify_trace trace ->
       undo_compress snap;
+      let got = newty (Tfunctor (l, id, pty, t)) in
+      let expected =
+        newty (Tarrow (l, newty (Tpackage pty), newvar (), commu_ok))
+      in
+      let trace = Diff {got; expected} :: trace in
       raise (Unify (expand_to_unification_error env trace))
 
 (*
