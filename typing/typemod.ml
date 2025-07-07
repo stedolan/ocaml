@@ -2034,24 +2034,6 @@ and transl_recmodule_modtypes env sdecls =
   in
   (dcl2, env2)
 
-(* Try to convert a module expression to a module path. *)
-
-exception Not_a_path
-
-let rec path_of_module mexp =
-  match mexp.mod_desc with
-  | Tmod_ident (p,_) -> p
-  | Tmod_apply(funct, arg, _coercion) when !Clflags.applicative_functors ->
-      Papply(path_of_module funct, path_of_module arg)
-  | Tmod_constraint (mexp, _, _, _) ->
-      path_of_module mexp
-  | (Tmod_structure _ | Tmod_functor _ | Tmod_apply_unit _ | Tmod_unpack _ |
-    Tmod_apply _) ->
-    raise Not_a_path
-
-let path_of_module mexp =
- try Some (path_of_module mexp) with Not_a_path -> None
-
 (* Check that all core type schemes in a structure
    do not contain non-generalized type variable *)
 

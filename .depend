@@ -2012,6 +2012,7 @@ typing/typedtree.cmo : \
     typing/ident.cmi \
     typing/env.cmi \
     typing/data_types.cmi \
+    utils/clflags.cmi \
     parsing/asttypes.cmi \
     typing/typedtree.cmi
 typing/typedtree.cmx : \
@@ -2026,6 +2027,7 @@ typing/typedtree.cmx : \
     typing/ident.cmx \
     typing/env.cmx \
     typing/data_types.cmx \
+    utils/clflags.cmx \
     parsing/asttypes.cmx \
     typing/typedtree.cmi
 typing/typedtree.cmi : \
