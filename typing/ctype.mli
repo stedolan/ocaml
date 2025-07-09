@@ -528,7 +528,9 @@ val package_subtype :
     (Env.t -> package -> package ->
      (unit,Errortrace.first_class_module) Result.t) ref
 
-val modtype_of_package : (Env.t -> Location.t -> package -> module_type) ref
+val modtype_of_package : Env.t -> Location.t -> package -> module_type
+val set_modtype_of_package :
+        (Env.t -> Location.t -> package -> module_type) -> unit
 
 (* Raises [Incompatible] *)
 val mcomp : Env.t -> type_expr -> type_expr -> unit

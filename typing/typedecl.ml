@@ -569,7 +569,7 @@ let rec check_constraints_rec env loc visited ty =
   | Tfunctor (_, us, pack, ty) ->
       List.iter (fun (_, t) -> check_constraints_rec env loc visited t)
         pack.pack_constraints;
-      let mty = !Ctype.modtype_of_package env loc pack in
+      let mty = Ctype.modtype_of_package env loc pack in
       let id = Ident.(create_scoped ~scope:lowest_scope (Unscoped.name us)) in
       let env = Env.add_module id Mp_present mty env in
       let ty = Ctype.instance_funct ~id_in:(Ident.of_unscoped us)

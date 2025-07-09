@@ -833,6 +833,12 @@ let forward_try_expand_safe = (* Forward declaration *)
 
 let modtype_of_package = ref (fun _ _ _ -> assert false)
 
+let set_modtype_of_package f =
+  modtype_of_package := f
+
+let modtype_of_package env loc pack =
+  !modtype_of_package env loc pack
+
 let rec check_scope_escape mark env level ty =
   let orig_level = get_level ty in
   if try_mark_node mark ty then begin
@@ -862,7 +868,7 @@ let rec check_scope_escape mark env level ty =
     | Tfunctor (_, id, pack, t) ->
         List.iter (fun (_, t) -> check_scope_escape mark env level t)
           pack.pack_constraints;
-        let mty = !modtype_of_package env Location.none pack in
+        let mty = modtype_of_package env Location.none pack in
         let env = Env.add_module (Ident.of_unscoped id) Mp_present mty env in
         check_scope_escape mark env level t
     | _ ->
@@ -960,7 +966,7 @@ let rec update_level env level expand ty =
     | Tfunctor (_, id, pack, t) ->
         List.iter (fun (_, t) -> update_level env level expand t)
           pack.pack_constraints;
-        let mty = !modtype_of_package env Location.none pack in
+        let mty = modtype_of_package env Location.none pack in
         let env = Env.add_module (Ident.of_unscoped id) Mp_present mty env in
         set_level ();
         update_level env level expand t
@@ -1034,7 +1040,7 @@ let rec lower_contravariant env var_level visited contra ty =
         List.iter (fun (_n, ty) -> lower_rec true ty) p.pack_constraints
     | Tfunctor (_, id, pack, t2) ->
         List.iter (fun (_n, ty) -> lower_rec true ty) pack.pack_constraints;
-        let mty = !modtype_of_package env Location.none pack in
+        let mty = modtype_of_package env Location.none pack in
         let env = Env.add_module (Ident.of_unscoped id) Mp_present mty env in
         lower_contravariant env var_level visited contra t2
     | Tarrow (_, t1, t2, _) ->
@@ -2122,7 +2128,7 @@ let rec local_non_recursive_abbrev ~allow_rec strict visited env p ty =
       List.iter (fun (_, ty) ->
           local_non_recursive_abbrev ~allow_rec strict visited env p ty)
           pack.pack_constraints;
-      let mty = !modtype_of_package env Location.none pack in
+      let mty = modtype_of_package env Location.none pack in
       let env = Env.add_module (Ident.of_unscoped id) Mp_present mty env in
       (* we don't need to update id_pairs because the scope is never used *)
       local_non_recursive_abbrev ~allow_rec strict visited env p t
@@ -2292,7 +2298,7 @@ let occur_univar_or_unscoped ?(inj_only=false) env ty =
           | None ->
               List.iter (fun (_, t) -> occur_rec env bound_uv bound_id t)
                 pack.pack_constraints;
-              let mty = !modtype_of_package env Location.none pack in
+              let mty = modtype_of_package env Location.none pack in
               let env = Env.add_module (Ident.of_unscoped id)
                                        Mp_present mty env in
               occur_rec env bound_uv (Ident.Unscoped.Set.add id bound_id) ty
@@ -3235,7 +3241,7 @@ and unify3 uenv t1 t1' t2 t2' =
                        expected = newty (Tpackage pack2)} :: trace)
             end;
             let env = get_env uenv in
-            let mty1 = !modtype_of_package env Location.none pack1 in
+            let mty1 = modtype_of_package env Location.none pack1 in
             enter_functor_for Unify env id1 (newty d1) id2 t2'
               (fun id_pairs -> with_mty uenv id_pairs id1 mty1
                             (fun uenv -> Ident.Unscoped.link id1 id2;
@@ -4344,10 +4350,10 @@ let rec moregen type_pairs env t1 t2 =
               eq_labels Moregen ~in_pattern_mode:false l1 l2;
               moregen_package type_pairs env
                 (get_level t1') pack1 (get_level t2') pack2;
-              let mty1 = !modtype_of_package env Location.none pack1 in
+              let mty1 = modtype_of_package env Location.none pack1 in
               let new_env = Env.add_module (Ident.of_unscoped id1)
                                            Mp_present mty1 env in
-              let mty2 = !modtype_of_package env Location.none pack2 in
+              let mty2 = modtype_of_package env Location.none pack2 in
               let new_env = Env.add_module (Ident.of_unscoped id2)
                                            Mp_present mty2 new_env in
               enter_functor_for Moregen env id1 t1' id2 t2'
@@ -4734,10 +4740,10 @@ let rec eqtype rename type_pairs subst env t1 t2 =
               eq_labels Equality ~in_pattern_mode:false l1 l2;
               eqtype_package rename type_pairs subst env
                 (get_level t1') pack1 (get_level t2') pack2;
-              let mty1 = !modtype_of_package env Location.none pack1 in
+              let mty1 = modtype_of_package env Location.none pack1 in
               let new_env = Env.add_module (Ident.of_unscoped id1)
                                            Mp_present mty1 env in
-              let mty2 = !modtype_of_package env Location.none pack2 in
+              let mty2 = modtype_of_package env Location.none pack2 in
               let new_env = Env.add_module (Ident.of_unscoped id2)
                                            Mp_present mty2 new_env in
               enter_functor_for Equality env id1 t1' id2 t2'
@@ -5311,7 +5317,7 @@ let rec build_subtype env (visited : transient_expr list)
       let tt = Transient_expr.repr t in
       if memq_warn tt visited then (t, Unchanged) else
       let visited = tt :: visited in
-      let mty = !modtype_of_package env Location.none pack in
+      let mty = modtype_of_package env Location.none pack in
       let env = Env.add_module (Ident.of_unscoped us) Mp_present mty env in
       let (ty, c) = build_subtype env visited loops posi level ty in
       if c > Unchanged
@@ -5658,7 +5664,7 @@ and subtype_package env trace lvl1 pack1 lvl2 pack2 constraints =
       ::constraints
 
 and subtype_functor env trace ?id1 id pack u1 u2 constraints =
-  let mty = !modtype_of_package env Location.none pack in
+  let mty = modtype_of_package env Location.none pack in
   let env = match id1 with
     | Some id1 -> Env.add_module (Ident.of_unscoped id1) Mp_present mty env
     | None -> env

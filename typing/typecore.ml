@@ -5495,7 +5495,7 @@ and type_function
       in
       !check_package_closed ~loc:pparam_loc ~env
           ~typ:(newty (Tpackage pack)) pack.pack_constraints;
-      let mty = !Ctype.modtype_of_package env p.loc pack in
+      let mty = Ctype.modtype_of_package env p.loc pack in
       let id_expected_typ_opt =
         match split_function_mty env ty_expected
                 ~arg_label ~first ~in_function with

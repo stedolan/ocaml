@@ -2311,7 +2311,7 @@ let package_subtype env pack1 pack2 =
 
 let () =
     Ctype.package_subtype := package_subtype;
-    Ctype.modtype_of_package := modtype_of_package
+    Ctype.set_modtype_of_package modtype_of_package
 
 let wrap_constraint_package env mark arg mty explicit =
   let mty1 = Subst.modtype Keep Subst.identity arg.mod_type in
