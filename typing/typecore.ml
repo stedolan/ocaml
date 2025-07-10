@@ -3501,7 +3501,7 @@ let type_approx_constraint_opt env constraint_ ~loc ty_expected =
 
 let is_unpack pat =
   match pat.ppat_desc with
-    Ppat_unpack ({ txt = Some _ }, Some _) -> true
+    Ppat_unpack ({ txt = Some _ }, _) -> true
   | _ -> false
 
 let could_be_functor env ty =
@@ -5483,36 +5483,47 @@ and type_function
   | { pparam_desc = Pparam_val (arg_label, None, pat); pparam_loc } :: rest
     when is_unpack pat && could_be_functor env ty_expected
                        && not (is_optional arg_label) ->
-      let (name, p, pack_param) =
+      let (name, pack_param) =
         match pat.ppat_desc with
-        | Ppat_unpack ({txt = Some name; loc}, Some ptyp) ->
-            let pack_param = Ast_helper.Typ.package ~loc:ptyp.ppt_loc ptyp in
-            ({txt = name; loc}, ptyp.ppt_path, pack_param)
+        | Ppat_unpack ({txt = Some name; loc}, pack_param) ->
+            ({txt = name; loc}, pack_param)
         | _ -> assert false
       in
-      let pack_param = Typetexp.transl_simple_type env ~closed:false pack_param
+      let type_pack pack =
+        let pack = Ast_helper.Typ.package ~loc:pack.ppt_loc pack in
+        let cpack = Typetexp.transl_simple_type env ~closed:false pack in
+        match get_desc cpack.ctyp_type with
+            Tpackage pack -> cpack, pack
+          | _ -> assert false
       in
-      let pack = match get_desc pack_param.ctyp_type with
-          Tpackage pack -> pack
-        | _ -> assert false
+      let (id_expected_typ_opt, cpack, pack) =
+        match split_function_mty env ty_expected
+                ~arg_label ~first ~in_function, pack_param with
+        | None, None ->
+          raise (Error (pparam_loc, env, Cannot_infer_signature))
+        | None, Some pack_param ->
+            let cpack, pack = type_pack pack_param in
+            (None, Some cpack, pack)
+        | Some (id, pack', ety), Some pack_param ->
+            let cpack, pack = type_pack pack_param in
+            begin try
+              unify env
+                (newty (Tfunctor (arg_label, id, pack, newvar())))
+                (newty (Tfunctor (arg_label, id, pack', newvar())))
+            with Unify trace ->
+                raise (Error(loc, env, Expr_type_clash(trace, None, None)))
+            end;
+            (Some (id, ety), Some cpack, pack)
+        | Some (id, pack', ety), None ->
+            if !Clflags.principal
+                && get_level ty_expected < Btype.generic_level
+            then Location.prerr_warning pparam_loc
+                  (not_principal "this module unpacking");
+            (Some (id, ety), None, pack')
       in
       !check_package_closed ~loc:pparam_loc ~env
           ~typ:(newty (Tpackage pack)) pack.pack_constraints;
-      let mty = Ctype.modtype_of_package env p.loc pack in
-      let id_expected_typ_opt =
-        match split_function_mty env ty_expected
-                ~arg_label ~first ~in_function with
-        | None -> None
-        | Some (id, pack', ety) ->
-          begin try
-            unify env
-              (newty (Tfunctor (arg_label, id, pack, newvar())))
-              (newty (Tfunctor (arg_label, id, pack', newvar())))
-          with Unify trace ->
-              raise (Error(loc, env, Expr_type_clash(trace, None, None)))
-          end;
-          Some (id, ety)
-      in
+      let mty = Ctype.modtype_of_package env pparam_loc pack in
       let pv_uid = Uid.mk ~current_unit:(Env.get_current_unit ()) in
       let arg_md = {
         md_type = mty;
@@ -5554,14 +5565,15 @@ and type_function
       in
       let pat_desc = Tpat_var (s_ident, name, pv_uid) in
       let pack_param =
-        match pack_param.ctyp_desc with
-        | Ttyp_package pack -> pack
+        match cpack with
+        | Some {ctyp_desc = Ttyp_package pack} -> Some pack
+        | None -> None
         | _ -> assert false
       in
       let pattern = {
         pat_desc;
         pat_loc = pparam_loc;
-        pat_extra = [Tpat_unpack (Some pack_param), pparam_loc, []];
+        pat_extra = [Tpat_unpack pack_param, pparam_loc, []];
         pat_type = newty (Tpackage pack);
         pat_env = env;
         pat_attributes = []

@@ -19,11 +19,7 @@ module type Typ = sig type t end
 module type Add = sig type t val add : t -> t -> t end
 val id : (module T : Typ) -> T.t -> T.t = <fun>
 val id2 : (module T : Typ) -> T.t -> T.t = <fun>
-Line 11, characters 2-31:
-11 |   fun (module A) (x : A.t) -> x
-       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: This expression should not be a function, the expected type is
-       "(module T : Typ) -> T.t -> T.t"
+val id_infer_sig : (module T : Typ) -> T.t -> T.t = <fun>
 |}]
 
 
@@ -887,13 +883,7 @@ let rec f : (module T : Typ) -> int -> T.t -> T.t -> T.t =
     else f (module T) (n - 1) y x
 
 [%%expect{|
-Lines 4-7, characters 2-33:
-4 | ..fun (module T) n (x : T.t) (y : T.t) ->
-5 |     if n = 0
-6 |     then x
-7 |     else f (module T) (n - 1) y x
-Error: This expression should not be a function, the expected type is
-       "(module T : Typ) -> int -> T.t -> T.t -> T.t"
+val f : (module T : Typ) -> int -> T.t -> T.t -> T.t = <fun>
 |}]
 
 (* Type cannot be infered because type approximation for letrecs is partial. *)
@@ -1014,11 +1004,16 @@ let principality_warning2 f =
   f (fun (module T) x -> x)
 
 [%%expect{|
-Line 3, characters 4-27:
+val principality_warning2 :
+  (((module T : Typ) -> T.t -> T.t) -> unit) -> unit = <fun>
+|}, Principal{|
+Line 3, characters 9-19:
 3 |   f (fun (module T) x -> x)
-        ^^^^^^^^^^^^^^^^^^^^^^^
-Error: This expression should not be a function, the expected type is
-       "(module T : Typ) -> T.t -> T.t"
+             ^^^^^^^^^^
+Warning 18 [not-principal]: this module unpacking is not principal.
+
+val principality_warning2 :
+  (((module T : Typ) -> T.t -> T.t) -> unit) -> unit = <fun>
 |}]
 
 (*
