@@ -57,7 +57,7 @@ and extra_ty =
   *)
 
 val same: t -> t -> bool
-val equiv: t -> t -> bool
+val equiv: (Ident.Unscoped.t * Ident.Unscoped.t) list -> t -> t -> bool
 (** See ident.mli for the distrinction between [same] and [equiv] *)
 
 val compare: t -> t -> int

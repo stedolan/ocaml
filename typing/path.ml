@@ -41,7 +41,7 @@ let rec same_aux ident_cmp p1 p2 =
 
 let same p1 p2 = same_aux Ident.same p1 p2
 
-let equiv p1 p2 = same_aux Ident.equiv p1 p2
+let equiv id_pairs p1 p2 = same_aux (Ident.equiv id_pairs) p1 p2
 
 let rec compare p1 p2 =
   if p1 == p2 then 0

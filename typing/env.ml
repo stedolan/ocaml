@@ -522,6 +522,7 @@ type t = {
   not_aliasable: unit Ident.tbl;
   summary: summary;
   local_constraints: type_declaration Path.Map.t;
+  id_pairs: (Ident.Unscoped.t * Ident.Unscoped.t) list;
   flags: int;
 }
 
@@ -723,6 +724,7 @@ let empty = {
   modules = IdTbl.empty; modtypes = IdTbl.empty;
   classes = IdTbl.empty; cltypes = IdTbl.empty;
   summary = Env_empty; local_constraints = Path.Map.empty;
+  id_pairs = [];
   flags = 0;
   not_aliasable = Ident.empty;
  }
@@ -3539,6 +3541,13 @@ let env_of_only_summary env_from_summary env =
     local_constraints = env.local_constraints;
     flags = env.flags;
   }
+
+module Unscoped = struct
+  let with_pairs id_pairs env = {env with id_pairs}
+  let get_pairs env = env.id_pairs
+
+  let path_equiv env p1 p2 = Path.equiv env.id_pairs p1 p2
+end
 
 (* Error report *)
 

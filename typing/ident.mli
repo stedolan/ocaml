@@ -89,11 +89,6 @@ module Unscoped : sig
    val change_log: (change -> unit) ref
    val undo_change: change -> unit
    val link: t -> t -> unit
-   val get_id_pairs: unit -> (t * t) list
-   val with_id_pairs: (t * t) list -> (unit -> 'a) -> 'a
-        (** Set an equivalence between identifiers and give to the related
-            identifer a scope. We expect all identifiers to have been created
-            with [create] to obtain the expected semantic. *)
 
    module Set : Stdlib.Set.S with type elt = t
 end
@@ -101,7 +96,7 @@ end
 val of_unscoped: Unscoped.t -> t
 val find_unscoped: t -> Unscoped.t option
 
-val equiv: t -> t -> bool
+val equiv: (Unscoped.t * Unscoped.t) list -> t -> t -> bool
         (** Same as [same] up to the fact that identifiers
             created by [Unscoped.create] are equivalent only
             the corresponding pair is stored in the list. *)

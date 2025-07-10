@@ -74,13 +74,7 @@ module Unscoped = struct
     us1.state <- Ulink us2
     end
 
-  let id_pairs = ref []
-
-  let get_id_pairs () = !id_pairs
-
-  let with_id_pairs pairs f = Misc.protect_refs [R (id_pairs, pairs)] f
-
-  let equiv us1 us2 =
+  let equiv id_pairs us1 us2 =
     (*
       The list [id_pairs] does not have a cannonical order of pairs
       so we need to check if (us1, us2) or (us2, us1) occurs in the list.
@@ -92,7 +86,7 @@ module Unscoped = struct
     let s2 = stamp us2 in
     s1 = s2
     || List.exists (fun (i1, i2) -> (stamp i1 = s1 && stamp i2 = s2)
-                            || stamp i2 = s1 && stamp i1 = s2) !id_pairs
+                            || stamp i2 = s1 && stamp i1 = s2) id_pairs
 
   module Ops = struct
     type nonrec t = t
@@ -209,13 +203,13 @@ let stamp = function
   | Unscoped us -> Unscoped.stamp us
   | _ -> 0
 
-let equiv i1 i2 =
+let equiv id_pairs i1 i2 =
   match i1, i2 with
   | Local { stamp = s1; _ }, Local { stamp = s2; _ }
   | Scoped { stamp = s1; _ }, Scoped { stamp = s2; _ }
   | Predef { stamp = s1; _ }, Predef { stamp = s2 } ->
       s1 = s2
-  | Unscoped us1, Unscoped us2 -> Unscoped.equiv us1 us2
+  | Unscoped us1, Unscoped us2 -> Unscoped.equiv id_pairs us1 us2
   | Global name1, Global name2 ->
       name1 = name2
   | _ ->

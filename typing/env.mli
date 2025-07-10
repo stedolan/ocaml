@@ -452,6 +452,14 @@ val summary: t -> summary
 val keep_only_summary : t -> t
 val env_of_only_summary : (summary -> Subst.t -> t) -> t -> t
 
+(* Equivalence of unscoped identifiers *)
+
+module Unscoped : sig
+  val with_pairs : (Ident.Unscoped.t * Ident.Unscoped.t) list -> t -> t
+  val get_pairs : t -> (Ident.Unscoped.t * Ident.Unscoped.t) list
+  val path_equiv : t -> Path.t -> Path.t -> bool
+end
+
 (* Error report *)
 
 type error =
