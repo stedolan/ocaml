@@ -275,13 +275,8 @@ let rec typexp copy_scope s ty =
          | Type_function { params; body } ->
             Tlink (apply_type_function params args body)
          end
-      | Tpackage {pack_path; pack_constraints} ->
-          Tpackage {
-            pack_path = modtype_path s pack_path;
-            pack_constraints =
-              List.map
-                (fun (n, ty) -> (n, typexp copy_scope s ty)) pack_constraints;
-          }
+      | Tpackage pack ->
+          Tpackage (package copy_scope s pack)
       | Tobject (t1, name) ->
           let t1' = typexp copy_scope s t1 in
           let name' =
@@ -342,6 +337,12 @@ let rec typexp copy_scope s ty =
     in
     Transient_expr.set_stub_desc ty' desc;
     ty'
+and package copy_scope s {pack_path; pack_constraints} =
+  {
+    pack_path = modtype_path s pack_path;
+    pack_constraints =
+      List.map (fun (n, ty) -> (n, typexp copy_scope s ty)) pack_constraints;
+  }
 
 (*
    Always make a copy of the type. If this is not done, type levels
