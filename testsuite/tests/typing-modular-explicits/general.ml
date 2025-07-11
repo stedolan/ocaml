@@ -615,8 +615,8 @@ Lines 4-9, characters 6-3:
 Error: Signature mismatch:
        Modules do not match:
          sig
-           val f1 : unit -> (module M : Typ) -> 'a -> 'a
-           val f : (module M : Typ) -> '_weak1 -> '_weak1
+           val f1 : unit -> (module Typ) -> 'a -> 'a
+           val f : (module Typ) -> '_weak1 -> '_weak1
          end
        is not included in
          sig
@@ -624,10 +624,10 @@ Error: Signature mismatch:
            val f : (module M : Typ) -> M.t -> M.t
          end
        Values do not match:
-         val f : (module M : Typ) -> '_weak1 -> '_weak1
+         val f : (module Typ) -> '_weak1 -> '_weak1
        is not included in
          val f : (module M : Typ) -> M.t -> M.t
-       The type "(module M : Typ) -> '_weak1 -> '_weak1"
+       The type "(module Typ) -> '_weak1 -> '_weak1"
        is not compatible with the type "(module M : Typ) -> M.t -> M.t"
        The module "M" would escape its scope
 |}]
@@ -922,15 +922,15 @@ let rec f (module T : Typ) x =
 and g x = f (module Int) x
 
 [%%expect{|
-val f : (module T : Typ) -> 'a -> 'b = <fun>
+val f : (module Typ) -> 'a -> 'b = <fun>
 val g : 'a -> 'b = <fun>
 |}, Principal{|
-Line 3, characters 10-11:
+Line 3, characters 12-24:
 3 | and g x = f (module Int) x
-              ^
-Warning 18 [not-principal]: applying a dependent function is not principal.
+                ^^^^^^^^^^^^
+Warning 18 [not-principal]: this module packing is not principal.
 
-val f : (module T : Typ) -> 'a -> 'b = <fun>
+val f : (module Typ) -> 'a -> 'b = <fun>
 val g : 'a -> 'b = <fun>
 |}]
 
@@ -1166,8 +1166,8 @@ let f3 (type a) () (module T : Typ with type t = a) = ()
 let f3_applied = f3 ()
 
 [%%expect{|
-val f3 : unit -> (module T : Typ with type t = 'a) -> unit = <fun>
-val f3_applied : (module T : Typ with type t = '_weak9) -> unit = <fun>
+val f3 : unit -> (module Typ with type t = 'a) -> unit = <fun>
+val f3_applied : (module Typ with type t = '_weak9) -> unit = <fun>
 |}]
 
 (* Ensure that subst handles module dependent functions *)

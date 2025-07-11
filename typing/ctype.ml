@@ -1658,9 +1658,12 @@ let copy_sep ~copy_scope ~fixed ~(visited : type_expr TypeHash.t) ~id_map sch =
   in
   let tyset = type_subexpressions_with_occurrences (List.map fst id_map) sch in
   let closed ty = not (TypeSet.mem ty tyset) in
-  let ty = copy_rec ~may_share:true ~closed ~id_map sch in
-  let () = List.iter (fun force -> force ()) !delayed_copies in
-  ty
+  if TypeSet.is_empty (free sch) && closed sch && get_level sch <> generic_level
+  then None
+  else
+    let ty = copy_rec ~may_share:true ~closed ~id_map sch in
+    let () = List.iter (fun force -> force ()) !delayed_copies in
+    Some ty
 
 let instance_poly' copy_scope ~keep_names ~fixed univars sch =
   (* In order to compute univars below, [sch] should not contain [Tsubst] *)
@@ -1672,7 +1675,8 @@ let instance_poly' copy_scope ~keep_names ~fixed univars sch =
   let vars = List.map copy_var univars in
   let visited = TypeHash.create 17 in
   List.iter2 (TypeHash.add visited) univars vars;
-  let ty = copy_sep ~copy_scope ~fixed ~visited ~id_map:[] sch in
+  let ty = Option.value ~default:sch
+                        (copy_sep ~copy_scope ~fixed ~visited ~id_map:[] sch) in
   vars, ty
 
 let instance_poly_fixed ?(keep_names=false) univars sch =
@@ -1685,11 +1689,15 @@ let instance_poly ?(keep_names=false) univars sch =
     snd (instance_poly' copy_scope ~keep_names ~fixed:false univars sch)
   )
 
-let instance_funct ~id_in ~p_out ~fixed sch =
+(** [instance_funct_opt] returns [None] if id_in never appeared in [sch] *)
+let instance_funct_opt ~id_in ~p_out ~fixed sch =
   let visited = TypeHash.create 17 in
   For_copy.with_scope (fun copy_scope ->
     copy_sep ~copy_scope ~fixed ~visited ~id_map:[(id_in, p_out)] sch
   )
+
+let instance_funct ~id_in ~p_out ~fixed sch =
+  instance_funct_opt ~id_in ~p_out ~fixed sch |> Option.value ~default:sch
 
 let instance_label ~fixed lbl =
   For_copy.with_scope (fun copy_scope ->

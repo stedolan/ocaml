@@ -39,11 +39,11 @@ let f (module M : T) (x : (module M : T) -> 'a as 'a) =
   x (module M) (module M) (module M) (module M) (module M)
 
 [%%expect{|
-val f : (module M : T) -> ((module M : T) -> 'a as 'a) -> 'a = <fun>
+val f : (module T) -> ((module M : T) -> 'a as 'a) -> 'a = <fun>
 |}, Principal{|
 val f :
-  (module M : T) ->
-  ((module M : T) -> 'a as 'a) -> ((module M : T) -> 'b as 'b) = <fun>
+  (module T) -> ((module M : T) -> 'a as 'a) -> ((module M : T) -> 'b as 'b) =
+  <fun>
 |}]
 
 let f (x : (module M : T) -> ((M.t * ((module N : T) -> 'a)) as 'a)) =

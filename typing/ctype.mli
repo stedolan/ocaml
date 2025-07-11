@@ -238,8 +238,17 @@ val instance_poly_fixed:
         (* Take an instance of a type scheme containing free univars for
            checking that an expression matches this scheme. *)
 
+val instance_funct_opt:
+        id_in:Ident.t -> p_out:Path.t -> fixed:bool ->
+        type_expr -> type_expr option
+        (* Takes a instance of the functor return type by replacing [id_in]
+           by [p_out]. Returns [None] if [id_in] did not occur in the type. *)
+
 val instance_funct:
         id_in:Ident.t -> p_out:Path.t -> fixed:bool -> type_expr -> type_expr
+        (* Same as [instance_funct] but behaves as identity if [id_in] does
+           not occur in the type. *)
+
 val polyfy: Env.t -> type_expr -> type_expr list -> type_expr * type_expr list
 
 val instance_label:

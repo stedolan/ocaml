@@ -5616,11 +5616,15 @@ and type_function
       in
       let ident = Ident.Unscoped.create name.txt in
       let exp_type =
-        let res_ty =
-          instance_funct ~p_out:(Pident (Ident.of_unscoped ident))
+        match
+          instance_funct_opt ~p_out:(Pident (Ident.of_unscoped ident))
                              ~id_in:s_ident ~fixed:false res_ty
-        in
-        Btype.newgenty (Tfunctor (arg_label, ident, pack, res_ty))
+        with
+        | Some res_ty ->
+            Btype.newgenty (Tfunctor (arg_label, ident, pack, res_ty))
+        | None ->
+            let pck_ty = newgenmono (newgenty (Tpackage pack)) in
+            newgenty (Tarrow (arg_label, pck_ty, res_ty, commu_ok))
       in
       let _ =
         try
