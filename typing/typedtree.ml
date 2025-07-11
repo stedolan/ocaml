@@ -925,3 +925,8 @@ let rec path_of_module mexp =
 
 let path_of_module mexp =
  try Some (path_of_module mexp) with Not_a_path -> None
+
+let remove_module_constraint me =
+  match me.mod_desc with
+  | Tmod_constraint (me, _, _, _) -> me
+  | _ -> me

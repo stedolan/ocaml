@@ -236,10 +236,7 @@ This argument cannot be applied with label "~c"
 let x_from_struct = id (module struct type t = int end) 3
 
 [%%expect{|
-Line 3, characters 23-55:
-3 | let x_from_struct = id (module struct type t = int end) 3
-                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Cannot infer path of module for functor.
+val x_from_struct : int = 3
 |}]
 
 module F () : Typ = struct type t = int end
@@ -303,10 +300,7 @@ let s_list_arrayb =
       string_of_int [|[3; 2]; [2]; []|]
 
 [%%expect{|
-Line 3, characters 6-83:
-3 |       (module MapCombine(struct type 'a t = 'a list let map = List.map end)(Array))
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Cannot infer path of module for functor.
+val s_list_arrayb : string list Array.t = [|["3"; "2"]; ["2"]; []|]
 |}]
 
 module F () : Map = struct
@@ -1065,12 +1059,12 @@ let raise_principality_warning =
 [%%expect{|
 module type TInt = sig type t = int end
 val f : (module T : TInt) -> T.t -> T.t = <fun>
-Lines 6-9, characters 4-8:
-6 | ....(module struct
-7 |       type t = int
+Line 8, characters 28-29:
 8 |       let dummy_value = let x = 3 in 0
-9 |     end)
-Error: Cannot infer path of module for functor.
+                                ^
+Warning 26 [unused-var]: unused variable "x".
+
+val raise_principality_warning : int -> int = <fun>
 |}]
 
 (* Test weak value restriction *)

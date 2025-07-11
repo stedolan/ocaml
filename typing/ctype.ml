@@ -2462,6 +2462,11 @@ let identifier_escape env idl ty =
   occur idl ty
   end
 
+let identifier_escape_for tr_exn env idl t =
+  try
+    identifier_escape env idl t
+  with Escape e -> raise_for tr_exn (Escape e)
+
 let enter_functor env id1 t1 id2 t2 f =
   (*
     An identifier for a Tfunctor is bound only at a single type node.
@@ -6021,6 +6026,15 @@ let normalize_type ty =
                               (*  Remove dependencies  *)
                               (*************************)
 
+
+let identifier_escape env id mty t =
+  let snap = Btype.snapshot () in
+  let env' = Env.add_module (Ident.of_unscoped id) Mp_present mty env in
+  try
+      identifier_escape_for Unify env' [id] t
+  with Unify_trace trace ->
+      undo_compress snap;
+      raise (Unify (expand_to_unification_error env trace))
 
 (*
    Variables are left unchanged. Other type nodes are duplicated, with

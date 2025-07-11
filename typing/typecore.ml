@@ -3177,7 +3177,13 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
                                           ~p_out:path ~fixed:false t0 in
                   (arg, ty_res, ty_res0)
                 | None ->
-                  raise (Error(sarg.pexp_loc, env, Cannot_infer_functor_path))
+                  let me = remove_module_constraint modl in
+                  try
+                    identifier_escape env id me.mod_type t;
+                    identifier_escape env id0 me.mod_type t0;
+                    (arg, t, t0)
+                  with Unify _trace ->
+                    raise (Error(sarg.pexp_loc, env, Cannot_infer_functor_path))
               end
             | Some _ | None ->
               dependent_app_error_unknown_arg env ~rev_args ~funct me_opt ty_fun
