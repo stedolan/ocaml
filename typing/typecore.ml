@@ -2939,6 +2939,25 @@ let dependent_app_error_unknown_arg env ~rev_args ~funct me_opt ty_fun =
     let loc = beginning_function_loc rev_args ~funct in
     raise(Error(loc, env, Cannot_commute_label ty_res))
 
+(* Given the module expression [M] and package type [(module S with cstrs)],
+   this returns the module expression [(M : S with cstrs)]. *)
+let module_with_package_type_constraint me optyp =
+  match optyp with
+  | None -> me
+  | Some ptyp ->
+    let loc = ptyp.ppt_loc in
+    let path = Ast_helper.Mty.ident ~loc ptyp.ppt_path in
+    let cstrs =
+      List.map (fun (lid, t) ->
+        let t =
+          Ast_helper.Type.mk ~loc ~manifest:t
+            (Location.map Longident.last lid)
+        in Pwith_type (lid, t))
+        ptyp.ppt_constraints
+    in
+    let mty = Ast_helper.Mty.with_ ~loc path cstrs in
+    Ast_helper.Mod.constraint_ ~loc ~attrs:ptyp.ppt_attrs me mty
+
 let extract_packing sarg =
   match sarg.pexp_desc with
   | Pexp_pack (me, optyp) -> Some (me, optyp)
@@ -2966,23 +2985,7 @@ let collect_arrow_arg ~may_warn ~funct ~optional ~sargs ~ty_arg ~ty_arg0 ~lv
       end
 
 let type_tfunctor_module_arg ~env ~sarg ~me ~optyp ~pack ~pack0 =
-  let me = match optyp with
-    | None -> me
-    | Some ptyp ->
-        let path =
-          Ast_helper.Mty.ident ~loc:ptyp.ppt_path.loc
-            ptyp.ppt_path in
-        let cstrs =
-          List.map (fun (lid, t) ->
-            let t =
-              Ast_helper.Type.mk ~loc:ptyp.ppt_loc ~manifest:t
-                (Location.map Longident.last lid)
-            in Pwith_type (lid, t))
-            ptyp.ppt_constraints in
-        let mty =
-          Ast_helper.Mty.with_ ~loc:ptyp.ppt_loc path cstrs in
-        Ast_helper.Mod.constraint_ ~loc:sarg.pexp_loc me mty
-  in
+  let me = module_with_package_type_constraint me optyp in
   (* We expanded the code here to prevent a principality warning
       because the expected signature is not closed. *)
   let (modl, pack') = !type_package env me pack in
