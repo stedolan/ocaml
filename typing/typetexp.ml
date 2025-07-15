@@ -702,16 +702,10 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
       unify_var env (newvar()) ty';
       ctyp (Ttyp_poly (vars, cty)) ty'
   | Ptyp_package ptyp ->
-      let path, ptys = transl_package env ~policy ~row_context ptyp in
-      let pack = {
-        pack_path = path;
-        pack_constraints = List.map (fun (s, cty) ->
-                         (Longident.flatten s.txt, cty.ctyp_type)) ptys
-      } in
-      let ty = newty (Tpackage pack)
-      in
+      let pack, ptys = transl_package env ~policy ~row_context ptyp in
+      let ty = newty (Tpackage pack) in
       ctyp (Ttyp_package {
-            tpt_path = path;
+            tpt_path = pack.pack_path;
             tpt_type = pack;
             tpt_constraints = ptys;
             tpt_txt = ptyp.ppt_path;
@@ -804,8 +798,11 @@ and transl_package env ~policy ~row_context ptyp =
   in
   if ptys <> [] then
     !check_package_with_type_constraints loc env mty.mty_type ptys;
-  let path = !transl_modtype_longident loc env ptyp.ppt_path.txt in
-  path, ptys
+  let pack_path = !transl_modtype_longident loc env ptyp.ppt_path.txt in
+  let pack_constraints =
+    List.map (fun (s, cty) -> (Longident.flatten s.txt, cty.ctyp_type)) ptys
+  in
+  {pack_path; pack_constraints}, ptys
 
 (* Make the rows "fixed" in this type, to make universal check easier *)
 let rec make_fixed_univars mark ty =
