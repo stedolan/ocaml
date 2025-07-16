@@ -3007,6 +3007,12 @@ let collect_arrow_arg ~may_warn ~funct ~optional ~sargs ~ty_arg ~ty_arg0 ~lv
         Omitted { ty_arg; level = lv }
       end
 
+type tfunctor = {
+  id : Ident.Unscoped.t;
+  pack : package;
+  ty : type_expr;
+}
+
 let type_tfunctor_module_arg ~env ~sarg ~me ~optyp ~pack ~pack0 =
   let me = module_with_package_type_constraint me optyp in
   (* We expanded the code here to prevent a principality warning
@@ -3023,6 +3029,32 @@ let type_tfunctor_module_arg ~env ~sarg ~me ~optyp ~pack ~pack0 =
   in
   unify_exp ~sexp:sarg env texp (newty (Tpackage pack0));
   modl, texp
+
+let collect_functor_module_arg ~env ~sarg ~rev_args ~funct ~me ~optyp
+    ~tfun ~tfun0 ~l =
+  let modl, texp =
+    type_tfunctor_module_arg ~env ~sarg ~me ~optyp
+                             ~pack:tfun.pack ~pack0:tfun0.pack in
+  let arg = Arg (Typed_arg { targ = texp }) in
+  match path_of_module modl with
+  | Some path ->
+    let ty_ret =
+      with_level ~level:generic_level @@ fun () ->
+        instance_funct ~id_in:(Ident.of_unscoped tfun.id)
+                            ~p_out:path ~fixed:false tfun.ty in
+    let ty_ret0 =
+        instance_funct ~id_in:(Ident.of_unscoped tfun0.id)
+                            ~p_out:path ~fixed:false tfun0.ty in
+    (arg, ty_ret, ty_ret0)
+  | None ->
+    let me = remove_module_constraint modl in
+    try
+      identifier_escape l tfun.pack env tfun.id me.mod_type tfun.ty;
+      identifier_escape l tfun0.pack env tfun0.id me.mod_type tfun0.ty;
+      (arg, tfun.ty, tfun0.ty)
+    with Unify trace ->
+      let loc = beginning_function_loc rev_args ~funct in
+      raise (Error(loc, env, Cannot_unify_tfunctor_to_tarrow trace))
 
 let collect_unknown_apply_args env funct ty_fun0 rev_args sargs =
   let labels_match ~param ~arg =
@@ -3203,37 +3235,16 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
         | `Functor (id, pack, t, id0, pack0, t0) ->
           may_warn funct.exp_loc
               (not_principal "applying a dependent function");
-          let me_opt =
-            Option.map (fun (sarg, _) -> (extract_packing sarg, sarg)) arg_opt
-          in
+          let tfun = { id; pack; ty = t} in
+          let tfun0 = { id = id0; pack = pack0; ty = t0} in
           let (arg, ty_ret, ty_ret0) =
+            let me_opt =
+              Option.map (fun (sarg, _) -> (extract_packing sarg, sarg)) arg_opt
+            in
             match me_opt with
             | Some (Some (me, optyp), sarg) ->
-              let modl, texp =
-                type_tfunctor_module_arg ~env ~sarg ~me ~optyp ~pack ~pack0 in
-              let arg = Arg (Typed_arg { targ = texp }) in
-              begin
-                match path_of_module modl with
-                | Some path ->
-                  let ty_res =
-                    with_level ~level:generic_level @@ fun () ->
-                      instance_funct ~id_in:(Ident.of_unscoped id)
-                                          ~p_out:path ~fixed:false t in
-                  let ty_res0 =
-                      instance_funct ~id_in:(Ident.of_unscoped id0)
-                                          ~p_out:path ~fixed:false t0 in
-                  (arg, ty_res, ty_res0)
-                | None ->
-                  let me = remove_module_constraint modl in
-                  try
-                    identifier_escape l pack env id me.mod_type t;
-                    identifier_escape l pack0 env id0 me.mod_type t0;
-                    (arg, t, t0)
-                  with Unify trace ->
-                    let loc = beginning_function_loc rev_args ~funct in
-                    raise (Error (loc, env,
-                                  Cannot_unify_tfunctor_to_tarrow trace))
-              end
+              collect_functor_module_arg ~env ~sarg ~rev_args ~funct ~me
+                                         ~optyp ~tfun ~tfun0 ~l
             | Some _ | None ->
               match
                 (unify_to_arrow env ty_fun',
@@ -3245,7 +3256,7 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
                 (arg, ty_ret, ty_ret0)
               | exception Unify trace ->
                 dependent_app_error_unknown_arg env trace ~rev_args ~funct
-                    me_opt ty_fun pack pack0
+                    me_opt ty_fun' tfun.pack tfun0.pack
           in
           loop visited ty_ret ty_ret0 ((l, arg) :: rev_args) remaining_sargs
       end
