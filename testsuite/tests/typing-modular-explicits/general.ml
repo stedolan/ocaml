@@ -1202,3 +1202,23 @@ Line 1, characters 65-67:
 Error: This external declaration has a non-syntactic arity,
        its arity is greater than its syntatic arity.
 |}]
+
+(** Test printing of long trace. *)
+
+(* The goal here is to shadow Int with unification in order to create an
+   ambigous error message.
+*)
+let f (x : (module T : Typ) -> int -> Int.t)
+  : (module Int : Typ) -> int -> Int.t
+  = x
+
+(* This test does not work as intended. *)
+[%%expect{|
+Line 8, characters 4-5:
+8 |   = x
+        ^
+Error: The value "x" has type "(module Int : Typ) -> int -> Stdlib.Int.t"
+       but an expression was expected of type
+         "(module Int : Typ) -> int -> Int.t"
+       Type "Int.t" = "int" is not compatible with type "Int.t"
+|}]

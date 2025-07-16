@@ -277,6 +277,7 @@ type typ1 =
 type typ1bis = typ1 =
   | A of ((module A : Add with type t = int) -> float -> int)
 
+(* This test does not work as intended *)
 [%%expect{|
 type typ1 = A of ((module Add with type t = int) -> int -> int)
 File "_none_", line 1:
