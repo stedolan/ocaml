@@ -3168,8 +3168,10 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
       | Tarrow (l, ty_arg, ty_ret, com), Tarrow (_, ty_arg0, ty_ret0, _)
         when is_commu_ok com ->
           Some (l, `Arrow (ty_arg, ty_ret, ty_arg0, ty_ret0))
-      | Tfunctor (l, id, pack, t), Tfunctor (_, id0, pack0, t0) ->
-          Some (l, `Functor (id, pack, t, id0, pack0, t0))
+      | Tfunctor (l, id, pack, ty), Tfunctor (_, id0, pack0, ty0) ->
+          let tfun = { id; pack; ty} in
+          let tfun0 = { id = id0; pack = pack0; ty = ty0} in
+          Some (l, `Functor (tfun, tfun0))
       | _ -> None
     in
     match lopt with
@@ -3232,11 +3234,9 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
                                         ~ty_arg ~ty_arg0 ~lv arg_opt
             in
             loop visited ty_ret ty_ret0 ((l, arg) :: rev_args) remaining_sargs
-        | `Functor (id, pack, t, id0, pack0, t0) ->
+        | `Functor (tfun, tfun0) ->
           may_warn funct.exp_loc
               (not_principal "applying a dependent function");
-          let tfun = { id; pack; ty = t} in
-          let tfun0 = { id = id0; pack = pack0; ty = t0} in
           let (arg, ty_ret, ty_ret0) =
             let me_opt =
               Option.map (fun (sarg, _) -> (extract_packing sarg, sarg)) arg_opt
