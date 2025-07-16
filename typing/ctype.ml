@@ -760,54 +760,6 @@ let duplicate_class_type ty =
                          (*  Type level manipulation  *)
                          (*****************************)
 
-
-(*
-   Build a copy of a type in which nodes reachable through a path composed
-   only of Tarrow, Tpoly, Ttuple, Tpackage and Tconstr, and whose level
-   was no lower than [!current_level], are at [generic_level].
-   This is different from [with_local_level_gen], which generalizes in place,
-   and only nodes with a level higher than [!current_level].
-   This is used for typing classes, to indicate which types have been
-   inferred in the first pass, and can be considered as "known" during the
-   second pass.
- *)
-
-let rec copy_spine copy_scope ty =
-  match get_desc ty with
-  | Tsubst (ty, _) -> ty
-  | Tvar _
-  | Tfield _
-  | Tnil
-  | Tvariant _
-  | Tobject _
-  | Tlink _
-  | Tunivar _ -> ty
-  | (Tarrow _ | Tpoly _ | Ttuple _ | Tpackage _ | Tconstr _) as desc ->
-      let level = get_level ty in
-      if level < !current_level || level = generic_level then ty else
-      let t = newgenstub ~scope:(get_scope ty) in
-      For_copy.redirect_desc copy_scope ty (Tsubst (t, None));
-      let copy_rec = copy_spine copy_scope in
-      let desc' = match desc with
-      | Tarrow (lbl, ty1, ty2, _) ->
-          Tarrow (lbl, copy_rec ty1, copy_rec ty2, commu_ok)
-      | Tpoly (ty', tvl) ->
-          Tpoly (copy_rec ty', tvl)
-      | Ttuple tyl ->
-          Ttuple (List.map (fun (lbl, ty) -> (lbl, copy_rec ty)) tyl)
-      | Tpackage {pack_path; pack_constraints} ->
-          let fl = List.map (fun (n, ty) -> n, copy_rec ty) pack_constraints in
-          Tpackage {pack_path; pack_constraints = fl}
-      | Tconstr (path, tyl, _) ->
-          Tconstr (path, List.map copy_rec tyl, ref Mnil)
-      | _ -> assert false
-      in
-      Transient_expr.set_stub_desc t desc';
-      t
-
-let copy_spine ty =
-  For_copy.with_scope (fun copy_scope -> copy_spine copy_scope ty)
-
 let forward_try_expand_safe = (* Forward declaration *)
   ref (fun _env _ty -> assert false)
 
@@ -3825,6 +3777,53 @@ let close_class_signature env sign =
   in
   let self = expand_head env sign.csig_self in
   close env (object_fields self)
+
+(*
+   Build a copy of a type in which nodes reachable through a path composed
+   only of Tarrow, Tpoly, Ttuple, Tpackage and Tconstr, and whose level
+   was no lower than [!current_level], are at [generic_level].
+   This is different from [with_local_level_gen], which generalizes in place,
+   and only nodes with a level higher than [!current_level].
+   This is used for typing classes, to indicate which types have been
+   inferred in the first pass, and can be considered as "known" during the
+   second pass.
+ *)
+
+let rec copy_spine copy_scope ty =
+  match get_desc ty with
+  | Tsubst (ty, _) -> ty
+  | Tvar _
+  | Tfield _
+  | Tnil
+  | Tvariant _
+  | Tobject _
+  | Tlink _
+  | Tunivar _ -> ty
+  | (Tarrow _ | Tpoly _ | Ttuple _ | Tpackage _ | Tconstr _) as desc ->
+      let level = get_level ty in
+      if level < !current_level || level = generic_level then ty else
+      let t = newgenstub ~scope:(get_scope ty) in
+      For_copy.redirect_desc copy_scope ty (Tsubst (t, None));
+      let copy_rec = copy_spine copy_scope in
+      let desc' = match desc with
+      | Tarrow (lbl, ty1, ty2, _) ->
+          Tarrow (lbl, copy_rec ty1, copy_rec ty2, commu_ok)
+      | Tpoly (ty', tvl) ->
+          Tpoly (copy_rec ty', tvl)
+      | Ttuple tyl ->
+          Ttuple (List.map (fun (lbl, ty) -> (lbl, copy_rec ty)) tyl)
+      | Tpackage {pack_path; pack_constraints} ->
+          let fl = List.map (fun (n, ty) -> n, copy_rec ty) pack_constraints in
+          Tpackage {pack_path; pack_constraints = fl}
+      | Tconstr (path, tyl, _) ->
+          Tconstr (path, List.map copy_rec tyl, ref Mnil)
+      | _ -> assert false
+      in
+      Transient_expr.set_stub_desc t desc';
+      t
+
+let copy_spine ty =
+  For_copy.with_scope (fun copy_scope -> copy_spine copy_scope ty)
 
 let generalize_class_signature_spine sign =
   (* Generalize the spine of methods *)
