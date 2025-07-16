@@ -1226,6 +1226,16 @@ let abbreviations = ref (ref Mnil)
 
 let always_true _ = true
 
+let compute_new_closed us us' id_map ty =
+  let id = Ident.of_unscoped us in
+  let id' = Ident.of_unscoped us' in
+  let id_map = (id, Path.Pident id')
+    :: List.filter (fun (i, _) -> not (Ident.same i id)) id_map in
+  let tyset =
+    type_subexpressions_with_occurrences (List.map fst id_map) ty in
+  let closed ty = not (TypeSet.mem ty tyset) in
+  (id_map, closed)
+
 (* partial: we may not wish to copy the non generic types
    before we call type_pat *)
 let rec copy ?partial ?keep_names ?scope ?(id_map=[]) ?(closed=always_true)
@@ -1357,13 +1367,7 @@ let rec copy ?partial ?keep_names ?scope ?(id_map=[]) ?(closed=always_true)
           } in
           let us' = Ident.Unscoped.refresh us in
           let ty' =
-            let id = Ident.of_unscoped us in
-            let id' = Ident.of_unscoped us' in
-            let id_map = (id, Path.Pident id')
-                  :: List.filter (fun (i, _) -> not (Ident.same i id)) id_map in
-            let tyset =
-              type_subexpressions_with_occurrences (List.map fst id_map) ty in
-            let closed ty = not (TypeSet.mem ty tyset) in
+            let id_map, closed = compute_new_closed us us' id_map ty in
             copy' id_map closed ty
           in
           Tfunctor(lbl, us', pack', ty')
@@ -1637,13 +1641,7 @@ let copy_sep ~copy_scope ~fixed ~(visited : type_expr TypeHash.t) ~id_map sch =
             } in
             let us' = Ident.Unscoped.refresh us in
             let ty' =
-              let id = Ident.of_unscoped us in
-              let id' = Ident.of_unscoped us' in
-              let id_map = (id, Path.Pident id')
-                :: List.filter (fun (i, _) -> not (Ident.same i id)) id_map in
-              let tyset =
-                type_subexpressions_with_occurrences (List.map fst id_map) ty in
-              let closed ty = not (TypeSet.mem ty tyset) in
+              let id_map, closed = compute_new_closed us us' id_map ty in
               copy_rec ~may_share:true ~closed ~id_map ty
             in
             Tfunctor (lbl, us', pack', ty')
