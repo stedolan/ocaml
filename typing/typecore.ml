@@ -2943,7 +2943,7 @@ let collect_unknown_apply_args env funct ty_fun0 rev_args sargs =
     match sargs with
     | [] -> ty_fun, List.rev rev_args
     | (lbl, sarg) :: rest ->
-        let (ty_arg, ty_res) =
+        let (arg_kind, ty_res) =
           let ty_fun = expand_head env ty_fun in
           match get_desc ty_fun with
           | Tvar _ ->
@@ -2957,10 +2957,10 @@ let collect_unknown_apply_args env funct ty_fun0 rev_args sargs =
                   Warnings.Ignored_extra_argument;
               unify env ty_fun
                 (newty (Tarrow(lbl,ty_param,ty_res,commu_var ())));
-              (ty_arg, ty_res)
+              (`Arrow ty_arg, ty_res)
           | Tarrow (l, ty_param, ty_res, _)
               when labels_match ~param:l ~arg:lbl ->
-              tpoly_get_mono ty_param, ty_res
+              (`Arrow (tpoly_get_mono ty_param), ty_res)
           | td ->
               let ty_fun = match td with Tarrow _ -> newty td | _ -> ty_fun in
               let ty_res = remaining_function_type_for_error ty_fun rev_args in
@@ -2979,7 +2979,9 @@ let collect_unknown_apply_args env funct ty_fun0 rev_args sargs =
                     previous_arg_loc = previous_arg_loc rev_args ~funct;
                     extra_arg_loc = sarg.pexp_loc; }))
         in
-        let arg = Unknown_arg { sarg; ty_arg } in
+        let arg = match arg_kind with
+          | `Arrow ty_arg -> Unknown_arg { sarg; ty_arg }
+        in
         loop ty_res ((lbl, Arg arg) :: rev_args) rest
   in
   loop ty_fun0 rev_args sargs
