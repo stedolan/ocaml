@@ -277,9 +277,18 @@ type typ1 =
 type typ1bis = typ1 =
   | A of ((module A : Add with type t = int) -> float -> int)
 
-(* This test does not work as intended *)
 [%%expect{|
 type typ1 = A of ((module Add with type t = int) -> int -> int)
-File "_none_", line 1:
-Error: The type of this packed module refers to "Add", which is missing
+Lines 4-5, characters 0-61:
+4 | type typ1bis = typ1 =
+5 |   | A of ((module A : Add with type t = int) -> float -> int)
+Error: This variant or record definition does not match that of type "typ1"
+       Constructors do not match:
+         "A of ((module Add with type t = int) -> int -> int)"
+       is not the same as:
+         "A of ((module A : Add with type t = int) -> float -> int)"
+       The type "(module Add with type t = int) -> int -> int"
+       is not equal to the type
+         "(module A : Add with type t = int) -> float -> int"
+       Type "int" is not equal to type "float"
 |}]

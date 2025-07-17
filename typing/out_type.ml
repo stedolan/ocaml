@@ -1119,7 +1119,8 @@ let rec tree_of_typexp mode ty =
           if !print_labels || is_optional l then l else Nolabel
         in
         let fenv env =
-          let mty = Ctype.modtype_of_package env Location.none pack in
+          (* We compute an approximation of the signature. *)
+          let mty = Mty_ident pack.pack_path in
           Env.add_module ~noalias:true (Ident.of_unscoped id) Mp_present mty env
         in
         let ty = wrap_env fenv (tree_of_typexp mode) ty in
