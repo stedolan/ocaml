@@ -2909,6 +2909,27 @@ let previous_arg_loc rev_args ~funct =
         | _ -> None)
     |> Option.value ~default:funct.exp_loc
 
+let collect_arrow_arg ~may_warn ~funct ~optional ~sargs ~ty_arg ~ty_arg0 ~lv
+  = function
+  | Some (sarg, l') ->
+      let wrapped_in_some = optional && not (is_optional l') in
+      if wrapped_in_some then
+        may_warn sarg.pexp_loc
+          (not_principal "using an optional argument here");
+      Arg (Known_arg { sarg; ty_arg; ty_arg0; wrapped_in_some })
+  | None ->
+      if optional && List.mem_assoc Nolabel sargs then begin
+        may_warn funct.exp_loc (Warnings.Non_principal_labels
+                                    "eliminated optional argument");
+        Arg (Eliminated_optional_arg { ty_arg; level = lv })
+      end else begin
+        (* No argument was given for this parameter, we abstract
+          over it. *)
+        may_warn funct.exp_loc
+          (Warnings.Non_principal_labels "commuted an argument");
+        Omitted { ty_arg; level = lv }
+      end
+
 let collect_unknown_apply_args env funct ty_fun0 rev_args sargs =
   let labels_match ~param ~arg =
     param = arg
@@ -3041,26 +3062,8 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
         else
         match arrow_kind with
         | `Arrow (ty_arg, ty_ret, ty_arg0, ty_ret0) ->
-            let arg =
-              match arg_opt with
-              | Some (sarg, l') ->
-                  let wrapped_in_some = optional && not (is_optional l') in
-                  if wrapped_in_some then
-                    may_warn sarg.pexp_loc
-                      (not_principal "using an optional argument here");
-                  Arg (Known_arg { sarg; ty_arg; ty_arg0; wrapped_in_some })
-              | None ->
-                  if optional && List.mem_assoc Nolabel sargs then begin
-                    may_warn funct.exp_loc (Warnings.Non_principal_labels
-                                                "eliminated optional argument");
-                    Arg (Eliminated_optional_arg { ty_arg; level = lv })
-                  end else begin
-                    (* No argument was given for this parameter, we abstract
-                      over it. *)
-                    may_warn funct.exp_loc
-                      (Warnings.Non_principal_labels "commuted an argument");
-                    Omitted { ty_arg; level = lv }
-                  end
+            let arg = collect_arrow_arg ~may_warn ~funct ~optional ~sargs
+                                        ~ty_arg ~ty_arg0 ~lv arg_opt
             in
             loop visited ty_ret ty_ret0 ((l, arg) :: rev_args) remaining_sargs
       end
