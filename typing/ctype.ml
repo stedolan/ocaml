@@ -6213,7 +6213,7 @@ let identifier_escape l pty env id mty t =
       undo_compress snap;
       let got = newty (Tfunctor (l, id, pty, t)) in
       let expected =
-        newty (Tarrow (l, newty (Tpackage pty), newvar (), commu_ok))
+        newty (Tarrow (l, newmono (newty (Tpackage pty)), newvar (), commu_ok))
       in
       let trace = Diff {got; expected} :: trace in
       raise (Unify (expand_to_unification_error env trace))
