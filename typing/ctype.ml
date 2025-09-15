@@ -2442,7 +2442,7 @@ let identifier_escape env idl ty =
     if try_mark_node mark ty || ignore_mark then begin
       match get_desc ty with
         Tconstr (p, _, _) ->
-          begin match Path.find_free_opt (List.map Ident.of_unscoped idl) p with
+          begin match Path.find_free_opt idl p with
           | None -> iter_type_expr (occur idl) ty
           | Some i ->
               begin try
@@ -2454,7 +2454,7 @@ let identifier_escape env idl ty =
               end
           end
       | Tpackage ({pack_path = p} as pack) ->
-          begin match Path.find_free_opt (List.map Ident.of_unscoped idl) p with
+          begin match Path.find_free_opt idl p with
           | None -> iter_type_expr (occur idl) ty
           | Some i ->
             begin match Env.try_normalize_modtype_path env p with
@@ -2465,7 +2465,7 @@ let identifier_escape env idl ty =
             end
           end
       | Tobject (_, ({contents = Some (p, _)} as nm))
-        when Path.exists_free (List.map Ident.of_unscoped idl) p ->
+        when Path.exists_free idl p ->
           set_name nm None;
           occur ~ignore_mark:true idl ty
       | Tvariant row when row_name row <> None ->
@@ -2473,14 +2473,14 @@ let identifier_escape env idl ty =
           | None -> assert false (* Should not pass the gard above *)
           | Some (p, _) ->
             let row =
-              if Path.exists_free (List.map Ident.of_unscoped idl) p
+              if Path.exists_free idl p
               then set_row_name row None
               else row
             in
             iter_type_expr (occur idl) (newty (Tvariant row))
           end
       | Tfunctor (l, id, {pack_path = p; pack_constraints}, t) ->
-          begin match Path.find_free_opt (List.map Ident.of_unscoped idl) p with
+          begin match Path.find_free_opt idl p with
           | Some i ->
               begin match Env.try_normalize_modtype_path env p with
               | None -> raise_escape_exn (Module i)
@@ -2492,7 +2492,8 @@ let identifier_escape env idl ty =
           | None ->
               List.iter (fun (_, t) -> occur idl t) pack_constraints;
               let idl' =
-                  List.filter (fun i -> not (Ident.Unscoped.same i id)) idl in
+                List.filter (fun i -> not Ident.(same i (of_unscoped id))) idl
+              in
               if idl' = []
               then ()
               else occur idl' t
@@ -2500,7 +2501,7 @@ let identifier_escape env idl ty =
       | _ -> iter_type_expr (occur idl) ty
     end
   in
-  occur idl ty
+  occur (List.map Ident.of_unscoped idl) ty
   end
 
 let identifier_escape_for tr_exn env idl t =
