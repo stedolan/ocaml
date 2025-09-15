@@ -2050,6 +2050,8 @@ let generic_private_abbrev env path =
     | _ -> false
   with Not_found -> false
 
+(** Auxiliairy function for subtyping [(module M : S) -> t1] into [t -> t2]
+  where [t = private (module S2)]. *)
 let rec extract_package_modulo_subtype env ty =
   match get_desc (expand_head env ty) with
   | Tpackage pack -> pack
@@ -2167,7 +2169,6 @@ let rec local_non_recursive_abbrev ~allow_rec strict visited env p ty =
           pack.pack_constraints;
       let mty = modtype_of_package env Location.none pack in
       let env = Env.add_module (Ident.of_unscoped id) Mp_present mty env in
-      (* we don't need to update id_pairs because the scope is never used *)
       local_non_recursive_abbrev ~allow_rec strict visited env p t
     | _ ->
         if strict || not allow_rec then (* PR#7374 *)
@@ -2275,14 +2276,7 @@ let occur_univar_or_unscoped ?(inj_only=false) env ty =
       | Tconstr (p, tl, _) -> begin
           let id_escape = Path.check_for_unbound_unscoped_idents bound_id p in
           match id_escape with
-          | Some i ->
-              begin try
-                let ty' = try_expand_safe env ty in
-                link_type ty ty';
-                occur_desc env bound_uv bound_id ty
-              with Cannot_expand ->
-                raise_escape_exn (Module (Ident.of_unscoped i))
-              end
+          | Some i -> occur_expand_safe env bound_uv bound_id i ty
           | None when tl = [] -> ()
           | None ->
             begin try
@@ -2311,12 +2305,8 @@ let occur_univar_or_unscoped ?(inj_only=false) env ty =
       | Tpackage {pack_path = p; pack_constraints} ->
           begin match Path.check_for_unbound_unscoped_idents bound_id p with
           | Some i ->
-              begin match Env.try_normalize_modtype_path env p with
-              | None -> raise_escape_exn (Module (Ident.of_unscoped i))
-              | Some p' ->
-                set_type_desc ty (Tpackage {pack_path = p'; pack_constraints});
-                occur_desc env bound_uv bound_id ty
-              end
+            occur_normalize_modtype_path env bound_uv bound_id i p
+              (fun pack_path -> Tpackage {pack_path; pack_constraints})
           | None ->
               List.iter (fun (_, t) -> occur_rec env bound_uv bound_id t)
                 pack_constraints
@@ -2327,12 +2317,8 @@ let occur_univar_or_unscoped ?(inj_only=false) env ty =
           in
           match id_escape with
           | Some i ->
-              begin match Env.try_normalize_modtype_path env pack.pack_path with
-              | None -> raise_escape_exn (Module (Ident.of_unscoped i))
-              | Some pack_path ->
-                set_type_desc ty (Tfunctor (l, id, {pack with pack_path}, ty));
-                occur_desc env bound_uv bound_id ty
-              end
+            occur_normalize_modtype_path env bound_uv bound_id i pack.pack_path
+              (fun pack_path -> Tfunctor (l, id, {pack with pack_path}, ty))
           | None ->
               List.iter (fun (_, t) -> occur_rec env bound_uv bound_id t)
                 pack.pack_constraints;
@@ -2342,6 +2328,19 @@ let occur_univar_or_unscoped ?(inj_only=false) env ty =
               occur_rec env bound_uv (Ident.Unscoped.Set.add id bound_id) ty
           end
       | _ -> iter_type_expr (occur_rec env bound_uv bound_id) ty
+    and occur_expand_safe env bound_uv bound_id us ty =
+      try
+        let ty' = try_expand_safe env ty in
+        link_type ty ty';
+        occur_desc env bound_uv bound_id ty
+      with Cannot_expand ->
+        raise_escape_exn (Module (Ident.of_unscoped us))
+    and occur_normalize_modtype_path env bound_uv bound_id us p f =
+      match Env.try_normalize_modtype_path env p with
+      | None -> raise_escape_exn (Module (Ident.of_unscoped us))
+      | Some p' ->
+        set_type_desc ty (f p');
+        occur_desc env bound_uv bound_id ty
   in
   occur_rec env TypeSet.empty Ident.Unscoped.Set.empty ty
   end
