@@ -2828,9 +2828,9 @@ let rec mcomp type_pairs env t1 t2 =
               if is_datatype decl then raise Incompatible
             with Not_found -> ()
             end
-        | (Tfunctor (l1, _, _, t1), Tfunctor (l2, _, _, t2))
+        | (Tfunctor (l1, _, _, u1), Tfunctor (l2, _, _, u2))
           when compatible_labels ~in_pattern_mode:true l1 l2 ->
-            mcomp type_pairs env t1 t2
+            mcomp type_pairs env u1 u2
         | (Tfunctor (l1, _, pack1, u1), Tarrow (l2, t2, u2, _))
           when compatible_labels ~in_pattern_mode:true l1 l2 ->
             mcomp type_pairs env (newmono (newty (Tpackage pack1))) t2;
