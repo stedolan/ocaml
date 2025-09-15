@@ -2520,10 +2520,10 @@ let enter_functor env id1 t1 id2 t2 f =
     Howether with recursive types we can match this identifier multiple times.
     This is a safe gard to prevent problems by stating that an identifier is the
     equal to multiple ones.
-    For example both types are cannot be unifyed
+    For example those two types cannot be unified
     - {M : T} -> ((M.t * {N : T} -> 'a) as 'a)
     - ({O : T} -> O.t * 'a) as 'a
-    But without the following check they would be accepted.
+    but without the following check they would be accepted.
   *)
   let rec filter_id_pairs = function
     | [] -> []
