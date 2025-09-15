@@ -2483,12 +2483,11 @@ let identifier_escape env idl ty =
           begin match row_name row with
           | None -> assert false (* Should not pass the gard above *)
           | Some (p, _) ->
-            let row =
-              if Path.exists_free idl p
-              then set_row_name row None
-              else row
-            in
-            iter_type_expr (occur idl) (newty (Tvariant row))
+            if Path.exists_free idl p then begin
+              set_type_desc ty (Tvariant (set_row_name row None));
+              occur ~ignore_mark:true idl ty
+            end else
+              iter_type_expr (occur idl) ty
           end
       | Tfunctor (l, id, {pack_path = p; pack_constraints}, t) ->
           begin match Path.find_free_opt idl p with
