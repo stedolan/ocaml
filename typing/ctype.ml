@@ -2302,6 +2302,17 @@ let occur_univar_or_unscoped ?(inj_only=false) env ty =
         when Path.check_for_unbound_unscoped_idents bound_id p <> None ->
           set_name nm None;
           occur_desc env bound_uv bound_id ty
+      | Tvariant row when row_name row <> None ->
+          begin match row_name row with
+          | None -> assert false (* Should not pass the gard above *)
+          | Some (p, _) ->
+            if Path.check_for_unbound_unscoped_idents bound_id p <> None
+            then begin
+              set_type_desc ty (Tvariant (set_row_name row None));
+              occur_desc env bound_uv bound_id ty
+            end else
+              iter_type_expr (occur_rec env bound_uv bound_id) ty
+          end
       | Tpackage {pack_path = p; pack_constraints} ->
           begin match Path.check_for_unbound_unscoped_idents bound_id p with
           | Some i ->
