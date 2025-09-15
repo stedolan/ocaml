@@ -1222,3 +1222,21 @@ Error: The value "x" has type "(module Int : Typ) -> int -> Stdlib.Int.t"
          "(module Int : Typ) -> int -> Int.t"
        Type "Int.t" = "int" is not compatible with type "Int.t"
 |}]
+
+(* At one point the implementation was not robust enough and linking
+  interacted badly with linking identifiers together. *)
+
+let linking_ident1 (x : (module A : Typ with type t = int) -> int) =
+  (x : (module Z : Typ with type t = int) -> Z.t)
+
+let linking_ident2 (x : (module Z : Typ with type t = int) -> Z.t) =
+  (x : (module A : Typ with type t = int) -> int)
+
+[%%expect{|
+val linking_ident1 :
+  ((module A : Typ with type t = int) -> int) ->
+  (module Z : Typ with type t = int) -> Z.t = <fun>
+val linking_ident2 :
+  ((module Z : Typ with type t = int) -> Z.t) ->
+  (module A : Typ with type t = int) -> int = <fun>
+|}]

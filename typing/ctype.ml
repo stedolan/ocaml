@@ -3306,9 +3306,9 @@ and unify3 uenv t1 t1' t2 t2' =
                        expected = newty (Tpackage pack2)} :: trace)
             end;
             let env = get_env uenv in
-            let mty1 = modtype_of_package env Location.none pack1 in
+            let mty2 = modtype_of_package env Location.none pack2 in
             enter_functor_for Unify env id1 (newty d1) id2 t2'
-              (fun id_pairs -> with_mty uenv id_pairs id1 mty1
+              (fun id_pairs -> with_mty uenv id_pairs id2 mty2
                             (fun uenv -> Ident.Unscoped.link id1 id2;
                                          unify uenv ty1 ty2))
       | (Tfunctor (l1, id1, pack1, u1), Tarrow (l2, t2, u2, c2)) ->

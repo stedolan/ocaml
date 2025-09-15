@@ -317,6 +317,8 @@ type 'a tbl =
 
 and 'a data =
   { ident: t;
+    name : string;
+    stamp : int;
     data: 'a;
     previous: 'a data option }
 
@@ -327,6 +329,14 @@ let empty = Empty
  *     Empty -> 0
  *   | Node(_,_,_,h) -> h
  *)
+
+(* Before returning the data we check that the corresponding binder
+  was not mutated since it has been added to the environment
+  (for example : Unscoped indentifiers and Unscoped.link).
+*)
+let get_data k =
+  assert (stamp k.ident = k.stamp);
+  k.data
 
 let mknode l d r =
   let hl = match l with Empty -> 0 | Node(_,_,_,h) -> h
@@ -359,11 +369,23 @@ let balance l d r =
 
 let rec add id data = function
     Empty ->
-      Node(Empty, {ident = id; data = data; previous = None}, Empty, 1)
+      let k = {
+        ident = id;
+        name = name id;
+        stamp = stamp id;
+        data = data;
+        previous = None
+      } in Node(Empty, k, Empty, 1)
   | Node(l, k, r, h) ->
-      let c = String.compare (name id) (name k.ident) in
+      let c = String.compare (name id) k.name in
       if c = 0 then
-        Node(l, {ident = id; data = data; previous = Some k}, r, h)
+        let new_k = {
+          ident = id;
+          name = name id;
+          stamp = stamp id;
+          data = data;
+          previous = Some k
+        } in Node(l, new_k, r, h)
       else if c < 0 then
         balance (add id data l) k r
       else
@@ -391,7 +413,7 @@ let rec remove id = function
     Empty ->
       Empty
   | (Node (l, k, r, h) as m) ->
-      let c = String.compare (name id) (name k.ident) in
+      let c = String.compare (name id) k.name in
       if c = 0 then
         match k.previous with
         | None -> merge l r
@@ -405,55 +427,55 @@ let rec find_previous id = function
     None ->
       raise Not_found
   | Some k ->
-      if same id k.ident then k.data else find_previous id k.previous
+      if same id k.ident then get_data k else find_previous id k.previous
 
 let rec find_same id = function
     Empty ->
       raise Not_found
   | Node(l, k, r, _) ->
-      let c = String.compare (name id) (name k.ident) in
-      if c = 0 then
+      let c = String.compare (name id) k.name in
+      if c = 0 then begin
         if same id k.ident
-        then k.data
+        then get_data k
         else find_previous id k.previous
-      else
+      end else
         find_same id (if c < 0 then l else r)
 
 let rec find_name n = function
     Empty ->
       raise Not_found
   | Node(l, k, r, _) ->
-      let c = String.compare n (name k.ident) in
+      let c = String.compare n k.name in
       if c = 0 then
-        k.ident, k.data
+        k.ident, get_data k
       else
         find_name n (if c < 0 then l else r)
 
 let rec get_all = function
   | None -> []
-  | Some k -> (k.ident, k.data) :: get_all k.previous
+  | Some k -> (k.ident, get_data k) :: get_all k.previous
 
 let rec find_all n = function
     Empty ->
       []
   | Node(l, k, r, _) ->
-      let c = String.compare n (name k.ident) in
+      let c = String.compare n k.name in
       if c = 0 then
-        (k.ident, k.data) :: get_all k.previous
+        (k.ident, get_data k) :: get_all k.previous
       else
         find_all n (if c < 0 then l else r)
 
 let get_all_seq k () =
-  Seq.unfold (Option.map (fun k -> (k.ident, k.data), k.previous))
+  Seq.unfold (Option.map (fun k -> (k.ident, get_data k), k.previous))
     k ()
 
 let rec find_all_seq n tbl () =
   match tbl with
   | Empty -> Seq.Nil
   | Node(l, k, r, _) ->
-      let c = String.compare n (name k.ident) in
+      let c = String.compare n k.name in
       if c = 0 then
-        Seq.Cons((k.ident, k.data), get_all_seq k.previous)
+        Seq.Cons((k.ident, get_data k), get_all_seq k.previous)
       else
         find_all_seq n (if c < 0 then l else r) ()
 
@@ -467,12 +489,13 @@ let rec fold_aux f stack accu = function
   | Node(l, k, r, _) ->
       fold_aux f (l :: stack) (f k accu) r
 
-let fold_name f tbl accu = fold_aux (fun k -> f k.ident k.data) [] accu tbl
+let fold_name f tbl accu =
+  fold_aux (fun k -> f k.ident (get_data k)) [] accu tbl
 
 let rec fold_data f d accu =
   match d with
     None -> accu
-  | Some k -> f k.ident k.data (fold_data f k.previous accu)
+  | Some k -> f k.ident (get_data k) (fold_data f k.previous accu)
 
 let fold_all f tbl accu =
   fold_aux (fun k -> fold_data f (Some k)) [] accu tbl
@@ -482,7 +505,7 @@ let fold_all f tbl accu =
 let rec iter f = function
     Empty -> ()
   | Node(l, k, r, _) ->
-      iter f l; f k.ident k.data; iter f r
+      iter f l; f k.ident (get_data k); iter f r
 
 (* Idents for sharing keys *)
 
