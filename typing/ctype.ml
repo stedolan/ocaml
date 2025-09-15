@@ -3846,33 +3846,6 @@ let unify env ty1 ty2 =
 (* Lower the level of a type to the current level *)
 let enforce_current_level env ty = unify_var env (newvar ()) ty
 
-let unify_to_arrow env ty =
-  match get_desc ty with
-  | Tfunctor (l, id, pack, t) ->
-    let snap = Btype.snapshot () in
-    let pck_ty =
-      newty2 ~level:(get_level ty)
-        (Tpoly (newty2 ~level:(get_level ty) (Tpackage pack), [])) in
-    begin try
-      let mty = modtype_of_package env Location.none pack in
-      identifier_escape_for Unify
-          (Env.add_module (Ident.of_unscoped id) Mp_present mty env)
-          [id] t;
-      let ty' =
-        newty2 ~level:(get_level ty) (Tarrow (l, pck_ty, t, commu_ok))
-      in
-      link_type ty ty';
-      (pck_ty, t)
-    with Unify_trace trace ->
-      undo_compress snap;
-      let expected = newty (Tarrow (l, pck_ty, newvar (), commu_ok)) in
-      let trace = Diff {got = ty; expected} :: trace in
-      raise (Unify (expand_to_unification_error env trace))
-    end
-  | Tarrow (_, t1, t2, _) -> (t1, t2)
-  | _ -> fatal_error "Ctype.unify_to_arrow"
-
-
 (**** Special cases of unification ****)
 
 let expand_head_trace env t =
@@ -6226,6 +6199,20 @@ let identifier_escape l pty env id mty t =
       in
       let trace = Diff {got; expected} :: trace in
       raise (Unify (expand_to_unification_error env trace))
+
+let unify_to_arrow env ty =
+  match get_desc ty with
+  | Tfunctor (l, id, pack, t) ->
+    let mty = modtype_of_package env Location.none pack in
+    identifier_escape l pack env id mty t;
+    let pck_ty =
+      newty2 ~level:(get_level ty)
+        (Tpoly (newty2 ~level:(get_level ty) (Tpackage pack), [])) in
+    let ty' = newty2 ~level:(get_level ty) (Tarrow (l, pck_ty, t, commu_ok)) in
+    link_type ty ty';
+    (pck_ty, t)
+  | Tarrow (_, t1, t2, _) -> (t1, t2)
+  | _ -> fatal_error "Ctype.unify_to_arrow"
 
 (*
    Variables are left unchanged. Other type nodes are duplicated, with
