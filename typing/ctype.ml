@@ -458,15 +458,6 @@ let add_local_constraint uenv source dest =
   | Expression _ -> invalid_arg "Ctype.add_local_constraint"
   | Pattern {penv} -> Pattern_env.add_local_constraint source dest penv
 
-let with_mty uenv id_pairs id mty f =
-  match uenv with
-  | Expression exp ->
-      let env = Env.add_module (Ident.of_unscoped id) Mp_present mty exp.env in
-      let env = Env_unscoped.with_pairs id_pairs env in
-      f (Expression {exp with env})
-  | Pattern {penv} ->
-      Pattern_env.with_mty penv id_pairs id mty (fun () -> f uenv)
-
 let in_pattern_mode = function
   | Expression _ -> false
   | Pattern _ -> true
@@ -2550,6 +2541,21 @@ let enter_functor_for tr_exn env id1 t1 id2 t2 f =
     enter_functor env id1 t1 id2 t2 f
   with Escape e -> raise_for tr_exn (Escape e)
 
+let enter_functor_for_unify uenv id1 t1 id2 t2 mty f =
+  enter_functor_for Unify (get_env uenv) id1 t1 id2 t2
+    begin fun id_pairs ->
+      Ident.Unscoped.link id1 id2;
+      match uenv with
+      | Expression exp ->
+          let env =
+            Env.add_module (Ident.of_unscoped id1) Mp_present mty exp.env
+          in
+          let env = Env_unscoped.with_pairs id_pairs env in
+          f (Expression {exp with env})
+      | Pattern {penv} ->
+          Pattern_env.with_mty penv id_pairs id1 mty (fun () -> f uenv)
+    end
+
 (**** Instantiate a generic type into a poly type ***)
 
 let polyfy env ty vars =
@@ -3307,10 +3313,8 @@ and unify3 uenv t1 t1' t2 t2' =
             end;
             let env = get_env uenv in
             let mty2 = modtype_of_package env Location.none pack2 in
-            enter_functor_for Unify env id1 (newty d1) id2 t2'
-              (fun id_pairs -> with_mty uenv id_pairs id2 mty2
-                            (fun uenv -> Ident.Unscoped.link id1 id2;
-                                         unify uenv ty1 ty2))
+            enter_functor_for_unify uenv id1 (newty d1) id2 t2' mty2
+                            (fun uenv -> unify uenv ty1 ty2)
       | (Tfunctor (l1, id1, pack1, u1), Tarrow (l2, t2, u2, c2)) ->
             eq_labels Unify ~in_pattern_mode:(in_pattern_mode uenv) l1 l2;
             unify uenv (newmono (newty (Tpackage pack1))) t2;
