@@ -5701,14 +5701,12 @@ let rec subtype_rec env trace t1 t2 constraints =
             fcm2 fcm1
             constraints
         in
-        begin match get_desc fcm2 with
-          | Tpoly (fcm2, []) -> begin
-            match extract_package_modulo_subtype env fcm2 with
-            | pack2 -> subtype_functor env trace id1 pack2 u1 u2 constraints
-            | exception Not_found ->
-              (env, trace, t1, t2, !univar_pairs)::constraints
-            end
-          | _ -> Misc.fatal_error "[subtype_rec] Unexpected poly"
+        let fcm2 = tpoly_get_mono fcm2 in
+        begin
+          match extract_package_modulo_subtype env fcm2 with
+          | pack2 -> subtype_functor env trace id1 pack2 u1 u2 constraints
+          | exception Not_found ->
+            (env, trace, t1, t2, !univar_pairs)::constraints
         end
     | (Tarrow (l1, fcm1, u1, _),  Tfunctor (l2, id2, pack2, u2))
       when compatible_labels ~in_pattern_mode:false l1 l2 ->
