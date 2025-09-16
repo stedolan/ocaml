@@ -2298,20 +2298,15 @@ let occur_univar_or_unscoped ?(inj_only=false) env ty =
               then List.iter (occur_rec env bound_uv bound_id) tl
             end
           end
-      | Tobject (_, ({contents = Some (p, _)} as nm))
-        when Path.check_for_unbound_unscoped_idents bound_id p <> None ->
-          set_name nm None;
-          occur_desc env bound_uv bound_id ty
+      | Tobject (_, ({contents = Some (p, _)} as nm)) ->
+          occur_set_name env bound_uv bound_id ty p
+            (fun () -> set_name nm None)
       | Tvariant row when row_name row <> None ->
           begin match row_name row with
           | None -> assert false (* Should not pass the gard above *)
           | Some (p, _) ->
-            if Path.check_for_unbound_unscoped_idents bound_id p <> None
-            then begin
-              set_type_desc ty (Tvariant (set_row_name row None));
-              occur_desc env bound_uv bound_id ty
-            end else
-              iter_type_expr (occur_rec env bound_uv bound_id) ty
+            occur_set_name env bound_uv bound_id ty p
+              (fun () -> set_type_desc ty (Tvariant (set_row_name row None)))
           end
       | Tpackage {pack_path = p; pack_constraints} ->
           begin match Path.check_for_unbound_unscoped_idents bound_id p with
@@ -2346,6 +2341,13 @@ let occur_univar_or_unscoped ?(inj_only=false) env ty =
         occur_desc env bound_uv bound_id ty
       with Cannot_expand ->
         raise_escape_exn (Module (Ident.of_unscoped us))
+    and occur_set_name env bound_uv bound_id ty p set_name_None =
+      if Path.check_for_unbound_unscoped_idents bound_id p <> None
+      then begin
+        set_name_None ();
+        occur_desc env bound_uv bound_id ty
+      end else
+        iter_type_expr (occur_rec env bound_uv bound_id) ty
     and occur_normalize_modtype_path env bound_uv bound_id us p f =
       match Env.try_normalize_modtype_path env p with
       | None -> raise_escape_exn (Module (Ident.of_unscoped us))
@@ -2464,19 +2466,15 @@ let identifier_escape env idl ty =
             occur_normalize_modtype_path env idl pack.pack_path i
               (fun pack_path -> Tpackage {pack with pack_path})
           end
-      | Tobject (_, ({contents = Some (p, _)} as nm))
-        when Path.exists_free idl p ->
-          set_name nm None;
-          occur ~ignore_mark:true idl ty
+      | Tobject (_, ({contents = Some (p, _)} as nm)) ->
+          occur_set_name idl ty p
+            (fun () -> set_name nm None)
       | Tvariant row when row_name row <> None ->
           begin match row_name row with
           | None -> assert false (* Should not pass the gard above *)
           | Some (p, _) ->
-            if Path.exists_free idl p then begin
-              set_type_desc ty (Tvariant (set_row_name row None));
-              occur ~ignore_mark:true idl ty
-            end else
-              iter_type_expr (occur idl) ty
+            occur_set_name idl ty p
+              (fun () -> set_type_desc ty (Tvariant (set_row_name row None)))
           end
       | Tfunctor (l, id, pack, t) ->
           begin match Path.find_free_opt idl pack.pack_path with
@@ -2500,6 +2498,12 @@ let identifier_escape env idl ty =
       link_type ty ty';
       occur ~ignore_mark:true idl ty'
     with Cannot_expand -> raise_escape_exn (Module id)
+  and occur_set_name idl ty p set_name_None =
+    if Path.exists_free idl p then begin
+      set_name_None ();
+      occur ~ignore_mark:true idl ty
+    end else
+      iter_type_expr (occur idl) ty
   and occur_normalize_modtype_path env idl p id f =
     match Env.try_normalize_modtype_path env p with
     | None -> raise_escape_exn (Module id)
