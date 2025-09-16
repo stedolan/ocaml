@@ -2464,16 +2464,12 @@ let identifier_escape env idl ty =
                 raise_escape_exn (Module i)
               end
           end
-      | Tpackage ({pack_path = p} as pack) ->
-          begin match Path.find_free_opt idl p with
+      | Tpackage pack ->
+          begin match Path.find_free_opt idl pack.pack_path with
           | None -> iter_type_expr (occur idl) ty
           | Some i ->
-            begin match Env.try_normalize_modtype_path env p with
-            | None -> raise_escape_exn (Module i)
-            | Some p' ->
-              set_type_desc ty (Tpackage {pack with pack_path = p'});
-              occur ~ignore_mark:true idl ty
-            end
+            occur_normalize_modtype_path env idl pack.pack_path i
+              (fun pack_path -> Tpackage {pack with pack_path})
           end
       | Tobject (_, ({contents = Some (p, _)} as nm))
         when Path.exists_free idl p ->
@@ -2489,18 +2485,13 @@ let identifier_escape env idl ty =
             end else
               iter_type_expr (occur idl) ty
           end
-      | Tfunctor (l, id, {pack_path = p; pack_constraints}, t) ->
-          begin match Path.find_free_opt idl p with
+      | Tfunctor (l, id, pack, t) ->
+          begin match Path.find_free_opt idl pack.pack_path with
           | Some i ->
-              begin match Env.try_normalize_modtype_path env p with
-              | None -> raise_escape_exn (Module i)
-              | Some p' ->
-                let pack' = {pack_path = p'; pack_constraints} in
-                set_type_desc ty (Tfunctor (l, id, pack', ty));
-                occur ~ignore_mark:true idl ty
-              end
+              occur_normalize_modtype_path env idl pack.pack_path i
+                (fun pack_path -> Tfunctor (l, id, {pack with pack_path}, ty))
           | None ->
-              List.iter (fun (_, t) -> occur idl t) pack_constraints;
+              List.iter (fun (_, t) -> occur idl t) pack.pack_constraints;
               let idl' =
                 List.filter (fun i -> not Ident.(same i (of_unscoped id))) idl
               in
@@ -2510,6 +2501,12 @@ let identifier_escape env idl ty =
           end
       | _ -> iter_type_expr (occur idl) ty
     end
+  and occur_normalize_modtype_path env idl p id f =
+    match Env.try_normalize_modtype_path env p with
+    | None -> raise_escape_exn (Module id)
+    | Some p' ->
+      set_type_desc ty (f p');
+      occur ~ignore_mark:true idl ty
   in
   occur (List.map Ident.of_unscoped idl) ty
   end
