@@ -2455,14 +2455,7 @@ let identifier_escape env idl ty =
         Tconstr (p, _, _) ->
           begin match Path.find_free_opt idl p with
           | None -> iter_type_expr (occur idl) ty
-          | Some i ->
-              begin try
-                let ty' = try_expand_safe env ty in
-                link_type ty ty';
-                occur ~ignore_mark:true idl ty'
-              with Cannot_expand ->
-                raise_escape_exn (Module i)
-              end
+          | Some i -> occur_expand_safe env idl ty i
           end
       | Tpackage pack ->
           begin match Path.find_free_opt idl pack.pack_path with
@@ -2501,6 +2494,12 @@ let identifier_escape env idl ty =
           end
       | _ -> iter_type_expr (occur idl) ty
     end
+  and occur_expand_safe env idl ty id =
+    try
+      let ty' = try_expand_safe env ty in
+      link_type ty ty';
+      occur ~ignore_mark:true idl ty'
+    with Cannot_expand -> raise_escape_exn (Module id)
   and occur_normalize_modtype_path env idl p id f =
     match Env.try_normalize_modtype_path env p with
     | None -> raise_escape_exn (Module id)
