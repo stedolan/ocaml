@@ -4439,14 +4439,15 @@ let rec moregen type_pairs env t1 t2 =
               moregen_package type_pairs env
                 (get_level t1') pack1 (get_level t2') pack2;
               let mty1 = modtype_of_package env Location.none pack1 in
-              let new_env = Env.add_module (Ident.of_unscoped id1)
-                                           Mp_present mty1 env in
               let mty2 = modtype_of_package env Location.none pack2 in
-              let new_env = Env.add_module (Ident.of_unscoped id2)
-                                           Mp_present mty2 new_env in
               enter_functor_for Moregen env id1 t1' id2 t2'
                   (fun id_pairs ->
-                    let new_env = Env_unscoped.with_pairs id_pairs new_env in
+                    let new_env =
+                      env
+                      |> Env.add_module (Ident.of_unscoped id1) Mp_present mty1
+                      |> Env.add_module (Ident.of_unscoped id2) Mp_present mty2
+                      |> Env_unscoped.with_pairs id_pairs
+                    in
                     moregen type_pairs new_env t1 t2)
           | Tarrow (l1, t1, u1, _), Tfunctor (l2, id2, pack2, u2) ->
                 eq_labels Moregen ~in_pattern_mode:false l1 l2;
@@ -4847,14 +4848,15 @@ let rec eqtype rename type_pairs subst env t1 t2 =
               eqtype_package rename type_pairs subst env
                 (get_level t1') pack1 (get_level t2') pack2;
               let mty1 = modtype_of_package env Location.none pack1 in
-              let new_env = Env.add_module (Ident.of_unscoped id1)
-                                           Mp_present mty1 env in
               let mty2 = modtype_of_package env Location.none pack2 in
-              let new_env = Env.add_module (Ident.of_unscoped id2)
-                                           Mp_present mty2 new_env in
               enter_functor_for Equality env id1 t1' id2 t2'
                   (fun id_pairs ->
-                    let new_env = Env_unscoped.with_pairs id_pairs new_env in
+                    let new_env =
+                      env
+                      |> Env.add_module (Ident.of_unscoped id1) Mp_present mty1
+                      |> Env.add_module (Ident.of_unscoped id2) Mp_present mty2
+                      |> Env_unscoped.with_pairs id_pairs
+                    in
                     eqtype rename type_pairs subst new_env t1 t2)
           | (Tfunctor (l1, id1, pack1, u1), Tarrow (l2, t2, u2, _)) ->
               eq_labels Equality ~in_pattern_mode:false l1 l2;
