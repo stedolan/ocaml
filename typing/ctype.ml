@@ -3936,7 +3936,7 @@ let filter_functor env t l =
   in
   match get_desc t with
   | Tfunctor (l', id, pack, ct) ->
-    if l = l'
+    if compatible_labels ~in_pattern_mode:false l l'
     then Some (id, pack, ct)
     else raise (Filter_arrow_failed
                   (Label_mismatch
