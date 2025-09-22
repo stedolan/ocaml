@@ -4321,11 +4321,12 @@ let rec copy_spine ~closed ~id_map copy_scope ty =
   | Tnil
   | Tlink _
   | Tunivar _ -> ty
-  | Tfield _
-  | Tvariant _
-  | Tobject _ when closed ty -> ty
+  | Tfield _ | Tvariant _ | Tobject _ ->
+    (* We left the spine but still need to apply id_map. *)
+    if closed ty then ty
+    else copy ~id_map ~closed copy_scope ty
   | (Tarrow _ | Tpoly _ | Ttuple _ | Tpackage _ | Tconstr _
-    | Tfunctor _ | Tfield _ | Tvariant _ | Tobject _) as desc ->
+    | Tfunctor _) as desc ->
       let level = get_level ty in
       if closed ty && (level < !current_level || level = generic_level)
       then ty else
@@ -4359,18 +4360,6 @@ let rec copy_spine ~closed ~id_map copy_scope ty =
             copy_spine ~closed ~id_map copy_scope ty
           in
           Tfunctor (lbl, us', pack', ty')
-      | Tvariant row ->
-          begin match row_name row with
-          | Some (p, fl) ->
-              let fl = List.map copy_rec fl in
-              Tvariant (set_row_name row (Some (Path.subst id_map p, fl)))
-          | None -> Tvariant row
-          end
-      | Tobject (ty, {contents = Some (p, tl)}) ->
-          let p = Path.subst id_map p in
-          Tobject (copy_rec ty, ref (Some (p, List.map copy_rec tl)))
-      | Tobject _ | Tfield _ ->
-          copy_type_desc copy_rec desc
       | _ -> assert false
       in
       Transient_expr.set_stub_desc t desc';
