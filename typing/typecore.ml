@@ -3007,12 +3007,6 @@ let collect_arrow_arg ~may_warn ~funct ~optional ~sargs ~ty_arg ~ty_arg0 ~lv
         Omitted { ty_arg; level = lv }
       end
 
-type tfunctor = {
-  id : Ident.Unscoped.t;
-  pack : package;
-  ty : type_expr;
-}
-
 let type_tfunctor_module_arg ~env ~sarg ~me ~optyp ~pack ~pack0 =
   let me = module_with_package_type_constraint me optyp in
   (* We expanded the code here to prevent a principality warning
@@ -3031,7 +3025,7 @@ let type_tfunctor_module_arg ~env ~sarg ~me ~optyp ~pack ~pack0 =
   modl, texp
 
 let collect_functor_module_arg ~env ~sarg ~rev_args ~funct ~me ~optyp
-    ~tfun ~tfun0 ~l =
+    ~(tfun : Types.tfunctor) ~(tfun0 : Types.tfunctor) ~l =
   let modl, texp =
     type_tfunctor_module_arg ~env ~sarg ~me ~optyp
                              ~pack:tfun.pack ~pack0:tfun0.pack in
@@ -3040,18 +3034,18 @@ let collect_functor_module_arg ~env ~sarg ~rev_args ~funct ~me ~optyp
   | Some path ->
     let ty_ret =
       with_level ~level:generic_level @@ fun () ->
-        instance_funct ~id_in:(Ident.of_unscoped tfun.id)
+        instance_funct ~id_in:(Ident.of_unscoped tfun.id_us)
                             ~p_out:path ~fixed:false tfun.ty in
     let ty_ret0 =
-        instance_funct ~id_in:(Ident.of_unscoped tfun0.id)
+        instance_funct ~id_in:(Ident.of_unscoped tfun0.id_us)
                             ~p_out:path ~fixed:false tfun0.ty in
     (arg, ty_ret, ty_ret0)
   | None ->
     let me = remove_module_constraint modl in
     try
-      identifier_escape l tfun.pack env tfun.id me.mod_type tfun.ty;
-      identifier_escape l tfun0.pack env tfun0.id me.mod_type tfun0.ty;
-      (arg, tfun.ty, tfun0.ty)
+      let ty = instance_funct_nondep env l tfun me.mod_type in
+      let ty0 = instance_funct_nondep env l tfun0 me.mod_type in
+      (arg, ty, ty0)
     with Unify trace ->
       let loc = beginning_function_loc rev_args ~funct in
       raise (Error(loc, env, Cannot_unify_tfunctor_to_tarrow trace))
@@ -3112,7 +3106,7 @@ let collect_unknown_apply_args env funct ty_fun0 rev_args sargs =
         in
         let arg, ty_res = match arg_kind with
           | `Arrow ty_arg -> Unknown_arg { sarg; ty_arg }, ty_res
-          | `Functor (l, id, pack) ->
+          | `Functor (l, id_us, pack) ->
               match extract_packing sarg with
               | Some (me, optyp) ->
                 let modl, texp =
@@ -3123,14 +3117,13 @@ let collect_unknown_apply_args env funct ty_fun0 rev_args sargs =
                   match path_of_module modl with
                   | Some path ->
                     let ty_res =
-                        instance_funct ~id_in:(Ident.of_unscoped id)
+                        instance_funct ~id_in:(Ident.of_unscoped id_us)
                                             ~p_out:path ~fixed:false ty_res in
                     ty_res
                   | None ->
                     let me = remove_module_constraint modl in
-                    try
-                      identifier_escape l pack env id me.mod_type ty_res;
-                      ty_res
+                    let tfun = { Types.id_us; pack; ty = ty_res } in
+                    try instance_funct_nondep env l tfun me.mod_type
                     with Unify trace ->
                       let loc = beginning_function_loc rev_args ~funct in
                       raise (Error (loc, env,
@@ -3169,8 +3162,8 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
         when is_commu_ok com ->
           Some (l, `Arrow (ty_arg, ty_ret, ty_arg0, ty_ret0))
       | Tfunctor (l, id, pack, ty), Tfunctor (_, id0, pack0, ty0) ->
-          let tfun = { id; pack; ty} in
-          let tfun0 = { id = id0; pack = pack0; ty = ty0} in
+          let tfun = { id_us = id; pack; ty} in
+          let tfun0 = { id_us = id0; pack = pack0; ty = ty0} in
           Some (l, `Functor (tfun, tfun0))
       | _ -> None
     in

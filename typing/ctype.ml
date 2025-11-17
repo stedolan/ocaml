@@ -6169,31 +6169,40 @@ let normalize_type ty =
                               (*************************)
 
 
-let identifier_escape l pty env id mty t =
+let instance_funct_nondep_inplace env l (tfun : Types.tfunctor) mty =
+  let env' = Env.add_module (Ident.of_unscoped tfun.id_us) Mp_present mty env in
   let snap = Btype.snapshot () in
-  let env' = Env.add_module (Ident.of_unscoped id) Mp_present mty env in
   try
-      identifier_escape_for Unify env' [id] t
+      identifier_escape_for Unify env' [tfun.id_us] tfun.ty
   with Unify_trace trace ->
       undo_compress snap;
-      let got = newty (Tfunctor (l, id, pty, t)) in
+      let got = newty (Tfunctor (l, tfun.id_us, tfun.pack, tfun.ty)) in
       let expected =
-        newty (Tarrow (l, newmono (newty (Tpackage pty)), newvar (), commu_ok))
+        newty (Tarrow (l, newmono (newty (Tpackage tfun.pack)),
+                       newvar (), commu_ok))
       in
       let trace = Diff {got; expected} :: trace in
       raise (Unify (expand_to_unification_error env trace))
 
-let unify_to_arrow env ty =
-  match get_desc ty with
-  | Tfunctor (l, id, pack, t) ->
+let instance_funct_nondep env l (tfun : Types.tfunctor) mty =
+  let id_us' = Ident.Unscoped.refresh tfun.id_us in
+  let ty = subst_unscoped tfun.id_us id_us' tfun.ty in
+  instance_funct_nondep_inplace env l { tfun with id_us = id_us'; ty } mty;
+  ty
+
+let unify_to_arrow env tfun =
+  match get_desc tfun with
+  | Tfunctor (l, id_us, pack, ty) ->
     let mty = modtype_of_package env Location.none pack in
-    identifier_escape l pack env id mty t;
+    instance_funct_nondep_inplace env l { id_us; pack; ty } mty;
     let pck_ty =
-      newty2 ~level:(get_level ty)
-        (Tpoly (newty2 ~level:(get_level ty) (Tpackage pack), [])) in
-    let ty' = newty2 ~level:(get_level ty) (Tarrow (l, pck_ty, t, commu_ok)) in
-    link_type ty ty';
-    (pck_ty, t)
+      newty2 ~level:(get_level tfun)
+        (Tpoly (newty2 ~level:(get_level tfun) (Tpackage pack), [])) in
+    let tfun' =
+      newty2 ~level:(get_level tfun) (Tarrow (l, pck_ty, ty, commu_ok))
+    in
+    link_type tfun tfun';
+    (pck_ty, ty)
   | Tarrow (_, t1, t2, _) -> (t1, t2)
   | _ -> fatal_error "Ctype.unify_to_arrow"
 

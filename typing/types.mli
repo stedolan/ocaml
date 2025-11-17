@@ -207,6 +207,12 @@ val is_commu_ok: commutable -> bool
 val commu_ok: commutable
 val commu_var: unit -> commutable
 
+type tfunctor = {
+  id_us : Ident.Unscoped.t;
+  pack : package;
+  ty : type_expr;
+}
+
 (** [field_kind] indicates the accessibility of a method.
 
     An [Fprivate] field may become [Fpublic] or [Fabsent] during unification,

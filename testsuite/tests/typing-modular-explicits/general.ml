@@ -1084,7 +1084,7 @@ let test_instance_nondep f =
 
 [%%expect{|
 val test_instance_nondep :
-  ((module M : Typ) -> int) -> (module M : Typ) -> int = <fun>
+  ((module M : Typ) -> M.t) -> (module M : Typ) -> M.t = <fun>
 |}, Principal{|
 Line 3, characters 10-11:
 3 |   ignore (f (module struct type t = int end));
@@ -1092,7 +1092,7 @@ Line 3, characters 10-11:
 Warning 18 [not-principal]: applying a dependent function is not principal.
 
 val test_instance_nondep :
-  ((module M : Typ) -> int) -> (module M : Typ) -> int = <fun>
+  ((module M : Typ) -> M.t) -> (module M : Typ) -> M.t = <fun>
 |}]
 
 (* Test weak value restriction *)
