@@ -5942,13 +5942,11 @@ let subtype env ty1 ty2 =
     function () ->
       List.iter
         (function (env, trace0, t1, t2, pairs) ->
-           try
-             unify_pairs env t1 t2 pairs
-           with Unify {trace} ->
-            subtype_error
-              ~env
-              ~trace:trace0
-              ~unification_trace:(List.tl trace))
+           try unify_pairs env t1 t2 pairs with Unify {trace} ->
+           subtype_error
+             ~env
+             ~trace:trace0
+             ~unification_trace:(List.tl trace))
         (List.rev constraints))
 
                               (*******************)
