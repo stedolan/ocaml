@@ -5591,8 +5591,7 @@ and type_function
             end;
             (Some (id, ety), Some cpack, pack)
         | Some (id, pack', ety), None ->
-            if !Clflags.principal
-                && get_level ty_expected < Btype.generic_level
+            if not (is_principal ty_expected)
             then Location.prerr_warning pparam_loc
                   (not_principal "this module unpacking");
             (Some (id, ety), None, pack')

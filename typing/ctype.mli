@@ -337,8 +337,10 @@ val filter_arrow: Env.t -> type_expr -> arg_label -> param_hole:bool ->
 val filter_functor:
         Env.t -> type_expr -> arg_label ->
         (Ident.Unscoped.t * package * type_expr) option
-        (* A special case of unification with [{M:P} -> 'a]  Raises
-           [Filter_arrow_failed] instead of [Unify]. *)
+        (* A special case of unification with [{M:P} -> 'a]
+           Raises [Filter_arrow_failed] instead of [Unify].
+           May return [Some _] when the type is not principally known,
+           so you should check for principality. *)
 val is_really_poly : Env.t -> type_expr -> bool
 val filter_method: Env.t -> string -> type_expr -> type_expr
         (* A special case of unification (with {m : 'a; 'b}).  Raises
