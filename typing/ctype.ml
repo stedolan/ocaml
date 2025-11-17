@@ -5670,11 +5670,8 @@ let rec subtype_rec env trace t1 t2 constraints =
       when compatible_labels ~in_pattern_mode:false l1 l2 ->
         let fcm1 = newmono (newty (Tpackage pack1)) in
         let constraints =
-          subtype_rec
-            env
-            (Subtype.Diff {got = fcm2; expected = fcm1} :: trace)
-            fcm2 fcm1
-            constraints
+          (* [trace] : see [(Tarrow, Tarrow)] comment *)
+          subtype_rec env trace fcm2 fcm1 constraints
         in
         let fcm2 = tpoly_get_mono fcm2 in
         begin
@@ -5687,11 +5684,8 @@ let rec subtype_rec env trace t1 t2 constraints =
       when compatible_labels ~in_pattern_mode:false l1 l2 ->
         let fcm2 = newmono (newty (Tpackage pack2)) in
         let constraints =
-          subtype_rec
-            env
-            (Subtype.Diff {got = fcm2; expected = fcm1} :: trace)
-            fcm2 fcm1
-            constraints
+          (* [trace] : see [(Tarrow, Tarrow)] comment *)
+          subtype_rec env trace fcm2 fcm1 constraints
         in
         subtype_functor env trace id2 pack2 u1 u2 constraints
     | (Ttuple tl1, Ttuple tl2) ->
