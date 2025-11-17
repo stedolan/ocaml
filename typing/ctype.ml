@@ -351,6 +351,9 @@ let newconstr path tyl = newty (Tconstr (path, tyl, ref Mnil))
 
 let newmono ty = newty (Tpoly(ty, []))
 
+let newmono_package ?(level = !current_level) pty =
+  newty2 ~level (Tpoly (newty2 ~level (Tpackage pty), []))
+
 let none = newty (Ttuple [])                (* Clearly ill-formed type *)
 
 (**** information for [Typecore.unify_pat_*] ****)
@@ -2833,11 +2836,11 @@ let rec mcomp type_pairs env t1 t2 =
             mcomp type_pairs env u1 u2
         | (Tfunctor (l1, _, pack1, u1), Tarrow (l2, t2, u2, _))
           when compatible_labels ~in_pattern_mode:true l1 l2 ->
-            mcomp type_pairs env (newmono (newty (Tpackage pack1))) t2;
+            mcomp type_pairs env (newmono_package pack1) t2;
             mcomp type_pairs env u1 u2
         | (Tarrow (l1, t1, u1, _), Tfunctor (l2, _, pack2, u2))
           when compatible_labels ~in_pattern_mode:true l1 l2 ->
-            mcomp type_pairs env t1 (newmono (newty (Tpackage pack2)));
+            mcomp type_pairs env t1 (newmono_package pack2);
             mcomp type_pairs env u1 u2
         (*
         | (Tpackage (p1, n1, tl1), Tpackage (p2, n2, tl2)) when n1 = n2 ->
@@ -3328,7 +3331,7 @@ and unify3 uenv t1 t1' t2 t2' =
                             (fun uenv -> unify uenv ty1 ty2)
       | (Tfunctor (l1, id1, pack1, u1), Tarrow (l2, t2, u2, c2)) ->
             eq_labels Unify ~in_pattern_mode:(in_pattern_mode uenv) l1 l2;
-            unify uenv (newmono (newty (Tpackage pack1))) t2;
+            unify uenv (newmono_package pack1) t2;
             let env = get_env uenv in
             let mty1 = modtype_of_package env Location.none pack1 in
             identifier_escape_for Unify
@@ -3338,7 +3341,7 @@ and unify3 uenv t1 t1' t2 t2' =
             if not (is_commu_ok c2) then set_commu_ok c2
       | (Tarrow (l1, t1, u1, c1), Tfunctor (l2, id2, pack2, u2)) ->
             eq_labels Unify ~in_pattern_mode:(in_pattern_mode uenv) l1 l2;
-            unify uenv t1 (newmono (newty (Tpackage pack2)));
+            unify uenv t1 (newmono_package pack2);
             let env = get_env uenv in
             let mty2 = modtype_of_package env Location.none pack2 in
             identifier_escape_for Unify
@@ -4451,7 +4454,7 @@ let rec moregen type_pairs env t1 t2 =
                     moregen type_pairs new_env t1 t2)
           | Tarrow (l1, t1, u1, _), Tfunctor (l2, id2, pack2, u2) ->
                 eq_labels Moregen ~in_pattern_mode:false l1 l2;
-                let t2 = newmono (newty (Tpackage pack2)) in
+                let t2 = newmono_package pack2 in
                 moregen type_pairs env t1 t2;
                 let mty = modtype_of_package env Location.none pack2 in
                 let env' = Env.add_module (Ident.of_unscoped id2)
@@ -4460,7 +4463,7 @@ let rec moregen type_pairs env t1 t2 =
                 moregen type_pairs env u1 u2
           | Tfunctor (l1, id1, pack1, u1), Tarrow (l2, t2, u2, _) ->
                 eq_labels Moregen ~in_pattern_mode:false l1 l2;
-                let t1 = newmono (newty (Tpackage pack1)) in
+                let t1 = newmono_package pack1 in
                 moregen type_pairs env t1 t2;
                 let mty = modtype_of_package env Location.none pack1 in
                 let env' = Env.add_module (Ident.of_unscoped id1)
@@ -4860,7 +4863,7 @@ let rec eqtype rename type_pairs subst env t1 t2 =
                     eqtype rename type_pairs subst new_env t1 t2)
           | (Tfunctor (l1, id1, pack1, u1), Tarrow (l2, t2, u2, _)) ->
               eq_labels Equality ~in_pattern_mode:false l1 l2;
-              let t1 = newmono (newty (Tpackage pack1)) in
+              let t1 = newmono_package pack1 in
               eqtype rename type_pairs subst env t1 t2;
               let mty = modtype_of_package env Location.none pack1 in
               let env' = Env.add_module (Ident.of_unscoped id1)
@@ -4869,7 +4872,7 @@ let rec eqtype rename type_pairs subst env t1 t2 =
               eqtype rename type_pairs subst env u1 u2
           | (Tarrow (l1, t1, u1, _), Tfunctor (l2, id2, pack2, u2)) ->
               eq_labels Equality ~in_pattern_mode:false l1 l2;
-              let t2 = newmono (newty (Tpackage pack2)) in
+              let t2 = newmono_package pack2 in
               eqtype rename type_pairs subst env t1 t2;
               let mty = modtype_of_package env Location.none pack2 in
               let env' = Env.add_module (Ident.of_unscoped id2)
@@ -5668,7 +5671,7 @@ let rec subtype_rec env trace t1 t2 constraints =
         end
     | (Tfunctor (l1, id1, pack1, u1), Tarrow (l2, fcm2, u2, _))
       when compatible_labels ~in_pattern_mode:false l1 l2 ->
-        let fcm1 = newmono (newty (Tpackage pack1)) in
+        let fcm1 = newmono_package pack1 in
         let constraints =
           (* [trace] : see [(Tarrow, Tarrow)] comment *)
           subtype_rec env trace fcm2 fcm1 constraints
@@ -5682,7 +5685,7 @@ let rec subtype_rec env trace t1 t2 constraints =
         end
     | (Tarrow (l1, fcm1, u1, _),  Tfunctor (l2, id2, pack2, u2))
       when compatible_labels ~in_pattern_mode:false l1 l2 ->
-        let fcm2 = newmono (newty (Tpackage pack2)) in
+        let fcm2 = newmono_package pack2 in
         let constraints =
           (* [trace] : see [(Tarrow, Tarrow)] comment *)
           subtype_rec env trace fcm2 fcm1 constraints
@@ -6178,7 +6181,7 @@ let instance_funct_nondep_inplace env l (tfun : Types.tfunctor) mty =
       undo_compress snap;
       let got = newty (Tfunctor (l, tfun.id_us, tfun.pack, tfun.ty)) in
       let expected =
-        newty (Tarrow (l, newmono (newty (Tpackage tfun.pack)),
+        newty (Tarrow (l, newmono_package tfun.pack,
                        newvar (), commu_ok))
       in
       let trace = Diff {got; expected} :: trace in
@@ -6195,9 +6198,7 @@ let unify_to_arrow env tfun =
   | Tfunctor (l, id_us, pack, ty) ->
     let mty = modtype_of_package env Location.none pack in
     instance_funct_nondep_inplace env l { id_us; pack; ty } mty;
-    let pck_ty =
-      newty2 ~level:(get_level tfun)
-        (Tpoly (newty2 ~level:(get_level tfun) (Tpackage pack), [])) in
+    let pck_ty = newmono_package ~level:(get_level tfun) pack in
     let tfun' =
       newty2 ~level:(get_level tfun) (Tarrow (l, pck_ty, ty, commu_ok))
     in
