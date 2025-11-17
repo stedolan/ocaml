@@ -1077,6 +1077,24 @@ Warning 26 [unused-var]: unused variable "x".
 val raise_principality_warning : int -> int = <fun>
 |}]
 
+let test_instance_nondep f =
+  let _ : (module M : Typ) -> M.t = f in
+  ignore (f (module struct type t = int end));
+  f
+
+[%%expect{|
+val test_instance_nondep :
+  ((module M : Typ) -> int) -> (module M : Typ) -> int = <fun>
+|}, Principal{|
+Line 3, characters 10-11:
+3 |   ignore (f (module struct type t = int end));
+              ^
+Warning 18 [not-principal]: applying a dependent function is not principal.
+
+val test_instance_nondep :
+  ((module M : Typ) -> int) -> (module M : Typ) -> int = <fun>
+|}]
+
 (* Test weak value restriction *)
 
 let f () (module M : Map) : 'a M.t = assert false
