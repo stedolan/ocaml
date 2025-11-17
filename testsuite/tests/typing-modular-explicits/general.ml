@@ -583,13 +583,17 @@ Error: Type "(module A : Typ) -> A.t list" is not a subtype of
        Type "A.t list" is not a subtype of "B.t"
 |}]
 
+class type ct = object end
+
 let test_build_subtype x =
-  let _ : (module T : Typ) -> 'a -> T.t = x in
-  (x :> (module T : Typ) -> int -> T.t)
+  let _ : (module T : Typ) -> 'a -> T.t -> < m : int > = x in
+  (x :> (module T : Typ) -> int -> T.t -> ct)
 
 [%%expect{|
+class type ct = object  end
 val test_build_subtype :
-  ((module T : Typ) -> int -> T.t) -> (module T : Typ) -> int -> T.t = <fun>
+  ((module T : Typ) -> int -> T.t -> < m : int >) ->
+  (module T : Typ) -> int -> T.t -> ct = <fun>
 |}]
 
 (* Test moregen *)
