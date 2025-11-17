@@ -4452,20 +4452,20 @@ let rec moregen type_pairs env t1 t2 =
           | Tarrow (l1, t1, u1, _), Tfunctor (l2, id2, pack2, u2) ->
                 eq_labels Moregen ~in_pattern_mode:false l1 l2;
                 let t2 = newmono (newty (Tpackage pack2)) in
+                moregen type_pairs env t1 t2;
                 let mty = modtype_of_package env Location.none pack2 in
                 let env' = Env.add_module (Ident.of_unscoped id2)
                                           Mp_present mty env in
                 identifier_escape_for Moregen env' [id2] u2;
-                moregen type_pairs env t1 t2;
                 moregen type_pairs env u1 u2
           | Tfunctor (l1, id1, pack1, u1), Tarrow (l2, t2, u2, _) ->
                 eq_labels Moregen ~in_pattern_mode:false l1 l2;
                 let t1 = newmono (newty (Tpackage pack1)) in
+                moregen type_pairs env t1 t2;
                 let mty = modtype_of_package env Location.none pack1 in
                 let env' = Env.add_module (Ident.of_unscoped id1)
                                           Mp_present mty env in
                 identifier_escape_for Moregen env' [id1] u1;
-                moregen type_pairs env t1 t2;
                 moregen type_pairs env u1 u2
           | (Ttuple tl1, Ttuple tl2) ->
               moregen_labeled_list type_pairs env tl1 tl2
