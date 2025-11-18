@@ -47,6 +47,7 @@ type error =
   | Not_an_object of type_expr
   | Repeated_tuple_label of string
   | Polymorphic_optional_param of string
+  | Functor_optional_param of string
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error
@@ -733,6 +734,11 @@ and transl_type_aux env ~row_context ~aliased ~policy styp =
   | Ptyp_extension ext ->
       raise (Error_forward (Builtin_attributes.error_of_extension ext))
   | Ptyp_functor (lbl, name, ptyp, st) ->
+    begin match lbl with
+      | Optional l ->
+        raise (Error (ptyp.ppt_loc, env, Functor_optional_param l));
+      | Nolabel | Labelled _ -> ()
+    end;
     let pack, mty, ptys =
       transl_package env ~policy ~row_context ComputeMType ptyp in
     let t = newvar () in
@@ -1076,6 +1082,10 @@ let report_error_doc loc env = function
         Style.inline_code l
   | Polymorphic_optional_param l ->
       Location.errorf ~loc "@[Optional parameter %a cannot be polymorphic@]"
+        Style.inline_code l
+  | Functor_optional_param l ->
+      Location.errorf ~loc
+        "@[Module-dependent parameter %a cannot be optional@]"
         Style.inline_code l
 
 let () =
