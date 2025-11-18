@@ -325,8 +325,6 @@ val unify_gadt:
 val unify_var: Env.t -> type_expr -> type_expr -> unit
         (* Same as [unify], but allow free univars when first type
            is a variable. *)
-val unify_to_arrow: Env.t -> type_expr -> type_expr * type_expr
-        (* Convert the type to an arrow (expect the input to be a Tfunctor _) *)
 
 type filtered_arrow =
   { ty_param : type_expr;

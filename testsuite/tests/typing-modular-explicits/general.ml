@@ -1262,3 +1262,11 @@ val linking_ident2 :
   ((module Z : Typ with type t = int) -> Z.t) ->
   (module A : Typ with type t = int) -> int = <fun>
 |}]
+
+let test_filter_arrow
+  : (module M : Typ with type t = int) -> M.t
+  = fun m -> 3
+
+[%%expect{|
+val test_filter_arrow : (module M : Typ with type t = int) -> M.t = <fun>
+|}]

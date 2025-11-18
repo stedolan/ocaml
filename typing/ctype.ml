@@ -3857,6 +3857,27 @@ let expand_head_trace env t =
   reset_trace_gadt_instances reset_tracing;
   t
 
+let instance_funct_nondep_inplace env l (tfun : Types.tfunctor) mty =
+  let env' = Env.add_module (Ident.of_unscoped tfun.id_us) Mp_present mty env in
+  let snap = Btype.snapshot () in
+  try
+      identifier_escape_for Unify env' [tfun.id_us] tfun.ty
+  with Unify_trace trace ->
+      undo_compress snap;
+      let got = newty (Tfunctor (l, tfun.id_us, tfun.pack, tfun.ty)) in
+      let expected =
+        newty (Tarrow (l, newmono_package tfun.pack,
+                       newvar (), commu_ok))
+      in
+      let trace = Diff {got; expected} :: trace in
+      raise (Unify (expand_to_unification_error env trace))
+
+let instance_funct_nondep env l (tfun : Types.tfunctor) mty =
+  let id_us' = Ident.Unscoped.refresh tfun.id_us in
+  let ty = subst_unscoped tfun.id_us id_us' tfun.ty in
+  instance_funct_nondep_inplace env l { tfun with id_us = id_us'; ty } mty;
+  ty
+
 (*
    Unify [t] and [l:'a -> 'b]. Return ['a] and ['b].
    In [-nolabels] mode, label mismatch is accepted when
@@ -3900,7 +3921,6 @@ let function_type l ~param_hole level =
   let t' = newty2 ~level (Tarrow (l, t1, t2, commu_ok)) in
   t', t1, t2
 
-
 let filter_arrow env t l ~param_hole =
   let t =
     try expand_head_trace env t
@@ -3923,6 +3943,19 @@ let filter_arrow env t l ~param_hole =
       else raise (Filter_arrow_failed
                     (Label_mismatch
                        { got = l; expected = l'; expected_type = t }))
+  | Tfunctor (l', id_us, pack, ty_ret) ->
+    if not (l = l' || !Clflags.classic && l = Nolabel && not (is_optional l'))
+    then raise (Filter_arrow_failed
+                    (Label_mismatch
+                       { got = l; expected = l'; expected_type = t }));
+    let mty = modtype_of_package env Location.none pack in
+    instance_funct_nondep_inplace env l { id_us; pack; ty = ty_ret } mty;
+    let ty_param = newmono_package ~level:(get_level t) pack in
+    let t' =
+      newty2 ~level:(get_level t) (Tarrow (l, ty_param, ty_ret, commu_ok))
+    in
+    link_type t t';
+    { ty_param; ty_ret }
   | _ ->
       raise (Filter_arrow_failed Not_a_function)
 
@@ -6170,42 +6203,6 @@ let normalize_type ty =
                               (*************************)
                               (*  Remove dependencies  *)
                               (*************************)
-
-
-let instance_funct_nondep_inplace env l (tfun : Types.tfunctor) mty =
-  let env' = Env.add_module (Ident.of_unscoped tfun.id_us) Mp_present mty env in
-  let snap = Btype.snapshot () in
-  try
-      identifier_escape_for Unify env' [tfun.id_us] tfun.ty
-  with Unify_trace trace ->
-      undo_compress snap;
-      let got = newty (Tfunctor (l, tfun.id_us, tfun.pack, tfun.ty)) in
-      let expected =
-        newty (Tarrow (l, newmono_package tfun.pack,
-                       newvar (), commu_ok))
-      in
-      let trace = Diff {got; expected} :: trace in
-      raise (Unify (expand_to_unification_error env trace))
-
-let instance_funct_nondep env l (tfun : Types.tfunctor) mty =
-  let id_us' = Ident.Unscoped.refresh tfun.id_us in
-  let ty = subst_unscoped tfun.id_us id_us' tfun.ty in
-  instance_funct_nondep_inplace env l { tfun with id_us = id_us'; ty } mty;
-  ty
-
-let unify_to_arrow env tfun =
-  match get_desc tfun with
-  | Tfunctor (l, id_us, pack, ty) ->
-    let mty = modtype_of_package env Location.none pack in
-    instance_funct_nondep_inplace env l { id_us; pack; ty } mty;
-    let pck_ty = newmono_package ~level:(get_level tfun) pack in
-    let tfun' =
-      newty2 ~level:(get_level tfun) (Tarrow (l, pck_ty, ty, commu_ok))
-    in
-    link_type tfun tfun';
-    (pck_ty, ty)
-  | Tarrow (_, t1, t2, _) -> (t1, t2)
-  | _ -> fatal_error "Ctype.unify_to_arrow"
 
 (*
    Variables are left unchanged. Other type nodes are duplicated, with

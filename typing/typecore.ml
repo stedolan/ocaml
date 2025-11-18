@@ -3131,8 +3131,9 @@ let collect_unknown_apply_args env funct ty_fun0 rev_args sargs =
                 in
                 (arg, ty_res)
               | None ->
-                match unify_to_arrow env ty_fun with
-                | (ty_arg, ty_res) -> Unknown_arg { sarg; ty_arg }, ty_res
+                match filter_arrow env ty_fun l ~param_hole:false with
+                | { ty_param = ty_arg; ty_ret } ->
+                  Unknown_arg { sarg; ty_arg }, ty_ret
                 | exception Unify trace ->
                   dependent_app_error_known_arg env trace ~rev_args ~funct
                     ~sarg pack pack
@@ -3240,10 +3241,11 @@ let collect_apply_args env funct ignore_labels ty_fun ty_fun0 sargs =
                                          ~optyp ~tfun ~tfun0 ~l
             | Some _ | None ->
               match
-                (unify_to_arrow env ty_fun',
-                unify_to_arrow env ty_fun0)
+                (filter_arrow env ty_fun' l ~param_hole:false,
+                 filter_arrow env ty_fun0 l ~param_hole:false)
               with
-              | (ty_arg, ty_ret), (ty_arg0, ty_ret0) ->
+              | {ty_param = ty_arg; ty_ret},
+                  {ty_param = ty_arg0; ty_ret = ty_ret0} ->
                 let arg = collect_arrow_arg ~may_warn ~funct ~optional ~sargs
                                             ~ty_arg ~ty_arg0 ~lv arg_opt in
                 (arg, ty_ret, ty_ret0)
