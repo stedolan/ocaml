@@ -558,6 +558,45 @@ val restrict_signature_with_priv_to_add_dep :
   <fun>
 |}]
 
+(* Test that variance is correctly used during subtyping *)
+module type InvTy = sig type 'a t end
+module type CovTy = sig type +'a t end
+type 'a t = (module M : CovTy) -> ((module N : InvTy) -> 'a M.t N.t) -> unit
+type 'a s = (module M : InvTy) -> ((module N : CovTy) -> 'a M.t N.t) -> unit
+[%%expect{|
+module type InvTy = sig type 'a t end
+module type CovTy = sig type +'a t end
+type 'a t = (module M : CovTy) -> ((module N : InvTy) -> 'a M.t N.t) -> unit
+type 'a s = (module M : InvTy) -> ((module N : CovTy) -> 'a M.t N.t) -> unit
+|}]
+
+(* When subtyping s to t, 'a M.t N.t is covariant in 'a because the relevant M,
+   N modules are both CovTy, so st has a more general type than ss or tt *)
+let ss x = (x : [>`A] s :> [`A] s)
+let tt x = (x : [>`A] t :> [`A] t)
+let st x = (x : [>`A] s :> [`A] t)
+[%%expect{|
+val ss : [ `A ] s -> [ `A ] s = <fun>
+val tt : [ `A ] t -> [ `A ] t = <fun>
+val st : [> `A ] s -> [ `A ] t = <fun>
+|}]
+
+(* Same as st above, but via eta-expansion instead of subtyping *)
+let st' (s : [>`A] s) : [`A] t =
+  fun (module M) f ->
+  s (module M)
+    (fun (module N) -> (f (module N) : [`A] M.t N.t :> [> `A] M.t N.t))
+[%%expect{|
+val st' : [> `A ] s -> [ `A ] t = <fun>
+|}, Principal{|
+Line 4, characters 24-25:
+4 |     (fun (module N) -> (f (module N) : [`A] M.t N.t :> [> `A] M.t N.t))
+                            ^
+Warning 18 [not-principal]: applying a dependent function is not principal.
+
+val st' : [> `A ] s -> [ `A ] t = <fun>
+|}]
+
 module PrivateFCM = struct
   type t = private (module Typ with type t = int)
 end
